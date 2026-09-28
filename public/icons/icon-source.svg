@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Emergency Response shield</title>
+  <rect width="512" height="512" rx="112" fill="#e11d48"/>
+  <circle cx="256" cy="256" r="184" fill="#be123c" opacity=".55"/>
+  <path d="M256 78 396 130v108c0 91-55 157-140 196-85-39-140-105-140-196V130Z" fill="#fff"/>
+  <rect x="230" y="166" width="52" height="180" rx="18" fill="#e11d48"/>
+  <rect x="166" y="230" width="180" height="52" rx="18" fill="#e11d48"/>
+</svg>

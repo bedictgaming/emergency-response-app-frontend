@@ -2,10 +2,12 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  role: string;
   avatar?: string;
 }
 
 export type EmergencyCategory = 'fire' | 'medical' | 'police' | 'hazard' | 'other';
+export type ResponseService = 'FIRE' | 'MEDICAL' | 'POLICE' | 'HAZARD';
 
 export interface EmergencyCategoryConfig {
   id: EmergencyCategory;
@@ -18,6 +20,7 @@ export interface EmergencyCategoryConfig {
 export interface EmergencyReport {
   id: string;
   category: EmergencyCategory;
+  requestedServices?: ResponseService[];
   description: string;
   reporterName: string;
   contactNumber: string;
@@ -27,4 +30,5 @@ export interface EmergencyReport {
   timestamp: string;
   status: 'pending' | 'in-progress' | 'resolved';
   userId: string;
+  photoUrl?: string;
 }
