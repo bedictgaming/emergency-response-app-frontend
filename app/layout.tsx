@@ -54,6 +54,17 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body>
+        {(process.env.NEXT_PUBLIC_PREVIEW_ONLY === "true" || process.env.NEXT_PUBLIC_VERCEL_ENV === "preview") && (
+          <div
+            role="status"
+            className="border-b border-border bg-warning px-4 py-3 text-center text-sm font-semibold text-warning-foreground"
+          >
+            {process.env.NEXT_PUBLIC_STAGING_TEST === "true"
+              ? "Restricted test site — reports submitted here are tests, not requests for emergency response. For a real emergency, "
+              : "Private preview only — emergency reporting is unavailable here. For urgent help, "}
+            <a className="underline underline-offset-2" href="tel:911">call 911</a>.
+          </div>
+        )}
         <NetworkStatusBanner />
         <ServiceWorkerRegistration />
         {children}

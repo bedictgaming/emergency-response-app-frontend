@@ -1,0 +1,18 @@
+# Vercel builds from source; local Next, test, and review output must not upload.
+.next*/
+out/
+node_modules/
+test-results/
+playwright-report/
+.impeccable/
+.runtime/
+.idea/
+.vscode/
+e2e/
+
+# Local credentials and recovery material never belong in a deployment upload.
+.env*
+*.pem
+*.key
+*.json.enc
+.database-backups/
