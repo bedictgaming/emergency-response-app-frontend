@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="100%" height="100%">
+  <defs>
+    <clipPath id="circle-clip">
+      <circle cx="160" cy="160" r="160" />
+    </clipPath>
+  </defs>
+
+  <!-- Red Circle -->
+  <circle cx="160" cy="160" r="160" fill="#e5292f" />
+
+  <!-- Shadow cast at 45 degrees, clipped inside the circle -->
+  <g clip-path="url(#circle-clip)">
+    <!-- Shadow polygon connecting the cross's bottom-right edges to beyond the circle edge -->
+    <path
+      d="M 191 129 
+         L 242 129 
+         L 360 247 
+         L 278 329 
+         L 191 242 
+         Z"
+      fill="#b82126"
+    />
+    <path
+      d="M 242 129 
+         L 242 191 
+         L 360 309 
+         L 360 247 
+         Z"
+      fill="#b82126"
+    />
+    <path
+      d="M 129 242 
+         L 191 242 
+         L 278 329 
+         L 216 329 
+         Z"
+      fill="#b82126"
+    />
+  </g>
+
+  <!-- White Cross -->
+  <path
+    d="M 129 78 
+       H 191 
+       V 129 
+       H 242 
+       V 191 
+       H 191 
+       V 242 
+       H 129 
+       V 191 
+       H 78 
+       V 129 
+       H 129 
+       Z"
+    fill="#ffffff"
+  />
+</svg>

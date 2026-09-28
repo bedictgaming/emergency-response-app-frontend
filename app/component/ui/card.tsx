@@ -1,45 +1,45 @@
 import React from 'react';
 
-export function Card(props: React.HTMLAttributes<HTMLDivElement>) {
+export function Card({ className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className="bg-white rounded-lg border border-gray-200 shadow-sm"
+      className={`rounded-xl border border-border bg-card text-card-foreground ${className}`}
       {...props}
     />
   );
 }
 
-export function CardHeader(props: React.HTMLAttributes<HTMLDivElement>) {
+export function CardHeader({ className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className="px-6 py-4 border-b border-gray-200"
+      className={`border-b border-border px-6 py-4 ${className}`}
       {...props}
     />
   );
 }
 
-export function CardTitle(props: React.HTMLAttributes<HTMLHeadingElement>) {
+export function CardTitle({ className = '', ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h2
-      className="text-lg font-semibold text-gray-900"
+      className={`text-lg font-semibold text-card-foreground ${className}`}
       {...props}
     />
   );
 }
 
-export function CardDescription(props: React.HTMLAttributes<HTMLParagraphElement>) {
+export function CardDescription({ className = '', ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
     <p
-      className="text-sm text-gray-600 mt-1"
+      className={`mt-1 text-sm text-muted-foreground ${className}`}
       {...props}
     />
   );
 }
 
-export function CardContent(props: React.HTMLAttributes<HTMLDivElement>) {
+export function CardContent({ className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className="px-6 py-4"
+      className={`px-6 py-4 ${className}`}
       {...props}
     />
   );

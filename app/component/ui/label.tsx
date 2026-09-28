@@ -1,9 +1,9 @@
 import React from 'react';
 
-export function Label(props: React.LabelHTMLAttributes<HTMLLabelElement>) {
+export function Label({ className = '', ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) {
   return (
     <label
-      className="text-sm font-medium text-gray-700"
+      className={`text-sm font-semibold text-foreground ${className}`}
       {...props}
     />
   );

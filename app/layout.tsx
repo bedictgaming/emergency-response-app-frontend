@@ -1,17 +1,46 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import ServiceWorkerRegistration from "./component/ServiceWorkerRegistration";
+import PwaInstallPrompt from "./component/PwaInstallPrompt";
+import NetworkStatusBanner from "./component/NetworkStatusBanner";
+import ThemeToggle from "./component/ThemeToggle";
+
+const themeBootScript = `
+  (() => {
+    try {
+      const isAdmin = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
+      const saved = localStorage.getItem('emergency-response-theme');
+      const theme = isAdmin ? 'light' : saved === 'light' || saved === 'dark'
+        ? saved
+        : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      document.documentElement.style.colorScheme = theme;
+    } catch {}
+  })();
+`;
 
 export const metadata: Metadata = {
   title: "Emergency Response App",
-  description: "Emergency Response Application",
+  description: "Community-based emergency reporting and response coordination for Cordova, Cebu.",
+  applicationName: "Emergency Response App",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Emergency Response" },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  userScalable: true,
   viewportFit: 'cover',
+  themeColor: '#db0000',
 };
 
 export default function RootLayout({
@@ -20,9 +49,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
       <body>
+        <NetworkStatusBanner />
+        <ServiceWorkerRegistration />
         {children}
+        <PwaInstallPrompt />
+        <ThemeToggle />
       </body>
     </html>
   );
