@@ -50,7 +50,9 @@ function clearSession() {
 }
 
 function redirectAfterSessionExpiry() {
-  if (window.location.pathname !== '/') window.location.replace('/');
+  // Keep the sign-in page in place so an OAuth callback failure can explain
+  // why the new session could not be verified instead of hiding the error.
+  if (!['/', '/login'].includes(window.location.pathname)) window.location.replace('/');
 }
 
 function refreshSession(failedGeneration?: string | null): Promise<void> {

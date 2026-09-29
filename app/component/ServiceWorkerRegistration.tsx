@@ -6,9 +6,11 @@ export default function ServiceWorkerRegistration() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_PRODUCTION_VALIDATION === 'true') {
       // A service worker installed by a local production preview otherwise
       // keeps controlling `next dev` and can serve stale hashed CSS/JS.
+      // Protected Vercel validation also disables PWA installability because
+      // Vercel Authentication redirects the manifest to a cross-origin SSO URL.
       void (async () => {
         const registrations = await navigator.serviceWorker.getRegistrations();
         await Promise.all(registrations.map(registration => registration.unregister()));

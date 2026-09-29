@@ -351,6 +351,16 @@ test('the shared Google callback routes an administrator by RBAC assignment', as
   expect(page.url()).not.toContain('token=');
 });
 
+test('a Google callback without a usable cookie stays on sign-in and explains the failure', async ({ page }) => {
+  await page.route('**/api/auth/v1/me', route => route.fulfill({ status: 401, json: { code: 401, status: 'error', message: 'Authentication required' } }));
+  await page.route('**/api/auth/v1/refresh-token', route => route.fulfill({ status: 401, json: { code: 401, status: 'error', message: 'Authentication required' } }));
+
+  await page.goto('/login?oauth=success');
+
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByText('Google login session could not be verified. Please try again.')).toBeVisible();
+});
+
 test('administrator logout ends the one shared session', async ({ page }) => {
   await page.addInitScript(() => {
     if (!location.pathname.startsWith('/admin')) return;

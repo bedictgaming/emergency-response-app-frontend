@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   title: "Emergency Response App",
   description: "Community-based emergency reporting and response coordination for Cordova, Cebu.",
   applicationName: "Emergency Response App",
-  manifest: "/manifest.webmanifest",
+  manifest: process.env.NEXT_PUBLIC_PRODUCTION_VALIDATION === "true" ? undefined : "/manifest.webmanifest",
   icons: {
     icon: [
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -70,7 +70,7 @@ export default function RootLayout({
         <NetworkStatusBanner />
         <ServiceWorkerRegistration />
         {children}
-        <PwaInstallPrompt />
+        {process.env.NEXT_PUBLIC_PRODUCTION_VALIDATION !== "true" && <PwaInstallPrompt />}
         <ThemeToggle />
       </body>
     </html>
