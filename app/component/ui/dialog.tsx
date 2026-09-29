@@ -46,8 +46,12 @@ export function DialogContent({
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   if (!context) throw new Error('DialogContent must be used within Dialog');
   const { open, onOpenChange, titleId, descriptionId } = context;
+  const onOpenChangeRef = useRef(onOpenChange);
 
   useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange;
+  }, [onOpenChange]);
 
   useEffect(() => {
     if (!open) return;
@@ -56,11 +60,6 @@ export function DialogContent({
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = 0;
     }
-    const timer = setTimeout(() => {
-      if (scrollAreaRef.current) {
-        scrollAreaRef.current.scrollTop = 0;
-      }
-    }, 50);
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -68,7 +67,7 @@ export function DialogContent({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onOpenChange(false);
+        onOpenChangeRef.current(false);
       }
 
       if (event.key === 'Tab' && contentRef.current) {
@@ -97,18 +96,18 @@ export function DialogContent({
     };
     window.addEventListener('keydown', closeOnEscape);
 
-    requestAnimationFrame(() => {
+    const focusFrame = requestAnimationFrame(() => {
       const initialFocus = contentRef.current?.querySelector<HTMLElement>('[data-autofocus], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [href]');
-      (initialFocus ?? contentRef.current)?.focus();
+      (initialFocus ?? contentRef.current)?.focus({ preventScroll: true });
     });
 
     return () => {
-      clearTimeout(timer);
+      cancelAnimationFrame(focusFrame);
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', closeOnEscape);
       previouslyFocusedRef.current?.focus();
     };
-  }, [open, onOpenChange]);
+  }, [open]);
 
   if (!mounted || !open) return null;
 
