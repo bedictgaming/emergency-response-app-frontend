@@ -8,6 +8,10 @@ try {
     if (url.origin !== 'https://cordova-emergency-response.vercel.app') failures.push('Protected production validation must use the first-party Cordova API proxy.');
     if (process.env.NEXT_PUBLIC_PREVIEW_ONLY !== 'true') failures.push('Protected production validation must retain the preview-only warning.');
   }
+  if (process.env.NEXT_PUBLIC_PUBLIC_LAUNCH === 'true') {
+    if (url.origin !== 'https://cordova-emergency-response.vercel.app') failures.push('Public launch must use the first-party Cordova API proxy.');
+    if (process.env.NEXT_PUBLIC_PREVIEW_ONLY === 'true' || process.env.NEXT_PUBLIC_PRODUCTION_VALIDATION === 'true' || process.env.NEXT_PUBLIC_STAGING_TEST === 'true') failures.push('Public launch cannot use preview, validation, or staging build flags.');
+  }
 } catch { failures.push('NEXT_PUBLIC_API_URL is missing or invalid.'); }
 if (failures.length) {
   console.error('Release blocked:\n' + failures.map(reason => `- ${reason}`).join('\n'));
