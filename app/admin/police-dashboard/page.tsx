@@ -21,6 +21,7 @@ import { useEmergencyEvents } from "@/app/hooks/useEmergencyEvents";
 import IncidentPager from "@/app/component/admin/IncidentPager";
 import { CompactEvidencePhoto } from "@/app/component/SecureEvidencePhoto";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
+import IncidentReviewActions from "@/app/component/admin/IncidentReviewActions";
 
 export default function PoliceAdminDashboard() {
     const isAuthorized = useAdminGuard("POLICE");
@@ -63,6 +64,7 @@ export default function PoliceAdminDashboard() {
             const result = await getIncidentPage({
                 department: "POLICE",
                 includeAttachments: true,
+                includeReviewFlags: true,
                 limit: DEPARTMENT_INCIDENT_PAGE_SIZE,
                 page,
                 responseService: "POLICE",
@@ -339,6 +341,7 @@ export default function PoliceAdminDashboard() {
                             )}
 
                             {/* Action Buttons */}
+                            <IncidentReviewActions incident={item.raw} onChanged={loadIncidents} />
                             <div className="flex gap-3 pt-2">
                                 {item.status === 'active' && (
                                     <>

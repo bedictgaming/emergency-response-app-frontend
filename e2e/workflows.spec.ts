@@ -731,6 +731,7 @@ test('one citizen submission becomes visible to main admin without a list-reques
       created = true;
       return route.fulfill({ status: 201, json: { data: { incident } } });
     }
+    if (new URL(request.url()).pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
     if (!new URL(request.url()).searchParams.has('reportedBy')) adminListRequests += 1;
     return route.fulfill({ json: { data: { incidents: created ? [incident] : [] } } });
   });

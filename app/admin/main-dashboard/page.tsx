@@ -22,6 +22,8 @@ import { useEmergencyEvents } from "@/app/hooks/useEmergencyEvents";
 import IncidentPager from "@/app/component/admin/IncidentPager";
 import { CompactEvidencePhoto } from "@/app/component/SecureEvidencePhoto";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
+import IncidentReviewActions from "@/app/component/admin/IncidentReviewActions";
+import IncidentReviewQueue from "@/app/component/admin/IncidentReviewQueue";
 
 export default function MainDashboard() {
     const isAuthorized = useAdminGuard("MAIN");
@@ -33,6 +35,7 @@ export default function MainDashboard() {
     const [statusError, setStatusError] = useState<string | null>(null);
     const [copiedPhoneId, setCopiedPhoneId] = useState<string | null>(null);
     const [page, setPage] = useState(1);
+    const [reviewRevision, setReviewRevision] = useState(0);
     const [pagination, setPagination] = useState({ pages: 0, total: 0 });
     const [summary, setSummary] = useState<IncidentSummary>({ total: 0, active: 0, responding: 0, resolved: 0 });
     const incidentRequestInFlight = useRef(false);
@@ -66,6 +69,7 @@ export default function MainDashboard() {
             const result = await getIncidentPage({
                 includeAttachments: true,
                 includeServiceSummary: true,
+                includeReviewFlags: true,
                 limit: ADMIN_INCIDENT_PAGE_SIZE,
                 page,
                 statuses: incidentStatusesForTab(activeTab),
@@ -83,6 +87,7 @@ export default function MainDashboard() {
         } catch (err) {
             if (adminAccountSnapshot() === accountAtStart) console.warn("Failed to load incidents:", err);
         } finally {
+            if (adminAccountSnapshot() === accountAtStart) setReviewRevision(value => value + 1);
             setIsLoading(false);
             setIsRefreshing(false);
             incidentRequestInFlight.current = false;
@@ -237,6 +242,7 @@ export default function MainDashboard() {
                 </div>
 
                 {/* Report Section */}
+                <IncidentReviewQueue revision={reviewRevision} onChanged={loadIncidents} />
                 <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-2.5">
                         <h2 className="text-xl font-bold">All Emergency Report</h2>
@@ -387,6 +393,7 @@ export default function MainDashboard() {
                             )}
 
                             {/* Action Buttons */}
+                            <IncidentReviewActions incident={item.raw} mainAdmin onChanged={loadIncidents} />
                             <div className="flex gap-3 pt-2">
                                 {/* Responding incidents can be completed directly. */}
                                 {item.status === 'responding' && (

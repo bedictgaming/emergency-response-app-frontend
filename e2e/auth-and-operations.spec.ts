@@ -162,6 +162,7 @@ test('main admin paginates 14 All and Resolved reports across three pages', asyn
 
   await page.route('**/api/incidents/v1/**', route => {
     const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
     requestedUrls.push(url);
     const currentPage = Number(url.searchParams.get('page') ?? '1');
     const firstReport = (currentPage - 1) * 5 + 1;
@@ -260,7 +261,9 @@ test('main lifecycle total and verified monthly history explain their different 
   await page.route('**/api/events/v1/stream', route => route.fulfill({
     status: 200, contentType: 'text/event-stream', body: 'event: connected\ndata: {"ok":true}\n\n',
   }));
-  await page.route('**/api/incidents/v1/**', route => route.fulfill({ json: { data: {
+  await page.route('**/api/incidents/v1/**', route => new URL(route.request().url()).pathname.endsWith('/review-flags')
+    ? route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } })
+    : route.fulfill({ json: { data: {
     incidents: [], pagination: { page: 1, limit: 5, total: 0, pages: 0 },
     summary: { total: 15, active: 0, responding: 0, resolved: 15,
       services: { fire: 6, medical: 4, police: 2, hazard: 3 } },
@@ -869,6 +872,7 @@ test('admin data polling stops when its session is removed', async ({ page }) =>
   }));
   await page.route('**/api/incidents/v1/**', route => {
     incidentRequests += 1;
+    if (new URL(route.request().url()).pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
     return route.fulfill({ json: { data: { incidents: [] } } });
   });
   await page.route('**/api/events/v1/stream', route => route.fulfill({
@@ -880,6 +884,8 @@ test('admin data polling stops when its session is removed', async ({ page }) =>
   await page.goto('/admin/main-dashboard');
   await expect(page.getByText('Main Admin Dashboard', { exact: true })).toBeVisible();
   await expect.poll(() => incidentRequests).toBeGreaterThan(0);
+  // Wait for the new queue's initial read before measuring requests after logout.
+  await expect(page.getByText('No pending or confirmed review flags.')).toBeVisible();
   const requestsBeforeLogout = incidentRequests;
 
   await page.evaluate(() => {

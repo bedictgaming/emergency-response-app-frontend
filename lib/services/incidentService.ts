@@ -6,6 +6,16 @@ export type SeverityLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
 export type ResponseService = 'FIRE' | 'MEDICAL' | 'POLICE' | 'HAZARD';
 export type ServiceResponseStatus = 'RESPONDING' | 'RESOLVED';
+export interface IncidentReviewFlag {
+  reviewFlagId: string;
+  incidentId: string;
+  department: 'MAIN' | 'FIRE' | 'MEDICAL' | 'POLICE' | 'DRRMO';
+  reason: string;
+  status: 'PENDING' | 'CONFIRMED' | 'DISMISSED';
+  reviewNotes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface IncidentAttachment {
   attachmentId: string;
@@ -71,6 +81,7 @@ export interface Incident {
   attachments?: IncidentAttachment[];
   incidentUnits?: IncidentUnit[];
   serviceResponses?: Array<{ service: ResponseService; status: ServiceResponseStatus; resolvedAt?: string }>;
+  reviewFlags?: IncidentReviewFlag[];
 }
 
 export interface CreateIncidentPayload {
@@ -132,6 +143,7 @@ export interface IncidentFilters {
   includeServiceSummary?: boolean;
   includeAttachments?: boolean;
   includeUnits?: boolean;
+  includeReviewFlags?: boolean;
 }
 
 interface IncidentsResponse {
@@ -215,6 +227,7 @@ export const getIncidentPage = (filters?: IncidentFilters): Promise<IncidentPage
   if (filters?.includeServiceSummary) params.includeServiceSummary = 'true';
   if (filters?.includeAttachments) params.includeAttachments = 'true';
   if (filters?.includeUnits) params.includeUnits = 'true';
+  if (filters?.includeReviewFlags) params.includeReviewFlags = 'true';
 
   const identity = typeof window !== 'undefined' ? localStorage.getItem('user') ?? '' : '';
   const generation = typeof window !== 'undefined' ? localStorage.getItem('emergency-session-generation') ?? '' : '';
@@ -331,10 +344,29 @@ export const verifyIncident = async (
 
 /**
  * DELETE /api/incidents/v1/:id
- * Deletes an incident (ADMIN only).
+ * Permanently deletes a closed incident (main administrator only).
  */
-export const deleteIncident = async (id: string): Promise<void> => {
-  await apiClient.delete(`/incidents/v1/${id}`);
+export const deleteIncident = async (id: string, reason: string, confirmation: string): Promise<void> => {
+  await apiClient.delete(`/incidents/v1/${id}`, { data: { reason, confirmation } });
+};
+
+export const flagIncident = async (id: string, reason: string): Promise<IncidentReviewFlag> => {
+  const response = await apiClient.post<{ data: { flag: IncidentReviewFlag } }>(`/incidents/v1/${id}/review-flags`, { reason });
+  return response.data.data.flag;
+};
+
+export const reviewIncidentFlag = async (flag: IncidentReviewFlag, status: 'CONFIRMED' | 'DISMISSED', reviewNotes: string): Promise<void> => {
+  await apiClient.patch(`/incidents/v1/${flag.incidentId}/review-flags/${flag.reviewFlagId}`, { status, reviewNotes, expectedUpdatedAt: flag.updatedAt });
+};
+
+export const getIncidentReviewQueue = async (page = 1): Promise<{
+  flags: Array<IncidentReviewFlag & { incident: Pick<Incident, 'incidentId' | 'title' | 'status'> }>;
+  pagination: { page: number; limit: number; total: number; pages: number };
+}> => {
+  const response = await apiClient.get('/incidents/v1/review-flags', { params: { page } });
+  const data = response.data?.data;
+  if (!Array.isArray(data?.flags) || !data.pagination || typeof data.pagination.total !== 'number') throw new Error('Invalid report review queue response');
+  return data;
 };
 
 export const updateIncidentServiceResponse = async (id: string, service: ResponseService, status: ServiceResponseStatus): Promise<void> => {

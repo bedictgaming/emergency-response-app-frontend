@@ -21,6 +21,7 @@ import { useEmergencyEvents } from "@/app/hooks/useEmergencyEvents";
 import IncidentPager from "@/app/component/admin/IncidentPager";
 import { CompactEvidencePhoto } from "@/app/component/SecureEvidencePhoto";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
+import IncidentReviewActions from "@/app/component/admin/IncidentReviewActions";
 
 export default function MedicalAdminDashboard() {
     const isAuthorized = useAdminGuard("MEDICAL");
@@ -62,6 +63,7 @@ export default function MedicalAdminDashboard() {
             const result = await getIncidentPage({
                 department: "MEDICAL",
                 includeAttachments: true,
+                includeReviewFlags: true,
                 limit: DEPARTMENT_INCIDENT_PAGE_SIZE,
                 page,
                 responseService: "MEDICAL",
@@ -328,6 +330,7 @@ export default function MedicalAdminDashboard() {
                             )}
 
                             {/* Action Buttons */}
+                            <IncidentReviewActions incident={item.raw} onChanged={loadIncidents} />
                             <div className="flex gap-3 pt-2">
                                 {item.status === 'active' && (
                                     <>
