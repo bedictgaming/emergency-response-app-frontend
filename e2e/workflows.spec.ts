@@ -607,6 +607,51 @@ test('protected evidence is resolved through an authorized short-lived URL', asy
   expect(accessRequests).toBe(1);
 });
 
+test('missing stored evidence shows an honest retry state instead of a broken photo link', async ({ page }) => {
+  await session(page, 'ADMIN');
+  const pixel = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGNkAAAAASUVORK5CYII=';
+  const incident = {
+    incidentId: 'incident-with-missing-evidence',
+    title: 'Incident with missing evidence',
+    description: 'Evidence unavailable test',
+    typeId: 'fire-type',
+    locationId: 'location',
+    severityLevel: 'HIGH',
+    status: 'RESOLVED',
+    verificationStatus: 'VERIFIED',
+    requestedServices: ['FIRE'],
+    reportedBy: 'citizen',
+    reportedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    type: { typeId: 'fire-type', typeName: 'Fire' },
+    location: { locationId: 'location', locationName: 'Poblacion' },
+    attachments: [{
+      attachmentId: 'missing-photo',
+      fileName: 'evidence.png',
+      fileType: 'image/png',
+      fileUrl: 'http://localhost:8000/api/attachments/v1/missing-photo/content',
+      uploadedAt: new Date().toISOString(),
+    }],
+  };
+  let accessRequests = 0;
+
+  await page.route('**/api/incidents/v1/**', route => route.fulfill({ json: { data: { incidents: [incident] } } }));
+  await page.route('**/api/attachments/v1/missing-photo/access-url', route => {
+    accessRequests += 1;
+    return route.fulfill({ json: { data: { url: accessRequests === 1 ? 'https://res.cloudinary.com/test/image/authenticated/missing.png' : pixel, expiresInSeconds: 60 } } });
+  });
+  await page.route('https://res.cloudinary.com/test/image/authenticated/missing.png', route => route.fulfill({ status: 404, body: 'Resource not found' }));
+
+  await page.goto('/admin/main-dashboard');
+  await expect(page.getByText('Photo image unavailable')).toBeVisible();
+  await expect(page.getByText('The image could not be loaded. Report details remain available.')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'View photo →' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Retry photo' }).click();
+  await expect(page.getByRole('link', { name: 'View photo →' })).toBeVisible();
+  expect(accessRequests).toBe(2);
+});
+
 test('citizen dashboard allows a second report and disables a third until the next Manila day', async ({ page }) => {
   await session(page, 'USER');
   const makeIncident = (id: string, title: string) => ({
