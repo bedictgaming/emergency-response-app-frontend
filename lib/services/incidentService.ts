@@ -258,6 +258,7 @@ export const getIncidents = async (filters?: IncidentFilters): Promise<Incident[
 export type IncidentDashboardTab = 'All' | 'Active' | 'Responding' | 'Resolved';
 
 export const ADMIN_INCIDENT_PAGE_SIZE = 5;
+export const DEPARTMENT_INCIDENT_PAGE_SIZE = 20;
 
 export const incidentStatusesForTab = (tab: IncidentDashboardTab): IncidentStatus[] | undefined => {
   switch (tab) {

@@ -331,11 +331,11 @@ export default function BarangayHistoryPage() {
             </div>
           </div>
 
-          {/* Card 3: Resolved This Month */}
+          {/* Card 3: Verified reports submitted this month and now resolved or closed. */}
           <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 p-5 rounded-2xl border border-emerald-200 shadow-2xs flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between text-emerald-800 text-xs font-bold uppercase tracking-wider mb-2">
-                <span>3. Resolved This Month</span>
+                <span>3. Verified Reports Resolved</span>
                 <span className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
                   <CheckCircle2 size={16} />
                 </span>
@@ -344,7 +344,7 @@ export default function BarangayHistoryPage() {
                 {analytics?.resolvedSummary?.resolvedThisMonth ?? 0}
               </div>
               <p className="text-xs text-emerald-800/80 mt-1 font-medium">
-                Out of {analytics?.resolvedSummary?.totalReportedThisMonth ?? 0} incidents reported in calendar month {analytics?.resolvedSummary?.month}/{analytics?.resolvedSummary?.year}.
+                Out of {analytics?.resolvedSummary?.totalReportedThisMonth ?? 0} verified reports submitted in {analytics?.resolvedSummary?.month}/{analytics?.resolvedSummary?.year}. Rejected reports are excluded.
               </p>
             </div>
 

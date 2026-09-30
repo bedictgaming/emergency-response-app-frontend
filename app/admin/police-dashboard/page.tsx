@@ -13,7 +13,7 @@ import {
     DashboardIncident,
     IncidentDashboardTab,
     IncidentSummary,
-    ADMIN_INCIDENT_PAGE_SIZE,
+    DEPARTMENT_INCIDENT_PAGE_SIZE,
     incidentServiceStatusesForTab,
 } from "@/lib/services/incidentService";
 import { useAdminGuard } from "@/app/hooks/useAdminGuard";
@@ -63,7 +63,7 @@ export default function PoliceAdminDashboard() {
             const result = await getIncidentPage({
                 department: "POLICE",
                 includeAttachments: true,
-                limit: ADMIN_INCIDENT_PAGE_SIZE,
+                limit: DEPARTMENT_INCIDENT_PAGE_SIZE,
                 page,
                 responseService: "POLICE",
                 serviceStatuses: incidentServiceStatusesForTab(activeTab),
@@ -242,14 +242,6 @@ export default function PoliceAdminDashboard() {
                     ))}
                 </div>
 
-                <IncidentPager
-                    page={page}
-                    pages={pagination.pages}
-                    total={pagination.total}
-                    pageSize={ADMIN_INCIDENT_PAGE_SIZE}
-                    onPageChange={setPage}
-                />
-
                 {/* List */}
                 <div className="space-y-4">
                     {currentTabIncidents.map((item) => (
@@ -393,7 +385,7 @@ export default function PoliceAdminDashboard() {
                         </div>
                     )}
                 </div>
-                <IncidentPager page={page} pages={pagination.pages} total={pagination.total} pageSize={ADMIN_INCIDENT_PAGE_SIZE} onPageChange={setPage} hideWhenSinglePage />
+                <IncidentPager page={page} pages={pagination.pages} total={pagination.total} pageSize={DEPARTMENT_INCIDENT_PAGE_SIZE} onPageChange={setPage} hideWhenSinglePage />
             </main>
         </div>
     );

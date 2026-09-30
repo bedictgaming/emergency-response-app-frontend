@@ -185,7 +185,7 @@ export default function AnalyticsDashboard() {
                 </div>
                 <div className="text-3xl font-black text-emerald-600">{summary?.resolvedThisMonth ?? 0}</div>
                 <div className="text-xs font-medium text-gray-500 mt-1">
-                  Resolved This Month
+                  Verified reports resolved · submitted this month
                 </div>
               </div>
 

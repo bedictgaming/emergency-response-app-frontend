@@ -205,6 +205,81 @@ test('main admin paginates 14 All and Resolved reports across three pages', asyn
   )).toBe(true);
 });
 
+for (const department of ['FIRE', 'MEDICAL', 'POLICE', 'DRRMO'] as const) {
+  test(`${department} admin sees six reports without numbered pagination`, async ({ page }) => {
+    await page.addInitScript((currentDepartment) => {
+      localStorage.setItem('user', JSON.stringify({
+        id: 'department-admin', role: 'ADMIN', department: currentDepartment, isMainAdmin: false,
+      }));
+    }, department);
+    await page.route('**/api/auth/v1/me', route => route.fulfill({ json: { data: { user: {
+      id: 'department-admin', role: 'ADMIN', department, isMainAdmin: false,
+    } } } }));
+    await page.route('**/api/events/v1/stream', route => route.fulfill({
+      status: 200, contentType: 'text/event-stream', body: 'event: connected\ndata: {"ok":true}\n\n',
+    }));
+    const service = department === 'DRRMO' ? 'HAZARD' : department;
+    const typeName = department === 'DRRMO' ? 'Hazard' : department[0] + department.slice(1).toLowerCase();
+    const requestedLimits: string[] = [];
+    await page.route('**/api/incidents/v1/**', route => {
+      const url = new URL(route.request().url());
+      requestedLimits.push(url.searchParams.get('limit') ?? '');
+      return route.fulfill({ json: { data: {
+        incidents: Array.from({ length: 6 }, (_, index) => ({
+          incidentId: `incident-${index}`, title: `${typeName} report ${index + 1}`,
+          description: 'Test report', status: 'RESPONDING', verificationStatus: 'VERIFIED',
+          reportedBy: 'citizen', reportedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+          type: { typeId: 'type', typeName }, location: { locationId: 'loc', locationName: 'Poblacion' },
+          reporter: { id: 'citizen', name: 'Citizen' }, attachments: [],
+          serviceResponses: [{ service, status: 'RESPONDING' }],
+        })),
+        pagination: { page: 1, limit: 20, total: 6, pages: 1 },
+        summary: { total: 6, active: 0, responding: 6, resolved: 0, services: {
+          fire: department === 'FIRE' ? 6 : 0,
+          medical: department === 'MEDICAL' ? 6 : 0,
+          police: department === 'POLICE' ? 6 : 0,
+          hazard: department === 'DRRMO' ? 6 : 0,
+        } },
+      } } });
+    });
+
+    await page.goto(`/admin/${department.toLowerCase()}-dashboard`);
+    await expect(page.getByText(`${typeName} report 6`)).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Incident reports pagination' })).toHaveCount(0);
+    expect(requestedLimits).toContain('20');
+  });
+}
+
+test('main lifecycle total and verified monthly history explain their different scopes', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('user', JSON.stringify({ id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true }));
+  });
+  await page.route('**/api/auth/v1/me', route => route.fulfill({ json: { data: { user: {
+    id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true,
+  } } } }));
+  await page.route('**/api/events/v1/stream', route => route.fulfill({
+    status: 200, contentType: 'text/event-stream', body: 'event: connected\ndata: {"ok":true}\n\n',
+  }));
+  await page.route('**/api/incidents/v1/**', route => route.fulfill({ json: { data: {
+    incidents: [], pagination: { page: 1, limit: 5, total: 0, pages: 0 },
+    summary: { total: 15, active: 0, responding: 0, resolved: 15,
+      services: { fire: 6, medical: 4, police: 2, hazard: 3 } },
+  } } }));
+  await page.route('**/api/analytics/v1/dashboard', route => route.fulfill({ json: { data: {
+    incidentsByBarangay: { rankings: [], totalIncidents: 14, topArea: null },
+    incidentsByType: { distribution: [], totalIncidents: 14, topType: null },
+    resolvedSummary: { resolvedThisMonth: 14, totalReportedThisMonth: 14,
+      resolutionRate: 100, totalResolvedAllTime: 14, totalHistorical: 14,
+      month: 9, year: 2026 },
+  } } }));
+
+  await page.goto('/admin/main-dashboard');
+  await expect(page.getByText('Resolved / closed records')).toBeVisible();
+  await page.getByRole('button', { name: 'Barangay History Log' }).click();
+  await expect(page.getByText('Verified Reports Resolved')).toBeVisible();
+  await expect(page.getByText('Reported this month · 100% of verified reports')).toBeVisible();
+});
+
 test('admin refreshes after a report arrives during an in-flight list request', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('user', JSON.stringify({ id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true }));

@@ -196,7 +196,7 @@ export default function MainDashboard() {
                     </div>
 
                     <div className="bg-[#dcfce7] p-5 rounded-xl shadow-sm border border-green-100 flex flex-col justify-between h-32">
-                        <div className="text-green-500 text-sm font-medium">Resolved</div>
+                        <div className="text-green-500 text-sm font-medium">Resolved / closed records</div>
                         <div className="flex justify-between items-end">
                             <div className="text-4xl font-bold text-green-500">{resolvedCount}</div>
                             <ShieldCheck className="text-green-500" size={28} />
