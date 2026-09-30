@@ -16,6 +16,17 @@ function accessUrlFor(sourceUrl: string) {
   return sourceUrl.replace(/\/content(?:\?.*)?$/, '/access-url');
 }
 
+function isProtectedEvidenceUrl(sourceUrl: string) {
+  return /\/api\/attachments\/v1\/[^/]+\/content(?:\?|$)/.test(sourceUrl);
+}
+
+// A signed storage URL expires after 60 seconds. Opening the protected API
+// endpoint performs authorization again and issues a fresh redirect on every
+// click, even when the already-rendered thumbnail has been visible for hours.
+function evidenceOpenUrl(sourceUrl: string, resolvedUrl: string) {
+  return isProtectedEvidenceUrl(sourceUrl) ? sourceUrl : resolvedUrl;
+}
+
 // Share only in-flight authorization checks. Never cache a signed URL across
 // sessions: access can be revoked and the URL expires shortly after issuance.
 const pendingEvidenceAccess = new Map<string, Promise<string>>();
@@ -48,8 +59,7 @@ function useAuthorizedEvidenceUrl(sourceUrl: string, enabled = true) {
     setError(false);
     if (!enabled) return () => { active = false; };
 
-    const isProtectedApiUrl = /\/api\/attachments\/v1\/[^/]+\/content(?:\?|$)/.test(sourceUrl);
-    if (!isProtectedApiUrl) {
+    if (!isProtectedEvidenceUrl(sourceUrl)) {
       setResolvedUrl(sourceUrl);
       return () => { active = false; };
     }
@@ -98,7 +108,7 @@ export function CompactEvidencePhoto({ sourceUrl, alt }: { sourceUrl: string; al
     <div ref={container} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
       {resolvedUrl ? (
         <a
-          href={resolvedUrl}
+          href={evidenceOpenUrl(sourceUrl, resolvedUrl)}
           target="_blank"
           rel="noopener noreferrer"
           className="relative group block h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-300 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
@@ -119,7 +129,7 @@ export function CompactEvidencePhoto({ sourceUrl, alt }: { sourceUrl: string; al
           Photo attached
         </span>
         {resolvedUrl ? (
-          <a href={resolvedUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm font-medium text-slate-800 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-slate-200">
+          <a href={evidenceOpenUrl(sourceUrl, resolvedUrl)} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm font-medium text-slate-800 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-slate-200">
             View photo &rarr;
           </a>
         ) : error ? (
@@ -189,12 +199,12 @@ export function EvidencePhotoCard({ sourceUrl, title, location, timestamp }: Evi
                 <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3 text-rose-400" />{location} • {timestamp}</p>
               </div>
               <div className="flex items-center gap-2">
-                <a href={resolvedUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold">Open Full ↗</a>
+                <a href={evidenceOpenUrl(sourceUrl, resolvedUrl)} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold">Open Full ↗</a>
                 <button type="button" onClick={() => setOpen(false)} className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800" aria-label="Close evidence viewer"><X className="w-5 h-5" /></button>
               </div>
             </div>
             <div className="p-4 bg-black flex items-center justify-center max-h-[75vh] overflow-hidden">
-              <img src={resolvedUrl} alt="Emergency evidence high resolution" className="max-h-[70vh] w-auto max-w-full object-contain rounded-lg" />
+              <img src={isProtectedEvidenceUrl(sourceUrl) ? sourceUrl : resolvedUrl} alt="Emergency evidence high resolution" className="max-h-[70vh] w-auto max-w-full object-contain rounded-lg" />
             </div>
           </div>
         </div>

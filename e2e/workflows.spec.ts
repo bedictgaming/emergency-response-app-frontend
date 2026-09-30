@@ -594,6 +594,16 @@ test('protected evidence is resolved through an authorized short-lived URL', asy
   const evidence = page.getByAltText('Incident Photo Evidence');
   await expect(evidence).toBeVisible();
   await expect(evidence).toHaveAttribute('src', pixel);
+  // The thumbnail may stay visible past the storage URL's 60-second expiry.
+  // Opening it must go back through the authorized endpoint for a fresh URL.
+  await expect(page.getByRole('link', { name: 'View photo →' })).toHaveAttribute(
+    'href',
+    'http://localhost:8000/api/attachments/v1/protected-photo/content',
+  );
+  await expect(page.getByRole('link', { name: 'Incident Photo Evidence' })).toHaveAttribute(
+    'href',
+    'http://localhost:8000/api/attachments/v1/protected-photo/content',
+  );
   expect(accessRequests).toBe(1);
 });
 
