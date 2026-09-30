@@ -192,7 +192,14 @@ test('medical dashboard exposes only verified incidents and prevents duplicate s
   await page.goto('/admin/medical-dashboard');
   await expect(page.getByText('Verified medical report')).toBeVisible();
   await expect(page.getByText('Pending medical report')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Dispatch Ambulance / Mark Responding' }).dblclick();
+  // Wait for the async request to complete before counting it; dblclick returning
+  // does not guarantee that Axios has reached the intercepted route yet.
+  await Promise.all([
+    page.waitForResponse(response => response.request().method() === 'PATCH'
+      && response.url().includes('/api/incidents/v1/')),
+    page.getByRole('button', { name: 'Dispatch Ambulance / Mark Responding' }).dblclick(),
+  ]);
+  await expect(page.getByRole('button', { name: 'Dispatch Ambulance / Mark Responding' })).toBeEnabled();
   expect(serviceUpdates).toBe(1);
 });
 

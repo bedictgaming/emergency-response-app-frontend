@@ -20,7 +20,9 @@ import { useEmergencyEvents } from "@/app/hooks/useEmergencyEvents";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 
 export default function AdminEmergencyMonitor({ responseService }: { responseService?: ResponseService }) {
-  const [isSirenPlaying, setIsSirenPlaying] = useState(false);
+  const [sirenState, setSirenState] = useState(sirenManager.getState());
+  const [enablingSound, setEnablingSound] = useState(false);
+  const isSirenPlaying = sirenState.playing;
   const [newIncidentAlert, setNewIncidentAlert] = useState<Incident | null>(null);
   const [incomingCount, setIncomingCount] = useState(0);
 
@@ -29,12 +31,11 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   const isInitializedRef = useRef(false);
   const isMountedRef = useRef(true);
   const requestInFlightRef = useRef(false);
+  const audioActionRef = useRef(0);
 
   useEffect(() => {
     // Subscribe to audio state
-    const unsubscribe = sirenManager.subscribe((playing) => {
-      setIsSirenPlaying(playing);
-    });
+    const unsubscribe = sirenManager.subscribe(setSirenState);
     return () => unsubscribe();
   }, []);
 
@@ -74,7 +75,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
           setNewIncidentAlert(latest);
           setIncomingCount((prev) => prev + newReports.length);
 
-          // START THE LOUD EMERGENCY SIREN SOUND!
+          // Visual alerts always appear; sound starts only after explicit audio activation.
           sirenManager.startSiren();
         }
       } catch (err) {
@@ -105,6 +106,8 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
 
     return () => {
       isMountedRef.current = false;
+      audioActionRef.current += 1;
+      sirenManager.stopSiren();
       window.clearInterval(interval);
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
@@ -112,13 +115,31 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   }, [checkIncomingIncidents]);
 
   const handleSilenceSiren = () => {
+    audioActionRef.current += 1;
     sirenManager.stopSiren();
   };
 
   const handleAcknowledgeAlert = () => {
+    audioActionRef.current += 1;
     sirenManager.stopSiren();
     setNewIncidentAlert(null);
     setIncomingCount(0);
+  };
+
+  const handleEnableSound = async (playAlert = false) => {
+    if (enablingSound) return;
+    const action = ++audioActionRef.current;
+    const accountAtStart = adminAccountSnapshot();
+    const logoutEpoch = localStorage.getItem('emergency-logout-epoch');
+    setEnablingSound(true);
+    const ready = await sirenManager.enableAudio();
+    if (!isMountedRef.current || adminAccountSnapshot() !== accountAtStart
+      || localStorage.getItem('emergency-logout-epoch') !== logoutEpoch) return;
+    setEnablingSound(false);
+    if (ready && audioActionRef.current === action) {
+      if (playAlert) sirenManager.startSiren();
+      else sirenManager.testSiren();
+    }
   };
 
   const getCategoryIcon = (type?: string) => {
@@ -136,26 +157,28 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
         {isSirenPlaying ? (
           <button
             onClick={handleSilenceSiren}
-            className="motion-press flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-600 text-white font-bold text-xs hover:bg-red-700 shadow-sm border border-red-400"
+            className="motion-press flex min-h-11 items-center gap-2 px-3 py-1.5 rounded-xl bg-red-600 text-white font-bold text-xs hover:bg-red-700 shadow-sm border border-red-400"
             title="Siren is wailing! Click to mute audio"
           >
             <VolumeX className="w-4 h-4" />
             <span>MUTE SIREN</span>
           </button>
         ) : (
-          <div className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/90 px-2.5 py-1.5 text-xs shadow-sm dark:border-emerald-800 dark:bg-emerald-950/60">
+          <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card px-2.5 py-1.5 text-xs">
             <span className="flex h-2 w-2 relative">
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <span className={`relative inline-flex h-2 w-2 rounded-full ${sirenState.audioReady ? 'bg-success' : 'bg-warning'}`}></span>
             </span>
-            <span className="hidden text-[11px] font-semibold text-emerald-800 dark:text-emerald-200 sm:inline">
-              Siren Armed
+            <span role="status" className="text-xs font-semibold text-foreground">
+              {sirenState.audioReady ? 'Siren Armed' : sirenState.unavailable ? 'Sound unavailable' : 'Sound not enabled'}
             </span>
             <button
-              onClick={() => sirenManager.testSiren()}
-              className="ml-1 rounded border border-purple-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 transition-colors hover:bg-purple-100 dark:border-purple-800 dark:text-purple-200 dark:hover:bg-purple-900/70"
-              title="Test loud emergency siren"
+              type="button"
+              disabled={enablingSound}
+              onClick={() => { void handleEnableSound(Boolean(newIncidentAlert)); }}
+              className="min-h-11 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-60"
+              title={sirenState.audioReady ? "Test loud emergency siren" : "Enable and test emergency alert sound"}
             >
-              Test
+              {enablingSound ? 'Enabling sound…' : sirenState.audioReady ? 'Test' : 'Enable sound'}
             </button>
           </div>
         )}
@@ -192,6 +215,18 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
 
             {/* Incident Details */}
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
+              {!sirenState.audioReady && (
+                <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-warning p-3 text-sm text-warning-foreground">
+                  <p className="min-w-0 flex-1">
+                    {sirenState.unavailable ? 'Sound could not start. Try again and check your browser’s sound settings.' : 'Sound is not enabled. Enable it to hear this alert.'}
+                  </p>
+                  <button type="button" disabled={enablingSound}
+                    onClick={() => { void handleEnableSound(true); }}
+                    className="min-h-11 rounded-lg border border-current px-3 font-semibold disabled:opacity-60">
+                    {enablingSound ? 'Enabling sound…' : 'Enable sound'}
+                  </button>
+                </div>
+              )}
               {/* Type and Status */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -293,7 +328,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
                   }`}
                 >
                   <VolumeX className="w-4 h-4" />
-                  <span>{isSirenPlaying ? "Silence Loud Siren" : "Siren Silenced"}</span>
+                  <span>{isSirenPlaying ? "Silence Loud Siren" : "Sound not playing"}</span>
                 </button>
 
                 <button
