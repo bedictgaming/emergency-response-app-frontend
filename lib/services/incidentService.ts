@@ -141,6 +141,7 @@ export interface IncidentFilters {
   limit?: number;
   includeTotal?: boolean;
   includeServiceSummary?: boolean;
+  includeVerifiedSummary?: boolean;
   includeAttachments?: boolean;
   includeUnits?: boolean;
   includeReviewFlags?: boolean;
@@ -153,6 +154,7 @@ interface IncidentsResponse {
     incidents: Incident[];
     pagination?: { page: number; limit: number; total: number; pages: number };
     summary?: IncidentSummary;
+    verifiedSummary?: IncidentSummary;
   };
 }
 
@@ -173,6 +175,7 @@ export interface IncidentPage {
   incidents: Incident[];
   pagination: { page: number; limit: number; total: number; pages: number };
   summary: IncidentSummary;
+  verifiedSummary?: IncidentSummary;
 }
 
 interface SingleIncidentResponse {
@@ -225,6 +228,7 @@ export const getIncidentPage = (filters?: IncidentFilters): Promise<IncidentPage
   if (filters?.limit) params.limit = String(filters.limit);
   if (filters?.includeTotal === false) params.includeTotal = 'false';
   if (filters?.includeServiceSummary) params.includeServiceSummary = 'true';
+  if (filters?.includeVerifiedSummary) params.includeVerifiedSummary = 'true';
   if (filters?.includeAttachments) params.includeAttachments = 'true';
   if (filters?.includeUnits) params.includeUnits = 'true';
   if (filters?.includeReviewFlags) params.includeReviewFlags = 'true';
@@ -244,6 +248,7 @@ export const getIncidentPage = (filters?: IncidentFilters): Promise<IncidentPage
       const incidents = response.data?.data?.incidents ?? [];
       return {
         incidents,
+        verifiedSummary: response.data?.data?.verifiedSummary,
         pagination: response.data?.data?.pagination ?? {
           page: filters?.page ?? 1,
           limit: filters?.limit ?? 50,

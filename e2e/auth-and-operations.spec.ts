@@ -177,6 +177,8 @@ test('main admin paginates 14 All and Resolved reports across three pages', asyn
         resolved: 14,
         services: { fire: 14, medical: 0, police: 0, hazard: 0 },
       },
+      verifiedSummary: { total: 14, active: 0, responding: 0, resolved: 14,
+        services: { fire: 14, medical: 0, police: 0, hazard: 0 } },
     } } });
   });
 
@@ -198,7 +200,7 @@ test('main admin paginates 14 All and Resolved reports across three pages', asyn
   expect(requestedUrls.some(url =>
     url.searchParams.get('limit') === '5'
     && url.searchParams.get('includeAttachments') === 'true'
-    && url.searchParams.get('includeServiceSummary') === 'true'
+    && url.searchParams.get('includeVerifiedSummary') === 'true'
   )).toBe(true);
   expect(requestedUrls.some(url =>
     url.searchParams.get('limit') === '5'
@@ -251,7 +253,7 @@ for (const department of ['FIRE', 'MEDICAL', 'POLICE', 'DRRMO'] as const) {
   });
 }
 
-test('main lifecycle total and verified monthly history explain their different scopes', async ({ page }) => {
+test('main verified totals match history without hiding rejected review records', async ({ page }, testInfo) => {
   await page.addInitScript(() => {
     localStorage.setItem('user', JSON.stringify({ id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true }));
   });
@@ -264,9 +266,18 @@ test('main lifecycle total and verified monthly history explain their different 
   await page.route('**/api/incidents/v1/**', route => new URL(route.request().url()).pathname.endsWith('/review-flags')
     ? route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } })
     : route.fulfill({ json: { data: {
-    incidents: [], pagination: { page: 1, limit: 5, total: 0, pages: 0 },
+    incidents: [{
+      incidentId: 'rejected-record', title: 'Rejected report retained for review', description: 'Synthetic review record',
+      status: 'CLOSED', verificationStatus: 'REJECTED', reportedBy: 'citizen',
+      reportedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      type: { typeId: 'medical', typeName: 'Medical' },
+      location: { locationId: 'loc', locationName: 'Test barangay' },
+      reporter: { id: 'citizen', name: 'Test citizen' }, attachments: [], serviceResponses: [],
+    }], pagination: { page: 1, limit: 5, total: 15, pages: 3 },
     summary: { total: 15, active: 0, responding: 0, resolved: 15,
       services: { fire: 6, medical: 4, police: 2, hazard: 3 } },
+    verifiedSummary: { total: 14, active: 0, responding: 0, resolved: 14,
+      services: { fire: 6, medical: 3, police: 2, hazard: 3 } },
   } } }));
   await page.route('**/api/analytics/v1/dashboard', route => route.fulfill({ json: { data: {
     incidentsByBarangay: { rankings: [], totalIncidents: 14, topArea: null },
@@ -277,10 +288,49 @@ test('main lifecycle total and verified monthly history explain their different 
   } } }));
 
   await page.goto('/admin/main-dashboard');
-  await expect(page.getByText('Resolved / closed records')).toBeVisible();
+  const cards = page.locator('[aria-label="Verified report summary"]');
+  await expect(cards.getByText('14', { exact: true })).toHaveCount(2);
+  await expect(cards.getByText('15', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Verified resolved / closed', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'All (15)', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Rejected report retained for review', exact: true })).toBeVisible();
+  await expect(page.getByText('Includes unverified and rejected records for review.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Resolved (15)', exact: true }).click();
+  await expect(cards.getByText('14', { exact: true })).toHaveCount(2);
+  for (const width of [1366, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(cards.getByText('Verified resolved / closed', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`verified-summary-${width}.png`), fullPage: true });
+  }
+  await page.setViewportSize({ width: 1366, height: 900 });
   await page.getByRole('button', { name: 'Barangay History Log' }).click();
   await expect(page.getByText('Verified Reports Resolved')).toBeVisible();
   await expect(page.getByText('Reported this month · 100% of verified reports')).toBeVisible();
+});
+
+test('missing verified aggregates never display all-record totals as verified', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('user', JSON.stringify({ id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true }));
+  });
+  await page.route('**/api/auth/v1/me', route => route.fulfill({ json: { data: { user: {
+    id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true,
+  } } } }));
+  await page.route('**/api/events/v1/stream', route => route.fulfill({
+    status: 200, contentType: 'text/event-stream', body: 'event: connected\ndata: {"ok":true}\n\n',
+  }));
+  await page.route('**/api/incidents/v1/**', route => new URL(route.request().url()).pathname.endsWith('/review-flags')
+    ? route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } })
+    : route.fulfill({ json: { data: {
+      incidents: [], pagination: { page: 1, limit: 5, total: 15, pages: 3 },
+      summary: { total: 15, active: 0, responding: 0, resolved: 15 },
+    } } }));
+  await page.goto('/admin/main-dashboard');
+  await expect(page.getByText('Verified totals could not be loaded. Use Refresh to try again.')).toBeVisible();
+  const cards = page.locator('[aria-label="Verified report summary"]');
+  await expect(cards.getByText('15', { exact: true })).toHaveCount(0);
+  await expect(cards.getByText('—', { exact: true })).toHaveCount(4);
+  await expect(page.getByRole('button', { name: 'All (15)', exact: true })).toBeVisible();
 });
 
 test('admin refreshes after a report arrives during an in-flight list request', async ({ page }) => {

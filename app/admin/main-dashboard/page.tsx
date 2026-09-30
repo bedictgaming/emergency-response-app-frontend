@@ -38,6 +38,7 @@ export default function MainDashboard() {
     const [reviewRevision, setReviewRevision] = useState(0);
     const [pagination, setPagination] = useState({ pages: 0, total: 0 });
     const [summary, setSummary] = useState<IncidentSummary>({ total: 0, active: 0, responding: 0, resolved: 0 });
+    const [verifiedSummary, setVerifiedSummary] = useState<IncidentSummary | undefined>();
     const incidentRequestInFlight = useRef(false);
     const inFlightRequest = useRef<string | null>(null);
     const eventRefreshPending = useRef(false);
@@ -68,7 +69,7 @@ export default function MainDashboard() {
         try {
             const result = await getIncidentPage({
                 includeAttachments: true,
-                includeServiceSummary: true,
+                includeVerifiedSummary: true,
                 includeReviewFlags: true,
                 limit: ADMIN_INCIDENT_PAGE_SIZE,
                 page,
@@ -82,6 +83,7 @@ export default function MainDashboard() {
             const data = result.incidents;
             setPagination({ pages: result.pagination.pages, total: result.pagination.total });
             setSummary(result.summary);
+            setVerifiedSummary(result.verifiedSummary);
             setEmergencies(data.map((incident) => formatIncidentForDashboard(incident)));
             succeeded = true;
         } catch (err) {
@@ -145,20 +147,21 @@ export default function MainDashboard() {
         }
     };
 
-    const activeCount = summary.active;
-    const respondingCount = summary.responding;
-    const resolvedCount = summary.resolved;
+    // Do not substitute unverified record counts if verified aggregates are missing.
+    const activeCount = verifiedSummary?.active ?? '—';
+    const respondingCount = verifiedSummary?.responding ?? '—';
+    const resolvedCount = verifiedSummary?.resolved ?? '—';
 
-    const fireCount = summary.services?.fire ?? 0;
-    const medicalCount = summary.services?.medical ?? 0;
-    const policeCount = summary.services?.police ?? 0;
-    const hazardCount = summary.services?.hazard ?? 0;
+    const fireCount = verifiedSummary?.services?.fire ?? '—';
+    const medicalCount = verifiedSummary?.services?.medical ?? '—';
+    const policeCount = verifiedSummary?.services?.police ?? '—';
+    const hazardCount = verifiedSummary?.services?.hazard ?? '—';
 
     const tabs = [
         { name: "All" as const, count: summary.total },
-        { name: "Active" as const, count: activeCount },
-        { name: "Responding" as const, count: respondingCount },
-        { name: "Resolved" as const, count: resolvedCount },
+        { name: "Active" as const, count: summary.active },
+        { name: "Responding" as const, count: summary.responding },
+        { name: "Resolved" as const, count: summary.resolved },
     ];
 
     const filteredEmergencies = emergencies;
@@ -175,11 +178,19 @@ export default function MainDashboard() {
 
             <main className="max-w-6xl mx-auto px-6 mt-8">
                 {/* Top Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <p className="mb-3 text-sm text-gray-600">
+                    Verified reports · All time. Barangay History shows the selected month.
+                </p>
+                {!isLoading && !verifiedSummary && (
+                    <p role="status" className="mb-3 text-sm text-red-800">
+                        Verified totals could not be loaded. Use Refresh to try again.
+                    </p>
+                )}
+                <div aria-label="Verified report summary" className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                     <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-32">
-                        <div className="text-gray-500 text-sm font-medium">Total Emergencies</div>
+                        <div className="text-gray-500 text-sm font-medium">Total verified emergencies</div>
                         <div className="flex justify-between items-end">
-                            <div className="text-4xl font-bold">{summary.total}</div>
+                            <div className="text-4xl font-bold">{verifiedSummary?.total ?? '—'}</div>
                             <BarChart2 className="text-gray-800" size={28} />
                         </div>
                     </div>
@@ -201,7 +212,7 @@ export default function MainDashboard() {
                     </div>
 
                     <div className="bg-[#dcfce7] p-5 rounded-xl shadow-sm border border-green-100 flex flex-col justify-between h-32">
-                        <div className="text-green-500 text-sm font-medium">Resolved / closed records</div>
+                        <div className="text-green-500 text-sm font-medium">Verified resolved / closed</div>
                         <div className="flex justify-between items-end">
                             <div className="text-4xl font-bold text-green-500">{resolvedCount}</div>
                             <ShieldCheck className="text-green-500" size={28} />
@@ -245,7 +256,7 @@ export default function MainDashboard() {
                 <IncidentReviewQueue revision={reviewRevision} onChanged={loadIncidents} />
                 <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-2.5">
-                        <h2 className="text-xl font-bold">All Emergency Report</h2>
+                        <h2 className="text-xl font-bold">All report records</h2>
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                             Live Sync
@@ -275,6 +286,9 @@ export default function MainDashboard() {
                 )}
 
                 {/* Tabs */}
+                <p className="mb-3 text-sm text-gray-600">
+                    Includes unverified and rejected records for review. These are excluded from verified totals above.
+                </p>
                 <div className="bg-gray-200 p-1 rounded-full flex mb-6 max-w-full overflow-x-auto">
                     {tabs.map((tab) => (
                         <button
