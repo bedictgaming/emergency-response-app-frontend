@@ -24,7 +24,11 @@ interface SignatureResponse {
 }
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB client-side (backend accepts 10MB)
+const MAX_SIZE_BYTES = 5 * 1024 * 1024;
+// Base64 adds roughly one third. Stay below the gateway's 4 MB request cap.
+const MAX_FALLBACK_SIZE_BYTES = 2.5 * 1024 * 1024;
+const MAX_FALLBACK_PAYLOAD_BYTES = 3.5 * 1024 * 1024;
+const FALLBACK_SIZE_MESSAGE = 'Direct photo upload was blocked. Allow access to the photo service, or choose a photo under 2.5 MB for the secure fallback. Your report has not been submitted.';
 
 const fileToDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -36,17 +40,21 @@ const fileToDataUrl = (file: File): Promise<string> => new Promise((resolve, rej
 });
 
 const uploadThroughBackend = async (file: File): Promise<UploadResult> => {
+  // Never resize/re-encode incident evidence silently to fit the proxy.
+  if (file.size > MAX_FALLBACK_SIZE_BYTES) throw new Error(FALLBACK_SIZE_MESSAGE);
+  const body = { imageData: await fileToDataUrl(file), fileName: file.name };
+  if (new TextEncoder().encode(JSON.stringify(body)).byteLength > MAX_FALLBACK_PAYLOAD_BYTES) {
+    throw new Error(FALLBACK_SIZE_MESSAGE);
+  }
   try {
-    const response = await apiClient.post<{ data: UploadResult }>('/upload/v1/image', {
-      imageData: await fileToDataUrl(file),
-      fileName: file.name,
-    }, {
+    const response = await apiClient.post<{ data: UploadResult }>('/upload/v1/image', body, {
       // Image transfer and Cloudinary processing can legitimately exceed the
       // normal API timeout on a mobile or congested connection.
       timeout: 60_000,
     });
     return response.data.data;
   } catch (error: unknown) {
+    if ((error as { response?: { status?: number } }).response?.status === 413) throw new Error(FALLBACK_SIZE_MESSAGE);
     const responseMessage = (error as { response?: { data?: { message?: string } } })
       ?.response?.data?.message;
     if (responseMessage) throw new Error(responseMessage);
@@ -80,6 +88,7 @@ export const uploadIncidentPhoto = async (file: File): Promise<UploadResult> => 
   } catch (error: unknown) {
     const status = (error as { response?: { status?: number } })?.response?.status;
     if (status === 429) throw new Error('Photo upload limit reached. Try again later.');
+    if (status === 401 || status === 403) throw new Error('Your session cannot upload this photo. Sign in again before retrying.');
     // If the browser cannot complete even the signed-upload handshake, use
     // the authenticated same-origin API path instead of surfacing a raw
     // browser "Failed to fetch" error.
@@ -98,7 +107,7 @@ export const uploadIncidentPhoto = async (file: File): Promise<UploadResult> => 
 
   let response: Response;
   try {
-    response = await fetch(`https://api.cloudinary.com/v1_1/${signature.cloudName}/image/authenticated/upload`, {
+    response = await fetch(`https://api.cloudinary.com/v1_1/${signature.cloudName}/image/upload`, {
       method: 'POST',
       body: form,
     });

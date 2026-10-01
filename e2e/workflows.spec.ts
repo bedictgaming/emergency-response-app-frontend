@@ -214,6 +214,8 @@ test('citizen proof upload precedes submission and failed uploads retain the dra
   });
   await page.route('https://api.cloudinary.com/**', async route => {
     order.push('upload');
+    expect(new URL(route.request().url()).pathname).toBe('/v1_1/test/image/upload');
+    expect(route.request().postDataBuffer()?.toString()).toContain('name="type"\r\n\r\nauthenticated');
     expect(route.request().postDataBuffer()?.toString()).toContain('name="overwrite"\r\n\r\nfalse');
     expect(route.request().postDataBuffer()?.toString()).toContain('name="public_id"\r\n\r\nphoto');
     await route.fulfill({ status: failUpload ? 500 : 200, json: { public_id: 'evidence/test-user/photo', secure_url: 'https://example.test/photo.png', format: 'png', bytes: 68, width: 1, height: 1 } });
@@ -302,6 +304,38 @@ test('citizen photo upload falls back securely when the browser blocks Cloudinar
   await expect(page.getByRole('heading', { name: 'Report Emergency', exact: true })).toHaveCount(0);
   expect(fallbackUploads).toBe(1);
   expect(incidentCreated).toBe(true);
+});
+
+test('blocked direct upload of a large photo preserves the draft without sending an oversized fallback', async ({ page }) => {
+  await session(page, 'USER');
+  await page.route('https://nominatim.openstreetmap.org/**', route => route.fulfill({ json: { address: { town: 'Cordova', province: 'Cebu' } } }));
+  await page.route('**/api/upload/v1/signature', route => route.fulfill({
+    json: { data: { cloudName: 'test', apiKey: 'test', timestamp: 1, folder: 'evidence/test-user', publicId: 'photo', allowed_formats: 'jpg,jpeg,png,webp,heic', signature: 'test', type: 'authenticated' } },
+  }));
+  await page.route('https://api.cloudinary.com/**', route => route.abort('failed'));
+  let fallbacks = 0;
+  let creations = 0;
+  await page.route('**/api/upload/v1/image', route => { fallbacks++; return route.fulfill({ status: 413 }); });
+  await page.route('**/api/incidents/v1/**', route => {
+    if (new URL(route.request().url()).pathname.endsWith('/nearby-check')) return route.fulfill({ json: { data: { duplicate: false } } });
+    if (route.request().method() === 'POST') creations++;
+    return route.fulfill({ json: { data: { incidents: [] } } });
+  });
+  await page.goto('/dashboard');
+  await page.getByRole('heading', { name: 'Fire', exact: true }).click();
+  await page.getByLabel('Description of Incident').fill('Clearly labeled synthetic upload-boundary test');
+  await page.getByLabel('Contact Number').fill('09171234567');
+  await page.getByLabel('Incident barangay').selectOption('Poblacion');
+  await confirmEmergencyMapPin(page);
+  const photo = Buffer.alloc(4 * 1024 * 1024);
+  Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGNkAAAAASUVORK5CYII=', 'base64').copy(photo);
+  await page.locator('input[type="file"]').setInputFiles({ name: 'large-proof.png', mimeType: 'image/png', buffer: photo });
+  await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
+  await expect(page.getByText('choose a photo under 2.5 MB', { exact: false })).toBeVisible();
+  await expect(page.getByLabel('Description of Incident')).toHaveValue('Clearly labeled synthetic upload-boundary test');
+  await expect(page.getByRole('button', { name: 'Submit Report', exact: true })).toBeEnabled();
+  expect(fallbacks).toBe(0);
+  expect(creations).toBe(0);
 });
 
 test('citizen daily-limit response stays in the form without a development error overlay', async ({ page }) => {

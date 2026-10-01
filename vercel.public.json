@@ -1,19 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "npm run release:check && npm run build",
+  "buildCommand": "npm run deploy:build",
   "outputDirectory": "out",
   "cleanUrls": true,
-  "rewrites": [
-    {
-      "source": "/api/:path*/",
-      "destination": "https://api-production-49dea.up.railway.app/api/:path*/"
-    },
-    {
-      "source": "/api/:path*",
-      "destination": "https://api-production-49dea.up.railway.app/api/:path*"
-    }
-  ],
+  "proxy": { "entrypoint": "gateway/proxy.js", "matcher": "/api/:path*" },
   "headers": [
     {
       "source": "/(.*)",
