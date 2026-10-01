@@ -306,7 +306,7 @@ test('main verified totals match history without hiding rejected review records'
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.getByRole('button', { name: 'Barangay History Log' }).click();
   await expect(page.getByText('Verified Reports Resolved')).toBeVisible();
-  await expect(page.getByText('Reported this month · 100% of verified reports')).toBeVisible();
+  await expect(page.getByText('September 2026 · 14 of 14 verified reports (100%).')).toBeVisible();
 });
 
 test('missing verified aggregates never display all-record totals as verified', async ({ page }) => {

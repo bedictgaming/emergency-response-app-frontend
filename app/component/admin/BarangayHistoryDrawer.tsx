@@ -24,6 +24,7 @@ import {
 } from "@/lib/types/barangay-history";
 import { getDashboardAnalytics } from "@/lib/services/analyticsService";
 import { getIncidentHistory } from "@/lib/services/incidentHistoryService";
+import MonthlyResolutionCard from "./MonthlyResolutionCard";
 
 interface BarangayHistoryDrawerProps {
   isOpen: boolean;
@@ -150,7 +151,7 @@ export default function BarangayHistoryDrawer({
               <div>
                 <h2 className="text-lg font-bold">Barangay Incident History Log</h2>
                 <p className="text-xs text-gray-400">
-                  Area frequency ranking, emergency categories & monthly resolutions
+                  Area frequency ranking, emergency categories & monthly records
                 </p>
               </div>
             </div>
@@ -207,19 +208,7 @@ export default function BarangayHistoryDrawer({
                 </div>
               </div>
 
-              {/* Verified reports submitted this month and now resolved or closed. */}
-              <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 shadow-2xs">
-                <div className="flex items-center justify-between text-emerald-800 text-[11px] font-bold uppercase tracking-wider mb-1">
-                  <span>Verified Reports Resolved</span>
-                  <CheckCircle2 size={14} className="text-emerald-600" />
-                </div>
-                <div className="text-2xl font-extrabold text-emerald-700">
-                  {analytics?.resolvedSummary?.resolvedThisMonth ?? 0}
-                </div>
-                <div className="text-[11px] text-emerald-800/80 mt-1 font-medium">
-                  Reported this month · {analytics?.resolvedSummary?.resolutionRate ?? 0}% of verified reports
-                </div>
-              </div>
+              <MonthlyResolutionCard summary={analytics?.resolvedSummary} compact />
             </div>
 
             {/* Barangay Rankings Progress */}

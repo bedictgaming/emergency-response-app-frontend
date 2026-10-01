@@ -34,6 +34,7 @@ import { getBarangays } from "@/lib/services/barangayService";
 import { getDashboardAnalytics } from "@/lib/services/analyticsService";
 import { getIncidentHistory } from "@/lib/services/incidentHistoryService";
 import { useAdminGuard } from "@/app/hooks/useAdminGuard";
+import MonthlyResolutionCard from "@/app/component/admin/MonthlyResolutionCard";
 
 export default function BarangayHistoryPage() {
   const router = useRouter();
@@ -237,7 +238,7 @@ export default function BarangayHistoryPage() {
               Barangay Incident History Log & Analytics Hub
             </h1>
             <p className="text-gray-400 text-xs">
-              Administrative area frequencies, emergency category share & monthly resolution performance
+              Administrative area frequencies, emergency category share & monthly records
             </p>
           </div>
         </div>
@@ -331,30 +332,7 @@ export default function BarangayHistoryPage() {
             </div>
           </div>
 
-          {/* Card 3: Verified reports submitted this month and now resolved or closed. */}
-          <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 p-5 rounded-2xl border border-emerald-200 shadow-2xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between text-emerald-800 text-xs font-bold uppercase tracking-wider mb-2">
-                <span>3. Verified Reports Resolved</span>
-                <span className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
-                  <CheckCircle2 size={16} />
-                </span>
-              </div>
-              <div className="text-4xl font-black text-emerald-800 tracking-tight">
-                {analytics?.resolvedSummary?.resolvedThisMonth ?? 0}
-              </div>
-              <p className="text-xs text-emerald-800/80 mt-1 font-medium">
-                Out of {analytics?.resolvedSummary?.totalReportedThisMonth ?? 0} verified reports submitted in {analytics?.resolvedSummary?.month}/{analytics?.resolvedSummary?.year}. Rejected reports are excluded.
-              </p>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-emerald-200/60 flex items-center justify-between text-xs">
-              <span className="text-emerald-800 font-semibold">Monthly Resolution Rate:</span>
-              <span className="text-base font-extrabold text-emerald-900">
-                {analytics?.resolvedSummary?.resolutionRate ?? 0}%
-              </span>
-            </div>
-          </div>
+          <MonthlyResolutionCard summary={analytics?.resolvedSummary} />
         </div>
 
         {/* ============================================================ */}
