@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { API_ORIGIN, isDefinitiveAuthFailure } from '@/lib/apiClient';
+import { API_ORIGIN, ensureFreshSession, isDefinitiveAuthFailure } from '@/lib/apiClient';
 import { getMe } from '@/lib/services/authService';
 
 export function useEmergencyEvents(onEvent: () => void, enabled = true) {
@@ -26,8 +26,30 @@ export function useEmergencyEvents(onEvent: () => void, enabled = true) {
       source = null;
     };
 
-    const connect = () => {
+    const scheduleReconnect = () => {
+      if (stopped || !navigator.onLine) return;
+      const delay = Math.min(30_000, 1_000 * 2 ** retryAttempt);
+      retryAttempt += 1;
+      clearReconnectTimer();
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, delay);
+    };
+
+    const connect = async () => {
       if (stopped || source || checkingSession || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
+      checkingSession = true;
+      try {
+        await ensureFreshSession();
+      } catch (error) {
+        if (isDefinitiveAuthFailure(error)) stopped = true;
+        scheduleReconnect();
+        return;
+      } finally {
+        checkingSession = false;
+      }
+      if (stopped || source || !navigator.onLine) return;
 
       const nextSource = new EventSource(`${API_ORIGIN}/api/events/v1/stream`, { withCredentials: true });
       source = nextSource;
@@ -52,14 +74,7 @@ export function useEmergencyEvents(onEvent: () => void, enabled = true) {
           if (isDefinitiveAuthFailure(error)) stopped = true;
         }).finally(() => {
           checkingSession = false;
-          if (stopped || !navigator.onLine) return;
-          const delay = Math.min(30_000, 1_000 * 2 ** retryAttempt);
-          retryAttempt += 1;
-          clearReconnectTimer();
-          reconnectTimer = window.setTimeout(() => {
-            reconnectTimer = null;
-            connect();
-          }, delay);
+          scheduleReconnect();
         });
       };
     };

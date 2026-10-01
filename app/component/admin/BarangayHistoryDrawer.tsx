@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useId } from "react";
 import { useRouter } from "next/navigation";
 import {
   X,
@@ -24,6 +24,7 @@ import {
 } from "@/lib/types/barangay-history";
 import { getDashboardAnalytics } from "@/lib/services/analyticsService";
 import { getIncidentHistory } from "@/lib/services/incidentHistoryService";
+import MonthlyResolutionCard from "./MonthlyResolutionCard";
 
 interface BarangayHistoryDrawerProps {
   isOpen: boolean;
@@ -35,6 +36,7 @@ export default function BarangayHistoryDrawer({
   onClose,
 }: BarangayHistoryDrawerProps) {
   const router = useRouter();
+  const searchId = useId();
   const [incidents, setIncidents] = useState<IncidentRecord[]>([]);
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -150,7 +152,7 @@ export default function BarangayHistoryDrawer({
               <div>
                 <h2 className="text-lg font-bold">Barangay Incident History Log</h2>
                 <p className="text-xs text-gray-400">
-                  Area frequency ranking, emergency categories & monthly resolutions
+                  Area frequency ranking, emergency categories & monthly records
                 </p>
               </div>
             </div>
@@ -207,19 +209,7 @@ export default function BarangayHistoryDrawer({
                 </div>
               </div>
 
-              {/* Question 3: Resolved This Month */}
-              <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 shadow-2xs">
-                <div className="flex items-center justify-between text-emerald-800 text-[11px] font-bold uppercase tracking-wider mb-1">
-                  <span>Resolved This Month</span>
-                  <CheckCircle2 size={14} className="text-emerald-600" />
-                </div>
-                <div className="text-2xl font-extrabold text-emerald-700">
-                  {analytics?.resolvedSummary?.resolvedThisMonth ?? 0}
-                </div>
-                <div className="text-[11px] text-emerald-800/80 mt-1 font-medium">
-                  {analytics?.resolvedSummary?.resolutionRate ?? 0}% resolution rate
-                </div>
-              </div>
+              <MonthlyResolutionCard summary={analytics?.resolvedSummary} compact />
             </div>
 
             {/* Barangay Rankings Progress */}
@@ -276,11 +266,14 @@ export default function BarangayHistoryDrawer({
             {/* Search & Full Page Link */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
+                <label htmlFor={searchId} className="sr-only">Search incident history</label>
                 <Search
                   size={15}
                   className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
                 />
                 <input
+                  id={searchId}
+                  name="incidentHistorySearch"
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}

@@ -162,6 +162,7 @@ test('main admin paginates 14 All and Resolved reports across three pages', asyn
 
   await page.route('**/api/incidents/v1/**', route => {
     const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
     requestedUrls.push(url);
     const currentPage = Number(url.searchParams.get('page') ?? '1');
     const firstReport = (currentPage - 1) * 5 + 1;
@@ -176,6 +177,8 @@ test('main admin paginates 14 All and Resolved reports across three pages', asyn
         resolved: 14,
         services: { fire: 14, medical: 0, police: 0, hazard: 0 },
       },
+      verifiedSummary: { total: 14, active: 0, responding: 0, resolved: 14,
+        services: { fire: 14, medical: 0, police: 0, hazard: 0 } },
     } } });
   });
 
@@ -197,12 +200,137 @@ test('main admin paginates 14 All and Resolved reports across three pages', asyn
   expect(requestedUrls.some(url =>
     url.searchParams.get('limit') === '5'
     && url.searchParams.get('includeAttachments') === 'true'
-    && url.searchParams.get('includeServiceSummary') === 'true'
+    && url.searchParams.get('includeVerifiedSummary') === 'true'
   )).toBe(true);
   expect(requestedUrls.some(url =>
     url.searchParams.get('limit') === '5'
     && url.searchParams.get('statuses') === 'RESOLVED,CLOSED'
   )).toBe(true);
+});
+
+for (const department of ['FIRE', 'MEDICAL', 'POLICE', 'DRRMO'] as const) {
+  test(`${department} admin sees six reports without numbered pagination`, async ({ page }) => {
+    await page.addInitScript((currentDepartment) => {
+      localStorage.setItem('user', JSON.stringify({
+        id: 'department-admin', role: 'ADMIN', department: currentDepartment, isMainAdmin: false,
+      }));
+    }, department);
+    await page.route('**/api/auth/v1/me', route => route.fulfill({ json: { data: { user: {
+      id: 'department-admin', role: 'ADMIN', department, isMainAdmin: false,
+    } } } }));
+    await page.route('**/api/events/v1/stream', route => route.fulfill({
+      status: 200, contentType: 'text/event-stream', body: 'event: connected\ndata: {"ok":true}\n\n',
+    }));
+    const service = department === 'DRRMO' ? 'HAZARD' : department;
+    const typeName = department === 'DRRMO' ? 'Hazard' : department[0] + department.slice(1).toLowerCase();
+    const requestedLimits: string[] = [];
+    await page.route('**/api/incidents/v1/**', route => {
+      const url = new URL(route.request().url());
+      requestedLimits.push(url.searchParams.get('limit') ?? '');
+      return route.fulfill({ json: { data: {
+        incidents: Array.from({ length: 6 }, (_, index) => ({
+          incidentId: `incident-${index}`, title: `${typeName} report ${index + 1}`,
+          description: 'Test report', status: 'RESPONDING', verificationStatus: 'VERIFIED',
+          reportedBy: 'citizen', reportedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+          type: { typeId: 'type', typeName }, location: { locationId: 'loc', locationName: 'Poblacion' },
+          reporter: { id: 'citizen', name: 'Citizen' }, attachments: [],
+          serviceResponses: [{ service, status: 'RESPONDING' }],
+        })),
+        pagination: { page: 1, limit: 20, total: 6, pages: 1 },
+        summary: { total: 6, active: 0, responding: 6, resolved: 0, services: {
+          fire: department === 'FIRE' ? 6 : 0,
+          medical: department === 'MEDICAL' ? 6 : 0,
+          police: department === 'POLICE' ? 6 : 0,
+          hazard: department === 'DRRMO' ? 6 : 0,
+        } },
+      } } });
+    });
+
+    await page.goto(`/admin/${department.toLowerCase()}-dashboard`);
+    await expect(page.getByText(`${typeName} report 6`)).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Incident reports pagination' })).toHaveCount(0);
+    expect(requestedLimits).toContain('20');
+  });
+}
+
+test('main verified totals match history without hiding rejected review records', async ({ page }, testInfo) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('user', JSON.stringify({ id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true }));
+  });
+  await page.route('**/api/auth/v1/me', route => route.fulfill({ json: { data: { user: {
+    id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true,
+  } } } }));
+  await page.route('**/api/events/v1/stream', route => route.fulfill({
+    status: 200, contentType: 'text/event-stream', body: 'event: connected\ndata: {"ok":true}\n\n',
+  }));
+  await page.route('**/api/incidents/v1/**', route => new URL(route.request().url()).pathname.endsWith('/review-flags')
+    ? route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } })
+    : route.fulfill({ json: { data: {
+    incidents: [{
+      incidentId: 'rejected-record', title: 'Rejected report retained for review', description: 'Synthetic review record',
+      status: 'CLOSED', verificationStatus: 'REJECTED', reportedBy: 'citizen',
+      reportedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      type: { typeId: 'medical', typeName: 'Medical' },
+      location: { locationId: 'loc', locationName: 'Test barangay' },
+      reporter: { id: 'citizen', name: 'Test citizen' }, attachments: [], serviceResponses: [],
+    }], pagination: { page: 1, limit: 5, total: 15, pages: 3 },
+    summary: { total: 15, active: 0, responding: 0, resolved: 15,
+      services: { fire: 6, medical: 4, police: 2, hazard: 3 } },
+    verifiedSummary: { total: 14, active: 0, responding: 0, resolved: 14,
+      services: { fire: 6, medical: 3, police: 2, hazard: 3 } },
+  } } }));
+  await page.route('**/api/analytics/v1/dashboard', route => route.fulfill({ json: { data: {
+    incidentsByBarangay: { rankings: [], totalIncidents: 14, topArea: null },
+    incidentsByType: { distribution: [], totalIncidents: 14, topType: null },
+    resolvedSummary: { resolvedThisMonth: 14, totalReportedThisMonth: 14,
+      resolutionRate: 100, totalResolvedAllTime: 14, totalHistorical: 14,
+      month: 9, year: 2026 },
+  } } }));
+
+  await page.goto('/admin/main-dashboard');
+  const cards = page.locator('[aria-label="Verified report summary"]');
+  await expect(cards.getByText('14', { exact: true })).toHaveCount(2);
+  await expect(cards.getByText('15', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Verified resolved / closed', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'All (15)', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Rejected report retained for review', exact: true })).toBeVisible();
+  await expect(page.getByText('Includes unverified and rejected records for review.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Resolved (15)', exact: true }).click();
+  await expect(cards.getByText('14', { exact: true })).toHaveCount(2);
+  for (const width of [1366, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(cards.getByText('Verified resolved / closed', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`verified-summary-${width}.png`), fullPage: true });
+  }
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.getByRole('button', { name: 'Barangay History Log' }).click();
+  await expect(page.getByText('Verified Reports Resolved')).toBeVisible();
+  await expect(page.getByText('September 2026 · 14 of 14 verified reports (100%).')).toBeVisible();
+});
+
+test('missing verified aggregates never display all-record totals as verified', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('user', JSON.stringify({ id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true }));
+  });
+  await page.route('**/api/auth/v1/me', route => route.fulfill({ json: { data: { user: {
+    id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true,
+  } } } }));
+  await page.route('**/api/events/v1/stream', route => route.fulfill({
+    status: 200, contentType: 'text/event-stream', body: 'event: connected\ndata: {"ok":true}\n\n',
+  }));
+  await page.route('**/api/incidents/v1/**', route => new URL(route.request().url()).pathname.endsWith('/review-flags')
+    ? route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } })
+    : route.fulfill({ json: { data: {
+      incidents: [], pagination: { page: 1, limit: 5, total: 15, pages: 3 },
+      summary: { total: 15, active: 0, responding: 0, resolved: 15 },
+    } } }));
+  await page.goto('/admin/main-dashboard');
+  await expect(page.getByText('Verified totals could not be loaded. Use Refresh to try again.')).toBeVisible();
+  const cards = page.locator('[aria-label="Verified report summary"]');
+  await expect(cards.getByText('15', { exact: true })).toHaveCount(0);
+  await expect(cards.getByText('—', { exact: true })).toHaveCount(4);
+  await expect(page.getByRole('button', { name: 'All (15)', exact: true })).toBeVisible();
 });
 
 test('admin refreshes after a report arrives during an in-flight list request', async ({ page }) => {
@@ -349,6 +477,16 @@ test('the shared Google callback routes an administrator by RBAC assignment', as
 
   await expect(page).toHaveURL(/\/admin\/main-dashboard$/);
   expect(page.url()).not.toContain('token=');
+});
+
+test('a Google callback without a usable cookie stays on sign-in and explains the failure', async ({ page }) => {
+  await page.route('**/api/auth/v1/me', route => route.fulfill({ status: 401, json: { code: 401, status: 'error', message: 'Authentication required' } }));
+  await page.route('**/api/auth/v1/refresh-token', route => route.fulfill({ status: 401, json: { code: 401, status: 'error', message: 'Authentication required' } }));
+
+  await page.goto('/login?oauth=success');
+
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByText('Google login session could not be verified. Please try again.')).toBeVisible();
 });
 
 test('administrator logout ends the one shared session', async ({ page }) => {
@@ -784,6 +922,7 @@ test('admin data polling stops when its session is removed', async ({ page }) =>
   }));
   await page.route('**/api/incidents/v1/**', route => {
     incidentRequests += 1;
+    if (new URL(route.request().url()).pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
     return route.fulfill({ json: { data: { incidents: [] } } });
   });
   await page.route('**/api/events/v1/stream', route => route.fulfill({
@@ -795,6 +934,8 @@ test('admin data polling stops when its session is removed', async ({ page }) =>
   await page.goto('/admin/main-dashboard');
   await expect(page.getByText('Main Admin Dashboard', { exact: true })).toBeVisible();
   await expect.poll(() => incidentRequests).toBeGreaterThan(0);
+  // Wait for the new queue's initial read before measuring requests after logout.
+  await expect(page.getByText('No pending or confirmed review flags.')).toBeVisible();
   const requestsBeforeLogout = incidentRequests;
 
   await page.evaluate(() => {

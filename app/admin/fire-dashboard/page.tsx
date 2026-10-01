@@ -13,7 +13,7 @@ import {
     DashboardIncident,
     IncidentDashboardTab,
     IncidentSummary,
-    ADMIN_INCIDENT_PAGE_SIZE,
+    DEPARTMENT_INCIDENT_PAGE_SIZE,
     incidentServiceStatusesForTab,
 } from "@/lib/services/incidentService";
 import IncidentDispatchedUnits from "@/app/component/admin/IncidentDispatchedUnits";
@@ -22,6 +22,7 @@ import { useEmergencyEvents } from "@/app/hooks/useEmergencyEvents";
 import IncidentPager from "@/app/component/admin/IncidentPager";
 import { CompactEvidencePhoto } from "@/app/component/SecureEvidencePhoto";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
+import IncidentReviewActions from "@/app/component/admin/IncidentReviewActions";
 
 export default function FireAdminDashboard() {
     const isAuthorized = useAdminGuard("FIRE");
@@ -63,8 +64,9 @@ export default function FireAdminDashboard() {
             const result = await getIncidentPage({
                 department: "FIRE",
                 includeAttachments: true,
+                includeReviewFlags: true,
                 includeUnits: true,
-                limit: ADMIN_INCIDENT_PAGE_SIZE,
+                limit: DEPARTMENT_INCIDENT_PAGE_SIZE,
                 page,
                 responseService: "FIRE",
                 serviceStatuses: incidentServiceStatusesForTab(activeTab),
@@ -233,14 +235,6 @@ export default function FireAdminDashboard() {
                     ))}
                 </div>
 
-                <IncidentPager
-                    page={page}
-                    pages={pagination.pages}
-                    total={pagination.total}
-                    pageSize={ADMIN_INCIDENT_PAGE_SIZE}
-                    onPageChange={setPage}
-                />
-
                 {/* List */}
                 <div className="space-y-4">
                     {currentTabIncidents.map((item) => (
@@ -349,6 +343,7 @@ export default function FireAdminDashboard() {
                             />
 
                             {/* Action Buttons */}
+                            <IncidentReviewActions incident={item.raw} onChanged={loadIncidents} />
                             <div className="flex gap-3 pt-2">
                                 {item.status === 'active' && (
                                     <>
@@ -395,7 +390,7 @@ export default function FireAdminDashboard() {
                         </div>
                     )}
                 </div>
-                <IncidentPager page={page} pages={pagination.pages} total={pagination.total} pageSize={ADMIN_INCIDENT_PAGE_SIZE} onPageChange={setPage} hideWhenSinglePage />
+                <IncidentPager page={page} pages={pagination.pages} total={pagination.total} pageSize={DEPARTMENT_INCIDENT_PAGE_SIZE} onPageChange={setPage} hideWhenSinglePage />
             </main>
         </div>
     );

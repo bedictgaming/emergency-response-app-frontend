@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useId } from "react";
 import { useRouter } from "next/navigation";
 import {
   MapPin,
@@ -34,9 +34,11 @@ import { getBarangays } from "@/lib/services/barangayService";
 import { getDashboardAnalytics } from "@/lib/services/analyticsService";
 import { getIncidentHistory } from "@/lib/services/incidentHistoryService";
 import { useAdminGuard } from "@/app/hooks/useAdminGuard";
+import MonthlyResolutionCard from "@/app/component/admin/MonthlyResolutionCard";
 
 export default function BarangayHistoryPage() {
   const router = useRouter();
+  const filterId = useId();
   const isAuthorized = useAdminGuard();
   const [incidents, setIncidents] = useState<IncidentRecord[]>([]);
   const [barangays, setBarangays] = useState<BarangayItem[]>([]);
@@ -237,7 +239,7 @@ export default function BarangayHistoryPage() {
               Barangay Incident History Log & Analytics Hub
             </h1>
             <p className="text-gray-400 text-xs">
-              Administrative area frequencies, emergency category share & monthly resolution performance
+              Administrative area frequencies, emergency category share & monthly records
             </p>
           </div>
         </div>
@@ -331,30 +333,7 @@ export default function BarangayHistoryPage() {
             </div>
           </div>
 
-          {/* Card 3: Resolved This Month */}
-          <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 p-5 rounded-2xl border border-emerald-200 shadow-2xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between text-emerald-800 text-xs font-bold uppercase tracking-wider mb-2">
-                <span>3. Resolved This Month</span>
-                <span className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
-                  <CheckCircle2 size={16} />
-                </span>
-              </div>
-              <div className="text-4xl font-black text-emerald-800 tracking-tight">
-                {analytics?.resolvedSummary?.resolvedThisMonth ?? 0}
-              </div>
-              <p className="text-xs text-emerald-800/80 mt-1 font-medium">
-                Out of {analytics?.resolvedSummary?.totalReportedThisMonth ?? 0} incidents reported in calendar month {analytics?.resolvedSummary?.month}/{analytics?.resolvedSummary?.year}.
-              </p>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-emerald-200/60 flex items-center justify-between text-xs">
-              <span className="text-emerald-800 font-semibold">Monthly Resolution Rate:</span>
-              <span className="text-base font-extrabold text-emerald-900">
-                {analytics?.resolvedSummary?.resolutionRate ?? 0}%
-              </span>
-            </div>
-          </div>
+          <MonthlyResolutionCard summary={analytics?.resolvedSummary} />
         </div>
 
         {/* ============================================================ */}
@@ -490,11 +469,14 @@ export default function BarangayHistoryPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
             {/* Search Input */}
             <div className="relative md:col-span-2">
+              <label htmlFor={`${filterId}-search`} className="sr-only">Search incident history</label>
               <Search
                 size={16}
                 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
               />
               <input
+                id={`${filterId}-search`}
+                name="incidentHistorySearch"
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -505,6 +487,9 @@ export default function BarangayHistoryPage() {
 
             {/* Barangay Selector (13 Fixed Barangays) */}
             <select
+              id={`${filterId}-barangay`}
+              name="incidentHistoryBarangay"
+              aria-label="Filter history by barangay"
               value={selectedBarangayId}
               onChange={(e) => setSelectedBarangayId(e.target.value)}
               className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold text-gray-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -519,6 +504,9 @@ export default function BarangayHistoryPage() {
 
             {/* Status Filter */}
             <select
+              id={`${filterId}-status`}
+              name="incidentHistoryStatus"
+              aria-label="Filter history by status"
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
               className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold text-gray-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -533,6 +521,9 @@ export default function BarangayHistoryPage() {
             {/* Period Filter */}
             <div className="flex gap-2">
               <select
+                id={`${filterId}-period`}
+                name="incidentHistoryPeriod"
+                aria-label="Filter history by reporting period"
                 value={selectedPeriod}
                 onChange={(e) => setSelectedPeriod(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold text-gray-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"

@@ -192,7 +192,14 @@ test('medical dashboard exposes only verified incidents and prevents duplicate s
   await page.goto('/admin/medical-dashboard');
   await expect(page.getByText('Verified medical report')).toBeVisible();
   await expect(page.getByText('Pending medical report')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Dispatch Ambulance / Mark Responding' }).dblclick();
+  // Wait for the async request to complete before counting it; dblclick returning
+  // does not guarantee that Axios has reached the intercepted route yet.
+  await Promise.all([
+    page.waitForResponse(response => response.request().method() === 'PATCH'
+      && response.url().includes('/api/incidents/v1/')),
+    page.getByRole('button', { name: 'Dispatch Ambulance / Mark Responding' }).dblclick(),
+  ]);
+  await expect(page.getByRole('button', { name: 'Dispatch Ambulance / Mark Responding' })).toBeEnabled();
   expect(serviceUpdates).toBe(1);
 });
 
@@ -207,6 +214,8 @@ test('citizen proof upload precedes submission and failed uploads retain the dra
   });
   await page.route('https://api.cloudinary.com/**', async route => {
     order.push('upload');
+    expect(new URL(route.request().url()).pathname).toBe('/v1_1/test/image/upload');
+    expect(route.request().postDataBuffer()?.toString()).toContain('name="type"\r\n\r\nauthenticated');
     expect(route.request().postDataBuffer()?.toString()).toContain('name="overwrite"\r\n\r\nfalse');
     expect(route.request().postDataBuffer()?.toString()).toContain('name="public_id"\r\n\r\nphoto');
     await route.fulfill({ status: failUpload ? 500 : 200, json: { public_id: 'evidence/test-user/photo', secure_url: 'https://example.test/photo.png', format: 'png', bytes: 68, width: 1, height: 1 } });
@@ -295,6 +304,38 @@ test('citizen photo upload falls back securely when the browser blocks Cloudinar
   await expect(page.getByRole('heading', { name: 'Report Emergency', exact: true })).toHaveCount(0);
   expect(fallbackUploads).toBe(1);
   expect(incidentCreated).toBe(true);
+});
+
+test('blocked direct upload of a large photo preserves the draft without sending an oversized fallback', async ({ page }) => {
+  await session(page, 'USER');
+  await page.route('https://nominatim.openstreetmap.org/**', route => route.fulfill({ json: { address: { town: 'Cordova', province: 'Cebu' } } }));
+  await page.route('**/api/upload/v1/signature', route => route.fulfill({
+    json: { data: { cloudName: 'test', apiKey: 'test', timestamp: 1, folder: 'evidence/test-user', publicId: 'photo', allowed_formats: 'jpg,jpeg,png,webp,heic', signature: 'test', type: 'authenticated' } },
+  }));
+  await page.route('https://api.cloudinary.com/**', route => route.abort('failed'));
+  let fallbacks = 0;
+  let creations = 0;
+  await page.route('**/api/upload/v1/image', route => { fallbacks++; return route.fulfill({ status: 413 }); });
+  await page.route('**/api/incidents/v1/**', route => {
+    if (new URL(route.request().url()).pathname.endsWith('/nearby-check')) return route.fulfill({ json: { data: { duplicate: false } } });
+    if (route.request().method() === 'POST') creations++;
+    return route.fulfill({ json: { data: { incidents: [] } } });
+  });
+  await page.goto('/dashboard');
+  await page.getByRole('heading', { name: 'Fire', exact: true }).click();
+  await page.getByLabel('Description of Incident').fill('Clearly labeled synthetic upload-boundary test');
+  await page.getByLabel('Contact Number').fill('09171234567');
+  await page.getByLabel('Incident barangay').selectOption('Poblacion');
+  await confirmEmergencyMapPin(page);
+  const photo = Buffer.alloc(4 * 1024 * 1024);
+  Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGNkAAAAASUVORK5CYII=', 'base64').copy(photo);
+  await page.locator('input[type="file"]').setInputFiles({ name: 'large-proof.png', mimeType: 'image/png', buffer: photo });
+  await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
+  await expect(page.getByText('choose a photo under 2.5 MB', { exact: false })).toBeVisible();
+  await expect(page.getByLabel('Description of Incident')).toHaveValue('Clearly labeled synthetic upload-boundary test');
+  await expect(page.getByRole('button', { name: 'Submit Report', exact: true })).toBeEnabled();
+  expect(fallbacks).toBe(0);
+  expect(creations).toBe(0);
 });
 
 test('citizen daily-limit response stays in the form without a development error overlay', async ({ page }) => {
@@ -594,7 +635,62 @@ test('protected evidence is resolved through an authorized short-lived URL', asy
   const evidence = page.getByAltText('Incident Photo Evidence');
   await expect(evidence).toBeVisible();
   await expect(evidence).toHaveAttribute('src', pixel);
+  // The thumbnail may stay visible past the storage URL's 60-second expiry.
+  // Opening it must go back through the authorized endpoint for a fresh URL.
+  await expect(page.getByRole('link', { name: 'View photo →' })).toHaveAttribute(
+    'href',
+    'http://localhost:8000/api/attachments/v1/protected-photo/content',
+  );
+  await expect(page.getByRole('link', { name: 'Incident Photo Evidence' })).toHaveAttribute(
+    'href',
+    'http://localhost:8000/api/attachments/v1/protected-photo/content',
+  );
   expect(accessRequests).toBe(1);
+});
+
+test('missing stored evidence shows an honest retry state instead of a broken photo link', async ({ page }) => {
+  await session(page, 'ADMIN');
+  const pixel = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGNkAAAAASUVORK5CYII=';
+  const incident = {
+    incidentId: 'incident-with-missing-evidence',
+    title: 'Incident with missing evidence',
+    description: 'Evidence unavailable test',
+    typeId: 'fire-type',
+    locationId: 'location',
+    severityLevel: 'HIGH',
+    status: 'RESOLVED',
+    verificationStatus: 'VERIFIED',
+    requestedServices: ['FIRE'],
+    reportedBy: 'citizen',
+    reportedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    type: { typeId: 'fire-type', typeName: 'Fire' },
+    location: { locationId: 'location', locationName: 'Poblacion' },
+    attachments: [{
+      attachmentId: 'missing-photo',
+      fileName: 'evidence.png',
+      fileType: 'image/png',
+      fileUrl: 'http://localhost:8000/api/attachments/v1/missing-photo/content',
+      uploadedAt: new Date().toISOString(),
+    }],
+  };
+  let accessRequests = 0;
+
+  await page.route('**/api/incidents/v1/**', route => route.fulfill({ json: { data: { incidents: [incident] } } }));
+  await page.route('**/api/attachments/v1/missing-photo/access-url', route => {
+    accessRequests += 1;
+    return route.fulfill({ json: { data: { url: accessRequests === 1 ? 'https://res.cloudinary.com/test/image/authenticated/missing.png' : pixel, expiresInSeconds: 60 } } });
+  });
+  await page.route('https://res.cloudinary.com/test/image/authenticated/missing.png', route => route.fulfill({ status: 404, body: 'Resource not found' }));
+
+  await page.goto('/admin/main-dashboard');
+  await expect(page.getByText('Photo image unavailable')).toBeVisible();
+  await expect(page.getByText('The image could not be loaded. Report details remain available.')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'View photo →' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Retry photo' }).click();
+  await expect(page.getByRole('link', { name: 'View photo →' })).toBeVisible();
+  expect(accessRequests).toBe(2);
 });
 
 test('citizen dashboard allows a second report and disables a third until the next Manila day', async ({ page }) => {
@@ -676,6 +772,7 @@ test('one citizen submission becomes visible to main admin without a list-reques
       created = true;
       return route.fulfill({ status: 201, json: { data: { incident } } });
     }
+    if (new URL(request.url()).pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
     if (!new URL(request.url()).searchParams.has('reportedBy')) adminListRequests += 1;
     return route.fulfill({ json: { data: { incidents: created ? [incident] : [] } } });
   });

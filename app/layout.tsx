@@ -23,7 +23,6 @@ export const metadata: Metadata = {
   title: "Emergency Response App",
   description: "Community-based emergency reporting and response coordination for Cordova, Cebu.",
   applicationName: "Emergency Response App",
-  manifest: "/manifest.webmanifest",
   icons: {
     icon: [
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -51,6 +50,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Metadata adds credentials only on Vercel previews, not protected production. */}
+        {process.env.NEXT_PUBLIC_PRODUCTION_VALIDATION !== "true" && (
+          <link rel="manifest" href="/manifest.webmanifest" crossOrigin="use-credentials" />
+        )}
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body>
@@ -70,7 +73,7 @@ export default function RootLayout({
         <NetworkStatusBanner />
         <ServiceWorkerRegistration />
         {children}
-        <PwaInstallPrompt />
+        {process.env.NEXT_PUBLIC_PRODUCTION_VALIDATION !== "true" && <PwaInstallPrompt />}
         <ThemeToggle />
       </body>
     </html>

@@ -33,7 +33,40 @@ test('PWA manifest, icons, and service worker are deployable', async ({ page, re
 
   await page.goto('/');
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest.webmanifest');
+  await expect(page.locator('link[rel="manifest"]')).toHaveCount(1);
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('crossorigin', 'use-credentials');
   await expect.poll(() => page.evaluate(async () => Boolean(await navigator.serviceWorker.getRegistration('/')))).toBe(true);
+});
+
+test('browser manifest fetch includes an existing same-origin access cookie', async ({ page, context }) => {
+  await context.addCookies([{
+    name: 'synthetic-platform-access',
+    value: 'manifest-test-only',
+    url: 'http://127.0.0.1:3100',
+    httpOnly: true,
+    sameSite: 'Lax',
+  }]);
+  let receivedCookie = false;
+  await context.route('**/manifest.webmanifest', async (route) => {
+    const headers = await route.request().allHeaders();
+    receivedCookie = headers.cookie?.includes('synthetic-platform-access=manifest-test-only') ?? false;
+    await route.fulfill({
+      status: receivedCookie ? 200 : 401,
+      contentType: 'application/manifest+json',
+      body: JSON.stringify({ name: 'Credentialed manifest test', start_url: '/', display: 'standalone' }),
+    });
+  });
+  await page.goto('/');
+  const session = await context.newCDPSession(page);
+  try {
+    // Exercise the browser's manifest loader, not a normal fetch() with different defaults.
+    const result = await session.send('Page.getAppManifest');
+    expect(result.errors).toEqual([]);
+    expect(receivedCookie).toBe(true);
+    expect(JSON.parse(result.data ?? '{}').name).toBe('Credentialed manifest test');
+  } finally {
+    await session.detach();
+  }
 });
 
 test('supported browsers can show and accept the install prompt', async ({ page }) => {

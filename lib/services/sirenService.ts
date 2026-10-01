@@ -4,6 +4,12 @@
  * without relying on external audio files or CORS.
  */
 
+export interface SirenState {
+  playing: boolean;
+  audioReady: boolean;
+  unavailable: boolean;
+}
+
 class SirenManager {
   private audioCtx: AudioContext | null = null;
   private osc1: OscillatorNode | null = null;
@@ -12,46 +18,63 @@ class SirenManager {
   private isPlaying: boolean = false;
   private modulationInterval: ReturnType<typeof setInterval> | null = null;
   private autoStopTimeout: ReturnType<typeof setTimeout> | null = null;
-  private listeners: Set<(playing: boolean) => void> = new Set();
+  private unavailable = false;
+  private listeners: Set<(state: SirenState) => void> = new Set();
 
-  constructor() {
-    if (typeof window !== 'undefined') {
-      // Auto-unlock AudioContext on first user gesture
-      const unlockAudio = () => {
-        this.getAudioContext();
-        window.removeEventListener('click', unlockAudio);
-        window.removeEventListener('keydown', unlockAudio);
-        window.removeEventListener('touchstart', unlockAudio);
-      };
-      window.addEventListener('click', unlockAudio, { passive: true });
-      window.addEventListener('keydown', unlockAudio, { passive: true });
-      window.addEventListener('touchstart', unlockAudio, { passive: true });
+  public getState(): SirenState {
+    const audioReady = this.audioCtx?.state === 'running' && !this.unavailable;
+    return { playing: this.isPlaying && audioReady, audioReady, unavailable: this.unavailable };
+  }
+
+  /** Call only from an explicit sound-control click; background alerts never create/resume audio. */
+  public async enableAudio(): Promise<boolean> {
+    if (typeof window === 'undefined') return false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      if (!this.audioCtx || this.audioCtx.state === 'closed') {
+        const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!AudioContextClass) throw new Error('Web Audio unavailable');
+        this.audioCtx = new AudioContextClass();
+        this.audioCtx.addEventListener('statechange', () => {
+          // Do not leave oscillators queued to restart an acknowledged alert after interruption.
+          if (this.audioCtx?.state !== 'running' && this.isPlaying) this.stopSiren();
+          else this.notify();
+        });
+      }
+      const ctx = this.audioCtx;
+      if (ctx.state !== 'running') {
+        await Promise.race([
+          ctx.resume(),
+          new Promise<never>((_, reject) => {
+            timeout = setTimeout(() => reject(new Error('Audio activation timed out')), 3000);
+          }),
+        ]);
+      }
+      this.unavailable = ctx.state !== 'running';
+      this.notify();
+      return !this.unavailable;
+    } catch {
+      this.unavailable = true;
+      this.notify();
+      return false;
+    } finally {
+      if (timeout) clearTimeout(timeout);
     }
   }
 
-  private getAudioContext(): AudioContext {
-    if (!this.audioCtx) {
-      const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.audioCtx = new AudioContextClass();
-    }
-    if (this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume();
-    }
-    return this.audioCtx;
-  }
-
-  public subscribe(cb: (playing: boolean) => void): () => void {
+  public subscribe(cb: (state: SirenState) => void): () => void {
     this.listeners.add(cb);
-    cb(this.isPlaying);
+    cb(this.getState());
     return () => this.listeners.delete(cb);
   }
 
   private notify() {
-    this.listeners.forEach((cb) => cb(this.isPlaying));
+    const state = this.getState();
+    this.listeners.forEach((cb) => cb(state));
   }
 
   public getIsPlaying(): boolean {
-    return this.isPlaying;
+    return this.getState().playing;
   }
 
   /**
@@ -60,18 +83,26 @@ class SirenManager {
    */
   public startSiren(options?: { durationSeconds?: number }): void {
     if (typeof window === 'undefined') return;
+    const ctx = this.audioCtx;
+    if (!ctx || ctx.state !== 'running') {
+      this.notify();
+      return;
+    }
 
     // If already playing, refresh autoStop if provided
     if (this.isPlaying) {
       if (options?.durationSeconds) {
         if (this.autoStopTimeout) clearTimeout(this.autoStopTimeout);
         this.autoStopTimeout = setTimeout(() => this.stopSiren(), options.durationSeconds * 1000);
+      } else if (this.autoStopTimeout) {
+        // A live report replaces a short speaker test; do not stop the real alert on its timer.
+        clearTimeout(this.autoStopTimeout);
+        this.autoStopTimeout = null;
       }
       return;
     }
 
     try {
-      const ctx = this.getAudioContext();
       const now = ctx.currentTime;
 
       // Master Gain for maximum audible loudness
@@ -84,11 +115,13 @@ class SirenManager {
 
       // Primary oscillator: Sawtooth wave for piercing emergency tone
       const osc1 = ctx.createOscillator();
+      this.osc1 = osc1;
       osc1.type = 'sawtooth';
       osc1.frequency.setValueAtTime(800, now);
 
       // Secondary oscillator: Square wave slightly detuned for deep civil defense siren harmonic
       const osc2 = ctx.createOscillator();
+      this.osc2 = osc2;
       osc2.type = 'square';
       osc2.frequency.setValueAtTime(790, now);
 
@@ -131,6 +164,9 @@ class SirenManager {
         }, options.durationSeconds * 1000);
       }
     } catch (err) {
+      this.stopSiren();
+      this.unavailable = true;
+      this.notify();
       console.warn('Could not start emergency siren audio:', err);
     }
   }
@@ -159,18 +195,20 @@ class SirenManager {
       }
     }
 
+    // Capture this playback's nodes: a delayed cleanup must not stop a newer siren.
+    const nodes = [this.osc1, this.osc2];
+    const gain = this.gainNode;
+    for (const node of nodes) {
+      try { node?.stop((this.audioCtx?.currentTime ?? 0) + 0.08); } catch {}
+    }
+    this.osc1 = null;
+    this.osc2 = null;
+    this.gainNode = null;
+    this.isPlaying = false;
+    this.notify();
     setTimeout(() => {
-      if (this.osc1) {
-        try { this.osc1.stop(); this.osc1.disconnect(); } catch {}
-        this.osc1 = null;
-      }
-      if (this.osc2) {
-        try { this.osc2.stop(); this.osc2.disconnect(); } catch {}
-        this.osc2 = null;
-      }
-      this.gainNode = null;
-      this.isPlaying = false;
-      this.notify();
+      for (const node of nodes) { try { node?.disconnect(); } catch {} }
+      try { gain?.disconnect(); } catch {}
     }, 90);
   }
 

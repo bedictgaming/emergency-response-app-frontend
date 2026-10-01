@@ -403,7 +403,7 @@ export function EmergencyReportForm({
             <fieldset disabled={submitting} className="space-y-4" aria-busy={submitting}>
             {/* Emergency Category Selection */}
             <div className="space-y-2">
-                <Label id="emergency-category-label" className="text-sm font-semibold text-slate-900">Emergency Category *</Label>
+                <span id="emergency-category-label" className="text-sm font-semibold text-slate-900">Emergency Category *</span>
                 <div className="grid grid-cols-3 gap-3" role="group" aria-labelledby="emergency-category-label" aria-describedby={errors.category ? 'emergency-category-error' : undefined}>
                     {EMERGENCY_CATEGORIES.map((category) => {
                         const Icon = getIcon(category.icon);
@@ -439,12 +439,12 @@ export function EmergencyReportForm({
             {selectedCategory === 'other' && (
                 <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
                     <div>
-                        <Label className="text-xs font-semibold text-slate-900">Response services needed *</Label>
+                        <span id="response-services-label" className="text-xs font-semibold text-slate-900">Response services needed *</span>
                         <p className="mt-0.5 text-[11px] text-slate-600">
                             Select at least two departments. The same report will alert every selected service.
                         </p>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div role="group" aria-labelledby="response-services-label" className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {RESPONSE_SERVICES.map((service) => {
                             const checked = requestedServices.includes(service.id);
                             return (
@@ -654,7 +654,7 @@ export function EmergencyReportForm({
 
             {/* Photo Evidence Upload */}
             <div className="space-y-2">
-                <Label className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                <Label htmlFor="incident-photo" className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                     <Camera className="h-4 w-4 text-red-600" />
                     Photo Evidence
                     <span className="text-xs font-normal text-slate-500">(Required)</span>
@@ -716,23 +716,23 @@ export function EmergencyReportForm({
                                 Use camera
                             </Button>
                         )}
-                        <span id="incident-photo-help" className="sr-only">A current JPEG, PNG, or WEBP photo up to 5 megabytes is required.</span>
-                        <input
-                            ref={fileInputRef}
-                            id="incident-photo"
-                            type="file"
-                            accept="image/jpeg,image/jpg,image/png,image/webp"
-                            className="sr-only"
-                            tabIndex={-1}
-                            aria-required="true"
-                            aria-describedby={photoError ? 'incident-photo-error' : 'incident-photo-help'}
-                            onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handlePhotoSelect(file);
-                            }}
-                        />
                     </div>
                 )}
+                <span id="incident-photo-help" className="sr-only">A current JPEG, PNG, or WEBP photo up to 5 megabytes is required.</span>
+                <input
+                    ref={fileInputRef}
+                    id="incident-photo"
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    className="sr-only"
+                    tabIndex={-1}
+                    aria-required="true"
+                    aria-describedby={photoError ? 'incident-photo-error' : 'incident-photo-help'}
+                    onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handlePhotoSelect(file);
+                    }}
+                />
                 {photoPreview && (
                     <div className="relative rounded-xl overflow-hidden border border-slate-200 shadow-sm">
                         <img
