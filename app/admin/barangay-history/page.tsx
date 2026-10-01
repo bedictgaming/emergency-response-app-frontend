@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useId } from "react";
 import { useRouter } from "next/navigation";
 import {
   MapPin,
@@ -38,6 +38,7 @@ import MonthlyResolutionCard from "@/app/component/admin/MonthlyResolutionCard";
 
 export default function BarangayHistoryPage() {
   const router = useRouter();
+  const filterId = useId();
   const isAuthorized = useAdminGuard();
   const [incidents, setIncidents] = useState<IncidentRecord[]>([]);
   const [barangays, setBarangays] = useState<BarangayItem[]>([]);
@@ -468,11 +469,14 @@ export default function BarangayHistoryPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
             {/* Search Input */}
             <div className="relative md:col-span-2">
+              <label htmlFor={`${filterId}-search`} className="sr-only">Search incident history</label>
               <Search
                 size={16}
                 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
               />
               <input
+                id={`${filterId}-search`}
+                name="incidentHistorySearch"
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -483,6 +487,9 @@ export default function BarangayHistoryPage() {
 
             {/* Barangay Selector (13 Fixed Barangays) */}
             <select
+              id={`${filterId}-barangay`}
+              name="incidentHistoryBarangay"
+              aria-label="Filter history by barangay"
               value={selectedBarangayId}
               onChange={(e) => setSelectedBarangayId(e.target.value)}
               className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold text-gray-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -497,6 +504,9 @@ export default function BarangayHistoryPage() {
 
             {/* Status Filter */}
             <select
+              id={`${filterId}-status`}
+              name="incidentHistoryStatus"
+              aria-label="Filter history by status"
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
               className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold text-gray-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -511,6 +521,9 @@ export default function BarangayHistoryPage() {
             {/* Period Filter */}
             <div className="flex gap-2">
               <select
+                id={`${filterId}-period`}
+                name="incidentHistoryPeriod"
+                aria-label="Filter history by reporting period"
                 value={selectedPeriod}
                 onChange={(e) => setSelectedPeriod(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold text-gray-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"

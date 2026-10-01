@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useId } from "react";
 import { useRouter } from "next/navigation";
 import {
   X,
@@ -36,6 +36,7 @@ export default function BarangayHistoryDrawer({
   onClose,
 }: BarangayHistoryDrawerProps) {
   const router = useRouter();
+  const searchId = useId();
   const [incidents, setIncidents] = useState<IncidentRecord[]>([]);
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -265,11 +266,14 @@ export default function BarangayHistoryDrawer({
             {/* Search & Full Page Link */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
+                <label htmlFor={searchId} className="sr-only">Search incident history</label>
                 <Search
                   size={15}
                   className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
                 />
                 <input
+                  id={searchId}
+                  name="incidentHistorySearch"
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}

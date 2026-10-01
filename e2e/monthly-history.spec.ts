@@ -116,4 +116,56 @@ for (const surface of ['drawer', 'page'] as const) {
     await expect(card.getByText('August 2026 · 3 of 3 verified reports (100%).')).toBeVisible();
     await expect(card.getByText('14', { exact: true })).toHaveCount(0);
   });
+
+  test(`${surface}: history fields are identified and labeled without changing search`, async ({ page }, testInfo) => {
+    await setup(page);
+    const incidents = ['Alpha practice record', 'Bravo practice record'].map((title, index) => ({
+      incidentId: `history-${index}`, title, description: 'Synthetic test record',
+      status: 'RESOLVED', severityLevel: 'LOW', verificationStatus: 'VERIFIED',
+      reportedAt: '2026-09-20T08:00:00Z', updatedAt: '2026-09-20T08:00:00Z',
+      reportedBy: 'synthetic-citizen', typeId: 'fire', locationId: 'test-location',
+      type: { typeId: 'fire', typeName: 'Fire Outbreak' },
+      location: { locationId: 'test-location', locationName: 'Synthetic location' },
+      attachments: [], incidentUnits: [], requestedServices: [],
+    }));
+    await page.route('**/api/incidents/v1/**', route => {
+      const path = new URL(route.request().url()).pathname.replace(/\/$/, '');
+      if (path !== '/api/incidents/v1') return route.fallback();
+      return route.fulfill({ json: { data: {
+        incidents, pagination: { page: 1, limit: 20, total: 2, pages: 1 },
+        summary: { total: 2, active: 0, responding: 0, resolved: 2 },
+        verifiedSummary: { total: 2, active: 0, responding: 0, resolved: 2 },
+      } } });
+    });
+    await open(page);
+    const scope = surface === 'drawer' ? page.locator('.fixed.inset-0.z-50') : page.locator('main');
+    const search = page.getByLabel('Search incident history', { exact: true });
+    await expect(search).toHaveAttribute('name', 'incidentHistorySearch');
+    const id = await search.getAttribute('id');
+    expect(id).toBeTruthy();
+    expect(await search.evaluate(input => ({
+      unique: [...document.querySelectorAll('[id]')].filter(el => el.id === input.id).length,
+      labels: (input as HTMLInputElement).labels?.length,
+    }))).toEqual({ unique: 1, labels: 1 });
+    await expect(scope.getByText('Alpha practice record', { exact: true })).toBeVisible();
+    await expect(scope.getByText('Bravo practice record', { exact: true })).toBeVisible();
+    await search.fill('alpha');
+    await expect(scope.getByText('Alpha practice record', { exact: true })).toBeVisible();
+    await expect(scope.getByText('Bravo practice record', { exact: true })).toHaveCount(0);
+    await search.fill('');
+    await expect(scope.getByText('Bravo practice record', { exact: true })).toBeVisible();
+    if (surface === 'page') {
+      for (const label of ['Filter history by barangay', 'Filter history by status', 'Filter history by reporting period']) {
+        await expect(page.getByLabel(label, { exact: true })).toHaveAttribute('id', /.+/);
+        await expect(page.getByLabel(label, { exact: true })).toHaveAttribute('name', /.+/);
+      }
+    }
+    for (const width of [1366, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await search.scrollIntoViewIfNeeded();
+      await expect(search).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: testInfo.outputPath(`history-search-${surface}-${width}.png`) });
+    }
+  });
 }
