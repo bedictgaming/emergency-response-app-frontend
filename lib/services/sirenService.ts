@@ -26,7 +26,7 @@ class SirenManager {
     return { playing: this.isPlaying && audioReady, audioReady, unavailable: this.unavailable };
   }
 
-  /** Call only from an explicit sound-control click; background alerts never create/resume audio. */
+  /** Call only from a sound-control click or trusted gesture restoring saved consent; never background alerts. */
   public async enableAudio(): Promise<boolean> {
     if (typeof window === 'undefined') return false;
     let timeout: ReturnType<typeof setTimeout> | undefined;

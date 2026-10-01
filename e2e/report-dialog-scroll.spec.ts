@@ -7,6 +7,9 @@ async function checkScrollStaysPut(page: Page) {
     Object.defineProperty(navigator, 'geolocation', {
       configurable: true,
       value: {
+        getCurrentPosition(success: (position: unknown) => void) {
+          setTimeout(() => success({ coords: { latitude: 10.252191, longitude: 123.949475, accuracy: 25 }, timestamp: Date.now() }), 0);
+        },
         watchPosition(success: (position: unknown) => void) {
           update = success;
           setTimeout(() => success({ coords: { latitude: 10.252191, longitude: 123.949475, accuracy: 25 } }), 0);

@@ -24,6 +24,7 @@ import { CompactEvidencePhoto } from "@/app/component/SecureEvidencePhoto";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 import IncidentReviewActions from "@/app/component/admin/IncidentReviewActions";
 import IncidentReviewQueue from "@/app/component/admin/IncidentReviewQueue";
+import IncidentVerificationLabel from "@/app/component/admin/IncidentVerificationLabel";
 
 export default function MainDashboard() {
     const isAuthorized = useAdminGuard("MAIN");
@@ -313,7 +314,7 @@ export default function MainDashboard() {
                         <div key={item.id} className="motion-list-item bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                             <div className="flex justify-between items-start mb-4">
                                 <div className="flex flex-col gap-2.5">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded text-white ${item.type === 'Fire' ? 'bg-red-600' :
                                                 item.type === 'Medical' ? 'bg-rose-600' :
                                                     item.type === 'Police' ? 'bg-blue-700' : 'bg-amber-600'
@@ -341,6 +342,8 @@ export default function MainDashboard() {
                                     </button>
                                 )}
                             </div>
+
+                            <IncidentVerificationLabel status={item.raw.verificationStatus} />
 
                             {/* Incident Description */}
                             {item.description && (

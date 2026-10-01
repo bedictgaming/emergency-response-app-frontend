@@ -6,7 +6,8 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Flame, Heart, Shield, AlertTriangle, HelpCircle, MapPin, Locate, Camera, X, ImageIcon, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { CORDOVA_CENTER, isWithinCordovaMapBounds } from '../lib/cordovaBoundary';
+import { isWithinCordovaMapBounds } from '../lib/cordovaBoundary';
+import { isReportGpsFresh, useReportGps } from '../hooks/useReportGps';
 import { IncidentCameraCapture } from './IncidentCameraCapture';
 
 const LocationMap = dynamic(() => import('./LocationMap').then(mod => mod.LocationMap), {
@@ -133,8 +134,6 @@ interface EmergencyReportFormProps {
     onCancel: () => void;
     defaultName?: string;
     defaultCategory?: EmergencyCategory | null;
-    latitude?: number | null;
-    longitude?: number | null;
 }
 
 export function EmergencyReportForm({
@@ -143,8 +142,6 @@ export function EmergencyReportForm({
     onCancel,
     defaultName = '',
     defaultCategory = null,
-    latitude = null,
-    longitude = null,
 }: EmergencyReportFormProps) {
     const [selectedCategory, setSelectedCategory] = useState<EmergencyCategory | null>(defaultCategory);
     const [requestedServices, setRequestedServices] = useState<ResponseService[]>([]);
@@ -160,14 +157,13 @@ export function EmergencyReportForm({
     const geocodeCacheRef = useRef(new Map<string, { address: string; barangay?: string }>());
     const addressEditedRef = useRef(false);
     const barangayEditedRef = useRef(false);
-    const isGpsInCordova = latitude !== null && longitude !== null && isWithinCordovaMapBounds(latitude, longitude);
-    const [currentLatitude, setCurrentLatitude] = useState<number | null>(isGpsInCordova ? latitude : null);
-    const [currentLongitude, setCurrentLongitude] = useState<number | null>(isGpsInCordova ? longitude : null);
-    // GPS is a suggestion about the device, not confirmation of the incident.
-    const [locationConfirmed, setLocationConfirmed] = useState(false);
+    const { fix: gpsFix, loading: gpsLoading, error: gpsError, refresh: refreshGps } = useReportGps();
+    const currentLatitude = gpsFix?.latitude ?? null;
+    const currentLongitude = gpsFix?.longitude ?? null;
+    const isGpsInCordova = gpsFix !== null && isWithinCordovaMapBounds(gpsFix.latitude, gpsFix.longitude);
+    const [confirmedFix, setConfirmedFix] = useState<typeof gpsFix>(null);
+    const locationConfirmed = gpsFix !== null && confirmedFix === gpsFix;
     const [errors, setErrors] = useState<Record<string, string>>({});
-    const userSelectedPinRef = useRef(false);
-    const gpsAppliedRef = useRef(isGpsInCordova);
 
     // The dashboard can open the one-tap form while the verified profile is
     // still loading. Populate the reporter name as soon as that profile
@@ -262,40 +258,21 @@ export function EmergencyReportForm({
         }, 1100);
     };
 
-    // Auto-detect address on initial render if location is empty
     useEffect(() => {
-        const initialLat = isGpsInCordova ? latitude : null;
-        const initialLng = isGpsInCordova ? longitude : null;
-        if (initialLat !== null && initialLng !== null) {
-            reverseGeocode(initialLat, initialLng);
+        if (gpsFix && isGpsInCordova) {
+            if (!addressEditedRef.current) setLocation(`Pinned location (${gpsFix.latitude.toFixed(6)}, ${gpsFix.longitude.toFixed(6)})`);
+            if (!barangayEditedRef.current) setBarangayName('');
+            reverseGeocode(gpsFix.latitude, gpsFix.longitude);
+        } else {
+            setIsGeocoding(false);
         }
         return () => {
             geocodeRequestRef.current += 1;
             if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
             geocodeAbortRef.current?.abort();
         };
-    // Run once for the initial map position; subsequent GPS changes are handled below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // Sync GPS coordinates if/when available and within Cordova jurisdiction
-    useEffect(() => {
-        if (
-            !userSelectedPinRef.current
-            && !gpsAppliedRef.current
-            && latitude !== null
-            && longitude !== null
-            && isWithinCordovaMapBounds(latitude, longitude)
-        ) {
-            gpsAppliedRef.current = true;
-            setCurrentLatitude(latitude);
-            setCurrentLongitude(longitude);
-            setLocationConfirmed(false);
-            if (!addressEditedRef.current) setLocation(`Pinned location (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`);
-            if (!barangayEditedRef.current) setBarangayName('');
-            reverseGeocode(latitude, longitude);
-        }
-    }, [latitude, longitude]);
+    // A fresh snapshot may offer address hints, never overwrite edited text.
+    }, [gpsFix, isGpsInCordova]);
 
     // Photo evidence state
     const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -340,6 +317,32 @@ export function EmergencyReportForm({
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
+    const updateContactNumber = (value: string) => {
+        setContactNumber(value);
+        if (/^[0-9]{1,11}$/.test(value)) {
+            setErrors((current) => {
+                if (!current.contactNumber) return current;
+                const next = { ...current };
+                delete next.contactNumber;
+                return next;
+            });
+        }
+    };
+
+    const handleContactPaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+        event.preventDefault();
+        const input = event.currentTarget;
+        const start = input.selectionStart ?? contactNumber.length;
+        const end = input.selectionEnd ?? start;
+        const remaining = 11 - (contactNumber.length - (end - start));
+        // Clean before applying the limit: spaces in a pasted number must not
+        // consume its digit allowance or remove the existing unselected suffix.
+        const pastedDigits = event.clipboardData.getData('text').replace(/[^0-9]/g, '');
+        if (!pastedDigits) return;
+        const digits = pastedDigits.slice(0, remaining);
+        updateContactNumber(contactNumber.slice(0, start) + digits + contactNumber.slice(end));
+    };
+
     const validateForm = () => {
         const newErrors: Record<string, string> = {};
 
@@ -354,6 +357,8 @@ export function EmergencyReportForm({
         }
         if (!contactNumber.trim()) {
             newErrors.contactNumber = 'Please enter your contact number';
+        } else if (!/^[0-9]{1,11}$/.test(contactNumber)) {
+            newErrors.contactNumber = 'Use numbers only, up to 11 digits';
         }
         if (!location.trim()) {
             newErrors.location = 'Please enter the location';
@@ -362,15 +367,15 @@ export function EmergencyReportForm({
             newErrors.requestedServices = 'Select at least two response services needed for this emergency';
         }
         if (!barangayName) newErrors.barangayName = 'Select the incident barangay';
-        if (!locationConfirmed) {
-            newErrors.location = 'Confirm the emergency location by clicking its exact position on the map';
+        if (!locationConfirmed || !isReportGpsFresh(gpsFix)) {
+            newErrors.location = 'Get a fresh GPS fix and confirm that the emergency is at your location.';
         }
         if (!photoFile) {
             newErrors.photo = 'A current proof photo is required to submit a citizen report';
             setPhotoError(newErrors.photo);
         }
         if (currentLatitude !== null && currentLongitude !== null && !isWithinCordovaMapBounds(currentLatitude, currentLongitude)) {
-            newErrors.location = 'Move the emergency pin into the Cordova map area.';
+            newErrors.location = 'Your GPS location is outside the Cordova map area. This form cannot move the pin; call 911 for help.';
         }
 
         setErrors(newErrors);
@@ -514,14 +519,22 @@ export function EmergencyReportForm({
                     <Label htmlFor="contactNumber" className="text-sm font-semibold text-slate-900">Contact Number *</Label>
                     <Input
                         id="contactNumber"
+                        name="contactNumber"
                         type="tel"
-                        placeholder="09XX XXX XXXX"
+                        inputMode="numeric"
+                        maxLength={11}
+                        pattern="[0-9]{1,11}"
+                        placeholder="09171234567"
                         autoComplete="tel"
                         value={contactNumber}
-                        onChange={(e) => setContactNumber(e.target.value)}
-                        className={`h-10 rounded-xl bg-slate-50 px-3.5 text-sm focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-red-600 ${errors.contactNumber ? 'border-red-500' : 'border-slate-200'}`}
+                        onChange={(e) => updateContactNumber(e.target.value.replace(/[^0-9]/g, '').slice(0, 11))}
+                        onPaste={handleContactPaste}
+                        aria-invalid={Boolean(errors.contactNumber)}
+                        aria-describedby={`contact-number-hint${errors.contactNumber ? ' contact-number-error' : ''}`}
+                        className={`h-10 rounded-xl bg-slate-50 px-3.5 text-base! sm:text-sm! focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-red-600 ${errors.contactNumber ? 'border-red-500' : 'border-slate-200'}`}
                     />
-                    {errors.contactNumber && <p className="text-xs text-red-600">{errors.contactNumber}</p>}
+                    <p id="contact-number-hint" className="text-sm text-muted-foreground">Numbers only, up to 11 digits.</p>
+                    {errors.contactNumber && <p id="contact-number-error" className="text-sm text-red-600">{errors.contactNumber}</p>}
                 </div>
             </div>
 
@@ -560,7 +573,7 @@ export function EmergencyReportForm({
                                 if (currentLatitude === null || currentLongitude === null || !locationConfirmed) {
                                     setErrors((prev) => ({
                                         ...prev,
-                                        location: 'Click the exact emergency location on the map first.',
+                                        location: 'Confirm your GPS location first.',
                                     }));
                                     return;
                                 }
@@ -605,49 +618,44 @@ export function EmergencyReportForm({
                 </div>
                 {errors.location && <p className="text-xs text-red-600">{errors.location}</p>}
                 <p className="text-[11px] text-slate-500">
-                    Confirm the incident pin. Address lookup is approximate; add a street, building, or landmark if needed.
+                    Address lookup is approximate; add a street, building, or landmark. Editing this text does not move the GPS pin.
                 </p>
 
                 <div className="mt-2 space-y-1.5">
                     <div className="flex items-center justify-between">
-                        <p className="text-xs font-medium text-slate-700">Choose the exact emergency location</p>
+                        <p className="text-sm font-semibold text-foreground">GPS incident location</p>
                         <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                            Server-verified on submission
+                            Pin locked to GPS
                         </span>
                     </div>
-                    <LocationMap
-                        latitude={currentLatitude ?? CORDOVA_CENTER[0]}
-                        longitude={currentLongitude ?? CORDOVA_CENTER[1]}
-                        onLocationChange={(newLat, newLng) => {
-                            userSelectedPinRef.current = true;
-                            setCurrentLatitude(newLat);
-                            setCurrentLongitude(newLng);
-                            setLocationConfirmed(true);
-                            if (!addressEditedRef.current) setLocation(`Pinned location (${newLat.toFixed(6)}, ${newLng.toFixed(6)})`);
-                            if (!barangayEditedRef.current) setBarangayName('');
-                            setErrors((previous) => {
-                                if (!previous.location) return previous;
-                                const next = { ...previous };
-                                delete next.location;
-                                return next;
-                            });
-                            reverseGeocode(newLat, newLng);
-                        }}
-                        interactive={true}
-                        height="240px"
-                    />
-                    <p className="text-[11px] leading-5 text-slate-500">
-                        Mouse or touch: select the map. Keyboard: focus the map, move it with the arrow keys, then choose “Confirm center.”
+                    {gpsFix && isGpsInCordova && (
+                        <LocationMap latitude={currentLatitude} longitude={currentLongitude} interactive={false} height="240px" />
+                    )}
+                    <p className="text-base sm:text-sm text-muted-foreground">
+                        Report only an emergency at your current location. You cannot move this pin. If GPS is wrong or the emergency is elsewhere, <a href="tel:911" className="font-semibold underline underline-offset-4">call 911</a>.
                     </p>
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
-                        <span>{locationConfirmed ? 'Location confirmed' : 'GPS is only a suggestion—select or confirm the incident location'}</span>
-                        {currentLatitude !== null && currentLongitude !== null ? (
-                            <span className="font-mono text-slate-700 font-medium bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
-                                {currentLatitude.toFixed(6)}, {currentLongitude.toFixed(6)}
-                            </span>
-                        ) : (
-                            <span className="font-medium text-amber-700">No GPS fix—select the pin manually</span>
-                        )}
+                    <div role="status" className="text-base sm:text-sm text-foreground">
+                        {gpsLoading ? 'Getting a fresh GPS location…' : gpsError ? gpsError : !isGpsInCordova
+                            ? 'Your GPS location is outside the Cordova map area. Retry GPS or call 911.'
+                            : `Device estimate: accurate to about ${Math.max(1, Math.round(gpsFix?.accuracy ?? 0))} m. Check the pin before confirming.`}
+                        {locationConfirmed && <p className="mt-1 font-semibold text-green-700">Location confirmed</p>}
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                        <Button type="button" disabled={gpsLoading || !isGpsInCordova || locationConfirmed}
+                            onClick={() => {
+                                if (!isReportGpsFresh(gpsFix)) { refreshGps(); return; }
+                                setConfirmedFix(gpsFix);
+                                setErrors(previous => {
+                                    const next = { ...previous };
+                                    delete next.location;
+                                    return next;
+                                });
+                            }} className="min-h-11">
+                            Confirm GPS location
+                        </Button>
+                        <Button type="button" variant="outline" disabled={gpsLoading} onClick={refreshGps} className="min-h-11">
+                            Refresh GPS
+                        </Button>
                     </div>
                 </div>
             </div>

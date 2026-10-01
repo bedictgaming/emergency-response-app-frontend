@@ -41,7 +41,7 @@ export function useGeolocation() {
                 const { latitude, longitude, accuracy } = position.coords;
                 if (!Number.isFinite(latitude) || !Number.isFinite(longitude)
                     || !Number.isFinite(accuracy) || accuracy < 0) {
-                    setState((prev) => ({ ...prev, loading: false, error: 'The device returned an invalid location. Try again or choose the incident pin manually.' }));
+                    setState((prev) => ({ ...prev, loading: false, error: 'The device returned an invalid location. Retry GPS, or call 911 for an emergency.' }));
                     return;
                 }
                 setState({
@@ -59,7 +59,7 @@ export function useGeolocation() {
                 } else if (err.code === err.POSITION_UNAVAILABLE) {
                     message = 'Your device could not determine its location. Turn on Location Services and retry.';
                 } else if (err.code === err.TIMEOUT) {
-                    message = 'Location request timed out. Move near a window or select the incident pin manually.';
+                    message = 'Location request timed out. Move near a window and retry GPS.';
                 }
                 setState((prev) => ({
                     latitude: err.code === err.PERMISSION_DENIED ? null : prev.latitude,

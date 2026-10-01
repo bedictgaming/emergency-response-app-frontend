@@ -311,7 +311,10 @@ export function Dashboard() {
                     });
                     if (nearby.locationAccepted === false) {
                         setSubmitError(
-                            nearby.message || 'Move the emergency pin within Cordova before submitting the report.',
+                            (nearby.message || 'Your GPS location was not accepted. Check your device location and incident barangay.').replace(
+                                /Move the pin within Cordova(?: before uploading a photo)?\./g,
+                                'Refresh GPS and confirm your actual location; if it is wrong, call 911.',
+                            ),
                         );
                         return;
                     }
@@ -386,7 +389,10 @@ export function Dashboard() {
             // form instead of logging an error that opens Next's dev overlay.
             if ([400, 409, 422, 429].includes(status ?? 0)) {
                 setDuplicateReportBlocked(duplicateConflict);
-                setSubmitError(responseMessage || 'The report conflicts with a recent change. Review your reports before retrying.');
+                setSubmitError((responseMessage || 'The report conflicts with a recent change. Review your reports before retrying.').replace(
+                    /Move the pin within Cordova(?: before uploading a photo)?\./g,
+                    'Refresh GPS and confirm your actual location; if it is wrong, call 911.',
+                ));
                 if ((status === 409 || status === 429) && user?.id) await fetchUserReports(user.id);
                 return;
             }
@@ -484,7 +490,7 @@ export function Dashboard() {
                                             <Button variant="outline" size="sm" onClick={refreshLocation} className="h-6 border-red-200 px-2 py-0 text-xs text-red-600 hover:bg-red-50 dark:border-slate-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-slate-800">Retry</Button>
                                         </div>
                                     )}
-                                    {locationLoading && !locationError && <p className="text-xs text-amber-700 dark:text-amber-300">Refreshing GPS estimate; confirm the incident pin manually.</p>}
+                                    {locationLoading && !locationError && <p className="text-xs text-amber-700 dark:text-amber-300">Refreshing GPS estimate; the report form requires a fresh GPS fix and your confirmation.</p>}
                                     </>
                                 ) : locationError ? (
                                     <div className="flex items-center gap-2">
@@ -707,8 +713,6 @@ export function Dashboard() {
                         onCancel={() => handleReportDialogChange(false)}
                         defaultName={user?.name || ''}
                         defaultCategory={selectedCategory}
-                        latitude={locationError || locationLoading ? null : latitude}
-                        longitude={locationError || locationLoading ? null : longitude}
                     />
                 </DialogContent>
             </Dialog>

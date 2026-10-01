@@ -294,6 +294,8 @@ test('main verified totals match history without hiding rejected review records'
   await expect(page.getByText('Verified resolved / closed', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'All (15)', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Rejected report retained for review', exact: true })).toBeVisible();
+  await expect(page.getByText('Rejected report.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Excluded from verified analytics; retained in all report records.', { exact: false })).toBeVisible();
   await expect(page.getByText('Includes unverified and rejected records for review.', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'Resolved (15)', exact: true }).click();
   await expect(cards.getByText('14', { exact: true })).toHaveCount(2);
@@ -307,6 +309,50 @@ test('main verified totals match history without hiding rejected review records'
   await page.getByRole('button', { name: 'Barangay History Log' }).click();
   await expect(page.getByText('Verified Reports Resolved')).toBeVisible();
   await expect(page.getByText('September 2026 · 14 of 14 verified reports (100%).')).toBeVisible();
+});
+
+test('main report cards explain verification independently of response status', async ({ page }, testInfo) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('user', JSON.stringify({ id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true }));
+  });
+  await page.route('**/api/auth/v1/me', route => route.fulfill({ json: { data: { user: {
+    id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true,
+  } } } }));
+  await page.route('**/api/events/v1/stream', route => route.fulfill({
+    status: 200, contentType: 'text/event-stream', body: 'event: connected\ndata: {"ok":true}\n\n',
+  }));
+  const mutations: string[] = [];
+  await page.route('**/api/incidents/v1/**', route => {
+    if (route.request().method() !== 'GET') mutations.push(route.request().method());
+    if (new URL(route.request().url()).pathname.endsWith('/review-flags')) {
+      return route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
+    }
+    return route.fulfill({ json: { data: {
+      incidents: ['VERIFIED', 'PENDING', 'REJECTED', undefined].map((verificationStatus, index) => ({
+        incidentId: `state-${index}`, title: `Synthetic verification record ${index}`, status: 'RESOLVED',
+        verificationStatus, reportedAt: '2026-09-20T12:00:00Z', updatedAt: '2026-09-20T12:00:00Z',
+        type: { typeId: 'fire', typeName: 'Fire Outbreak' }, attachments: [], serviceResponses: [],
+      })),
+      pagination: { page: 1, limit: 5, total: 4, pages: 1 },
+      summary: { total: 4, active: 0, responding: 0, resolved: 4 },
+      verifiedSummary: { total: 1, active: 0, responding: 0, resolved: 1 },
+    } } });
+  });
+  await page.goto('/admin/main-dashboard');
+  for (const text of ['Verified report.', 'Pending verification.', 'Rejected report.', 'Verification unavailable.']) {
+    await expect(page.getByText(text, { exact: true })).toBeVisible();
+  }
+  await expect(page.getByText('Included in verified analytics.', { exact: false })).toHaveCount(1);
+  await expect(page.getByText('Excluded from verified analytics; retained in all report records.', { exact: false })).toHaveCount(2);
+  await expect(page.getByText('Analytics inclusion could not be determined.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'All (4)', exact: true })).toBeVisible();
+  await expect(page.locator('[aria-label="Verified report summary"]').getByText('1', { exact: true })).toHaveCount(2);
+  for (const width of [1366, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`verification-labels-${width}.png`), fullPage: true });
+  }
+  expect(mutations).toEqual([]);
 });
 
 test('missing verified aggregates never display all-record totals as verified', async ({ page }) => {
@@ -331,6 +377,31 @@ test('missing verified aggregates never display all-record totals as verified', 
   await expect(cards.getByText('15', { exact: true })).toHaveCount(0);
   await expect(cards.getByText('—', { exact: true })).toHaveCount(4);
   await expect(page.getByRole('button', { name: 'All (15)', exact: true })).toBeVisible();
+});
+
+test('analytics labels distinguish verified lifetime totals from Manila monthly totals', async ({ page }, testInfo) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('user', JSON.stringify({ id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true }));
+  });
+  await page.route('**/api/auth/v1/me', route => route.fulfill({ json: { data: { user: {
+    id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true,
+  } } } }));
+  await page.route('**/api/analytics/v1/dashboard', route => route.fulfill({ json: { data: {
+    incidentsByBarangay: { rankings: [], totalIncidents: 13, topArea: null },
+    incidentsByType: { distribution: [], totalIncidents: 13, topType: null },
+    resolvedSummary: { month: 10, year: 2026, totalReportedThisMonth: 3, resolvedThisMonth: 3,
+      activeThisMonth: 0, resolutionRate: 100, totalHistorical: 13, totalResolvedAllTime: 13 },
+  } } }));
+  await page.goto('/admin/analytics');
+  await expect(page.getByText('Total verified reports', { exact: true }).locator('..').getByText('13', { exact: true })).toBeVisible();
+  await expect(page.getByText('Verified resolved / closed · all time', { exact: true }).locator('..').getByText('13', { exact: true })).toBeVisible();
+  await expect(page.getByText('Verified reports resolved · submitted this month', { exact: true }).locator('..').getByText('3', { exact: true })).toBeVisible();
+  await expect(page.getByText('Verified reports only.', { exact: false })).toBeVisible();
+  for (const width of [1366, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`analytics-period-labels-${width}.png`), fullPage: true });
+  }
 });
 
 test('admin refreshes after a report arrives during an in-flight list request', async ({ page }) => {

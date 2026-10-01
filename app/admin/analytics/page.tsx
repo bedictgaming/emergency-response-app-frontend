@@ -142,6 +142,9 @@ export default function AnalyticsDashboard() {
             <p className="text-xs text-gray-500 mt-0.5">
               {lastUpdated ? `Last updated: ${lastUpdated.toLocaleTimeString()}` : "Loading..."}
             </p>
+            <p className="mt-2 text-sm text-gray-700">
+              Verified reports only. Monthly totals use the report submission month in Asia/Manila and its current response status.
+            </p>
           </div>
           <button
             onClick={handleRefresh}
@@ -173,7 +176,7 @@ export default function AnalyticsDashboard() {
                   <span className="text-[10px] font-bold text-gray-400 uppercase">All Time</span>
                 </div>
                 <div className="text-3xl font-black text-gray-900">{summary?.totalHistorical ?? 0}</div>
-                <div className="text-xs font-medium text-gray-500 mt-1">Total Incidents</div>
+                <div className="text-xs font-medium text-gray-500 mt-1">Total verified reports</div>
               </div>
 
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
@@ -208,7 +211,7 @@ export default function AnalyticsDashboard() {
                   <span className="text-[10px] font-bold text-gray-400 uppercase">Lifetime</span>
                 </div>
                 <div className="text-3xl font-black text-blue-600">{summary?.totalResolvedAllTime ?? 0}</div>
-                <div className="text-xs font-medium text-gray-500 mt-1">Total Resolved</div>
+                <div className="text-xs font-medium text-gray-500 mt-1">Verified resolved / closed · all time</div>
               </div>
             </div>
 

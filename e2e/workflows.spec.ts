@@ -1,6 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
 
 async function session(page: Page, role = 'ADMIN') {
+  if (role === 'USER') {
+    await page.context().grantPermissions(['geolocation']);
+    await page.context().setGeolocation({ latitude: 10.252191, longitude: 123.949475, accuracy: 25 });
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator.geolocation, 'getCurrentPosition', {
+        configurable: true,
+        value: (success: PositionCallback) => setTimeout(() => success({
+          coords: { latitude: 10.252191, longitude: 123.949475, accuracy: 25 }, timestamp: Date.now(),
+        } as GeolocationPosition), 0),
+      });
+    });
+  }
   await page.addInitScript(role => {
     const isAdmin = role === 'ADMIN' || role === 'DISPATCHER';
     localStorage.setItem('user', JSON.stringify({ id: 'test-user', name: 'Test User', role, permissions: [], ...(isAdmin && { department: 'MAIN', isMainAdmin: role === 'ADMIN' }) }));
@@ -13,7 +25,7 @@ async function session(page: Page, role = 'ADMIN') {
 }
 
 async function confirmEmergencyMapPin(page: Page) {
-  await page.locator('.leaflet-container').click({ position: { x: 160, y: 160 } });
+  await page.getByRole('button', { name: 'Confirm GPS location' }).click();
   await expect(page.getByText('Location confirmed', { exact: true })).toBeVisible();
 }
 
@@ -28,7 +40,7 @@ test('public emergency telephone actions use only the verified 911 target', asyn
   await expect(page.getByText(/0917-123-|496-8000|496-8555|238-3482|236-0001/)).toHaveCount(0);
 });
 
-test('citizen emergency choices, evidence, and manual map fallback are keyboard reachable', async ({ page }) => {
+test('citizen emergency choices, evidence, and GPS confirmation are keyboard reachable', async ({ page }) => {
   await session(page, 'USER');
   await page.goto('/dashboard');
 
@@ -39,7 +51,11 @@ test('citizen emergency choices, evidence, and manual map fallback are keyboard 
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Choose photo' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Use camera' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Confirm center' })).toBeVisible();
+  const confirm = page.getByRole('button', { name: 'Confirm GPS location' });
+  await expect(confirm).toBeEnabled();
+  await confirm.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Location confirmed', { exact: true })).toBeVisible();
 });
 
 test('citizen can capture evidence in the form and camera stops after capture', async ({ page }) => {
@@ -228,6 +244,7 @@ test('citizen proof upload precedes submission and failed uploads retain the dra
       order.push('incident');
       expect(route.request().postDataJSON().proofAttachment).toEqual({ publicId: 'evidence/test-user/photo', fileName: 'proof.png' });
       expect(route.request().postDataJSON().barangayName).toBe('Poblacion');
+      expect(route.request().postDataJSON()).toMatchObject({ latitude: 10.252191, longitude: 123.949475 });
     }
     await route.fulfill({ json: { data: { incidents: [], incident: {} } } });
   });
@@ -418,7 +435,7 @@ test('nearby active incident is detected before uploading evidence', async ({ pa
   await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
 
   await expect(page.getByRole('dialog', { name: 'Report Emergency' }).getByRole('alert')).toContainText('A similar active emergency has already been reported nearby.');
-  await expect(page.getByRole('dialog', { name: 'Report Emergency' }).getByRole('link', { name: /Call 911/i })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Report Emergency' }).getByRole('alert').getByRole('link', { name: /Call 911/i })).toBeVisible();
   await expect(page.getByLabel('Description of Incident')).toHaveValue('Smoke coming from the same building');
   expect(uploadRequests).toBe(0);
 });
@@ -467,7 +484,7 @@ test('create-time duplicate race retains the form and gives a safe warning', asy
   await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
 
   await expect(page.getByRole('dialog', { name: 'Report Emergency' }).getByRole('alert')).toContainText('Your report was not submitted.');
-  await expect(page.getByRole('dialog', { name: 'Report Emergency' }).getByRole('link', { name: /Call 911/i })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Report Emergency' }).getByRole('alert').getByRole('link', { name: /Call 911/i })).toBeVisible();
   await expect(page.getByLabel('Description of Incident')).toHaveValue('Smoke coming from the same building');
   await expect(page.getByLabel('Contact Number')).toHaveValue('09171234567');
   expect(createRequests).toBe(1);

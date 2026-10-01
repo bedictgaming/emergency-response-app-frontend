@@ -18,10 +18,12 @@ import { getIncidents, type Incident, type ResponseService } from "@/lib/service
 import { sirenManager } from "@/lib/services/sirenService";
 import { useEmergencyEvents } from "@/app/hooks/useEmergencyEvents";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
+import { readAdminSoundPreference, saveAdminSoundPreference } from "@/lib/adminSoundPreference";
 
 export default function AdminEmergencyMonitor({ responseService }: { responseService?: ResponseService }) {
   const [sirenState, setSirenState] = useState(sirenManager.getState());
   const [enablingSound, setEnablingSound] = useState(false);
+  const [soundPreferenceSaved, setSoundPreferenceSaved] = useState(false);
   const isSirenPlaying = sirenState.playing;
   const [newIncidentAlert, setNewIncidentAlert] = useState<Incident | null>(null);
   const [incomingCount, setIncomingCount] = useState(0);
@@ -32,6 +34,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   const isMountedRef = useRef(true);
   const requestInFlightRef = useRef(false);
   const audioActionRef = useRef(0);
+  const enablingSoundRef = useRef(false);
 
   useEffect(() => {
     // Subscribe to audio state
@@ -126,21 +129,55 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
     setIncomingCount(0);
   };
 
-  const handleEnableSound = async (playAlert = false) => {
-    if (enablingSound) return;
+  const activateSound = useCallback(async (mode: 'test' | 'alert' | 'restore') => {
+    if (enablingSoundRef.current) return;
     const action = ++audioActionRef.current;
     const accountAtStart = adminAccountSnapshot();
     const logoutEpoch = localStorage.getItem('emergency-logout-epoch');
+    enablingSoundRef.current = true;
     setEnablingSound(true);
     const ready = await sirenManager.enableAudio();
+    enablingSoundRef.current = false;
     if (!isMountedRef.current || adminAccountSnapshot() !== accountAtStart
       || localStorage.getItem('emergency-logout-epoch') !== logoutEpoch) return;
     setEnablingSound(false);
-    if (ready && audioActionRef.current === action) {
-      if (playAlert) sirenManager.startSiren();
-      else sirenManager.testSiren();
+    if (ready && mode !== 'restore') {
+      setSoundPreferenceSaved(saveAdminSoundPreference(accountAtStart));
     }
-  };
+    if (ready && audioActionRef.current === action) {
+      if (mode === 'alert') sirenManager.startSiren();
+      else if (mode === 'test') sirenManager.testSiren();
+      // Restoring readiness must never replay an old or acknowledged alert.
+    }
+  }, []);
+
+  useEffect(() => {
+    const account = adminAccountSnapshot();
+    const saved = readAdminSoundPreference(account);
+    setSoundPreferenceSaved(saved);
+    if (!saved) return;
+
+    // Persist consent, not the AudioContext. A fresh document still needs a trusted
+    // gesture; background reports, synthetic events and page load cannot unlock it.
+    const restoreOnInteraction = (event: Event) => {
+      if (!event.isTrusted || !isMountedRef.current || adminAccountSnapshot() !== account
+        || sirenManager.getState().audioReady) return;
+      if (event.target instanceof Element && event.target.closest('[data-siren-control]')) return;
+      if (event instanceof KeyboardEvent
+        && (event.repeat || event.ctrlKey || event.metaKey || event.altKey
+          || event.key === 'Escape' || event.key === 'Shift' || event.key === 'Control'
+          || event.key === 'Alt' || event.key === 'Meta')) return;
+      void activateSound('restore');
+    };
+    document.addEventListener('click', restoreOnInteraction, true);
+    document.addEventListener('keydown', restoreOnInteraction, true);
+    return () => {
+      document.removeEventListener('click', restoreOnInteraction, true);
+      document.removeEventListener('keydown', restoreOnInteraction, true);
+    };
+  }, [activateSound]);
+
+  const handleEnableSound = (playAlert = false) => activateSound(playAlert ? 'alert' : 'test');
 
   const getCategoryIcon = (type?: string) => {
     const t = (type || "").toLowerCase();
@@ -153,7 +190,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   return (
     <>
       {/* Header Siren Status & Control Button */}
-      <div className="flex items-center gap-2">
+      <div data-siren-control className="flex shrink-0 items-center gap-2">
         {isSirenPlaying ? (
           <button
             onClick={handleSilenceSiren}
@@ -169,16 +206,16 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
               <span className={`relative inline-flex h-2 w-2 rounded-full ${sirenState.audioReady ? 'bg-success' : 'bg-warning'}`}></span>
             </span>
             <span role="status" className="text-xs font-semibold text-foreground">
-              {sirenState.audioReady ? 'Siren Armed' : sirenState.unavailable ? 'Sound unavailable' : 'Sound not enabled'}
+              {sirenState.audioReady ? 'Siren Armed' : sirenState.unavailable ? 'Sound unavailable' : soundPreferenceSaved ? 'Sound saved · click to arm' : 'Sound not enabled'}
             </span>
             <button
               type="button"
               disabled={enablingSound}
               onClick={() => { void handleEnableSound(Boolean(newIncidentAlert)); }}
               className="min-h-11 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-60"
-              title={sirenState.audioReady ? "Test loud emergency siren" : "Enable and test emergency alert sound"}
+              title={sirenState.audioReady ? "Test loud emergency siren" : soundPreferenceSaved ? "Your preference is saved. Click or press a key on this dashboard to arm sound, or use Resume sound to test it." : "Enable and test emergency alert sound; remember this preference in this browser"}
             >
-              {enablingSound ? 'Enabling sound…' : sirenState.audioReady ? 'Test' : 'Enable sound'}
+              {enablingSound ? 'Enabling sound…' : sirenState.audioReady ? 'Test' : soundPreferenceSaved ? 'Resume sound' : 'Enable sound'}
             </button>
           </div>
         )}
@@ -189,6 +226,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
         <div
           className="motion-dialog-backdrop fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
           role="dialog"
+          data-siren-control
           aria-modal="true"
           aria-labelledby="emergency-alert-title"
         >
@@ -218,12 +256,12 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
               {!sirenState.audioReady && (
                 <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-warning p-3 text-sm text-warning-foreground">
                   <p className="min-w-0 flex-1">
-                    {sirenState.unavailable ? 'Sound could not start. Try again and check your browser’s sound settings.' : 'Sound is not enabled. Enable it to hear this alert.'}
+                    {sirenState.unavailable ? 'Sound could not start. Try again and check your browser’s sound settings.' : soundPreferenceSaved ? 'Your sound preference is saved, but this page is not armed yet. Resume sound to hear this alert.' : 'Sound is not enabled. Enable it to hear this alert.'}
                   </p>
                   <button type="button" disabled={enablingSound}
                     onClick={() => { void handleEnableSound(true); }}
                     className="min-h-11 rounded-lg border border-current px-3 font-semibold disabled:opacity-60">
-                    {enablingSound ? 'Enabling sound…' : 'Enable sound'}
+                    {enablingSound ? 'Enabling sound…' : soundPreferenceSaved ? 'Resume sound' : 'Enable sound'}
                   </button>
                 </div>
               )}

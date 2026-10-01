@@ -239,6 +239,9 @@ export function LocationMap({
                 dragging={interactive}
                 zoomControl={interactive}
                 keyboard={interactive}
+                doubleClickZoom={interactive}
+                touchZoom={interactive}
+                boxZoom={interactive}
             >
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
