@@ -2,8 +2,9 @@
 /* eslint-disable @next/next/no-img-element -- private evidence is delivered by a short-lived authorized URL */
 
 import { useEffect, useRef, useState } from 'react';
-import { ExternalLink, ImageIcon, MapPin, Maximize2, RotateCcw, ShieldCheck, X } from 'lucide-react';
+import { ImageIcon, Maximize2, RotateCcw, ShieldCheck } from 'lucide-react';
 import apiClient from '@/lib/apiClient';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 
 type EvidenceAccessResponse = {
   data: {
@@ -20,26 +21,32 @@ function isProtectedEvidenceUrl(sourceUrl: string) {
   return /\/api\/attachments\/v1\/[^/]+\/content(?:\?|$)/.test(sourceUrl);
 }
 
-// A signed storage URL expires after 60 seconds. Opening the protected API
-// endpoint performs authorization again and issues a fresh redirect on every
-// click, even when the already-rendered thumbnail has been visible for hours.
-function evidenceOpenUrl(sourceUrl: string, resolvedUrl: string) {
-  return isProtectedEvidenceUrl(sourceUrl) ? sourceUrl : resolvedUrl;
-}
-
 // Share only in-flight authorization checks. Never cache a signed URL across
 // sessions: access can be revoked and the URL expires shortly after issuance.
 const pendingEvidenceAccess = new Map<string, Promise<string>>();
 
+function evidenceAccountSnapshot() {
+  const profile = localStorage.getItem('user');
+  let user;
+  try { user = JSON.parse(profile || 'null'); } catch { /* A damaged profile cache is not an authorization decision. */ }
+  return JSON.stringify([user?.id, user?.role, user?.department, user?.isMainAdmin, user ? null : profile, localStorage.getItem('emergency-logout-epoch')]);
+}
+
 function resolveEvidenceUrl(sourceUrl: string): Promise<string> {
-  const user = localStorage.getItem('user') ?? '';
+  const account = evidenceAccountSnapshot();
   const generation = localStorage.getItem('emergency-session-generation') ?? '';
-  const key = `${user}:${generation}:${sourceUrl}`;
+  const key = `${account}:${generation}:${sourceUrl}`;
   const existing = pendingEvidenceAccess.get(key);
   if (existing) return existing;
 
   const request = apiClient.get<EvidenceAccessResponse>(accessUrlFor(sourceUrl))
-    .then(response => response.data.data.url);
+    .then(response => {
+      // A late response must not render another account's private evidence.
+      if (evidenceAccountSnapshot() !== account) {
+        throw new Error('Evidence session changed');
+      }
+      return response.data.data.url;
+    });
   pendingEvidenceAccess.set(key, request);
   void request.then(
     () => pendingEvidenceAccess.delete(key),
@@ -86,9 +93,101 @@ function useAuthorizedEvidenceUrl(sourceUrl: string, enabled = true) {
   };
 }
 
+const VIEWER_HISTORY_KEY = 'emergencyEvidenceViewer';
+
+// Mounted only while open: each opening resolves a fresh authorized URL. No
+// photo URL, attachment ID or citizen data is added to browser history.
+function EvidencePhotoViewer({ sourceUrl, alt, title = 'Report photo', description = 'Close the photo to return to your report.', onClose }: {
+  sourceUrl: string;
+  alt: string;
+  title?: string;
+  description?: string;
+  onClose: () => void;
+}) {
+  const { resolvedUrl, error, retry, reportImageFailure } = useAuthorizedEvidenceUrl(sourceUrl);
+  const onCloseRef = useRef(onClose);
+  const closeViewerRef = useRef<() => void>(() => onCloseRef.current());
+
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  useEffect(() => {
+    const marker = crypto.randomUUID();
+    const pageUrl = window.location.href;
+    let ownsHistory = false;
+    let returning = false;
+    // Deferring history setup also avoids an extra entry during React's
+    // development-only setup/cleanup probe.
+    const historyFrame = requestAnimationFrame(() => {
+      try {
+        window.history.pushState({ ...window.history.state, [VIEWER_HISTORY_KEY]: marker }, '', pageUrl);
+        ownsHistory = true;
+      } catch {
+        // Restricted history must not prevent the visible Close control working.
+      }
+    });
+
+    closeViewerRef.current = () => {
+      if (returning) return;
+      if (ownsHistory && window.history.state?.[VIEWER_HISTORY_KEY] === marker && window.location.href === pageUrl) {
+        returning = true;
+        window.history.back();
+      } else {
+        onCloseRef.current();
+      }
+    };
+    const closeOnBack = () => {
+      ownsHistory = false;
+      onCloseRef.current();
+    };
+    const closeOnAccountChange = (event: StorageEvent) => {
+      if (event.key === null || event.key === 'user' || event.key === 'emergency-logout-epoch') closeViewerRef.current();
+    };
+    window.addEventListener('popstate', closeOnBack);
+    window.addEventListener('storage', closeOnAccountChange);
+    return () => {
+      cancelAnimationFrame(historyFrame);
+      window.removeEventListener('popstate', closeOnBack);
+      window.removeEventListener('storage', closeOnAccountChange);
+      // Consume only our own entry, never back out of a different route.
+      if (ownsHistory && !returning && window.history.state?.[VIEWER_HISTORY_KEY] === marker && window.location.href === pageUrl) window.history.back();
+    };
+  }, []);
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) closeViewerRef.current(); }}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <div className="flex min-h-40 items-center justify-center overflow-auto rounded-xl bg-muted">
+          {resolvedUrl ? (
+            <img src={resolvedUrl} alt={alt} onError={reportImageFailure} className="max-h-[calc(100dvh-15rem)] w-auto max-w-full object-contain" />
+          ) : error ? (
+            <div role="status" className="p-5 text-center text-sm text-foreground">
+              <p>The photo could not be loaded. Your report remains available.</p>
+              <button type="button" onClick={retry} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg px-3 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <RotateCcw size={16} aria-hidden="true" /> Retry photo
+              </button>
+            </div>
+          ) : (
+            <p role="status" className="p-5 text-sm text-muted-foreground">Loading secure photo…</p>
+          )}
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button type="button" onClick={() => closeViewerRef.current()} className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-4 font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+            Close photo
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function CompactEvidencePhoto({ sourceUrl, alt }: { sourceUrl: string; alt: string }) {
   const container = useRef<HTMLDivElement>(null);
   const [nearViewport, setNearViewport] = useState(false);
+  const [open, setOpen] = useState(false);
   const { resolvedUrl, error, retry, reportImageFailure } = useAuthorizedEvidenceUrl(sourceUrl, nearViewport);
 
   useEffect(() => {
@@ -109,19 +208,21 @@ export function CompactEvidencePhoto({ sourceUrl, alt }: { sourceUrl: string; al
   }, [nearViewport]);
 
   return (
+    <>
     <div ref={container} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
       {resolvedUrl ? (
-        <a
-          href={evidenceOpenUrl(sourceUrl, resolvedUrl)}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="View attached photo"
+          aria-haspopup="dialog"
           className="relative group block h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-300 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
         >
           <img src={resolvedUrl} alt={alt} onError={reportImageFailure} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
           <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-            <ExternalLink size={14} className="text-white" />
+            <Maximize2 size={14} className="text-white" />
           </div>
-        </a>
+        </button>
       ) : (
         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white">
           {error ? <ImageIcon size={18} className="text-red-600" /> : <span className="h-5 w-5 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />}
@@ -133,9 +234,9 @@ export function CompactEvidencePhoto({ sourceUrl, alt }: { sourceUrl: string; al
           {error ? 'Photo image unavailable' : 'Photo attached'}
         </span>
         {resolvedUrl ? (
-          <a href={evidenceOpenUrl(sourceUrl, resolvedUrl)} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm font-medium text-slate-800 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-slate-200">
+          <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm font-medium text-slate-800 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-slate-200">
             View photo &rarr;
-          </a>
+          </button>
         ) : error ? (
           <div role="status" className="text-sm text-slate-700 dark:text-slate-200">
             <p>The image could not be loaded. Report details remain available.</p>
@@ -148,6 +249,8 @@ export function CompactEvidencePhoto({ sourceUrl, alt }: { sourceUrl: string; al
         )}
       </div>
     </div>
+    {open && <EvidencePhotoViewer key={sourceUrl} sourceUrl={sourceUrl} alt={alt} onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
@@ -177,6 +280,8 @@ export function EvidencePhotoCard({ sourceUrl, title, location, timestamp }: Evi
           <button
             type="button"
             onClick={() => setOpen(true)}
+            aria-label="View attached photo"
+            aria-haspopup="dialog"
             className="group relative block w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-900 cursor-pointer shadow-xs max-w-sm aspect-video sm:aspect-auto sm:max-h-60"
           >
             <img src={resolvedUrl} alt="Incident Photo Evidence" onError={reportImageFailure} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
@@ -200,25 +305,7 @@ export function EvidencePhotoCard({ sourceUrl, title, location, timestamp }: Evi
         )}
       </div>
 
-      {open && resolvedUrl && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md" onClick={() => setOpen(false)}>
-          <div className="relative max-w-4xl w-full bg-slate-950 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 text-white" onClick={(event) => event.stopPropagation()}>
-            <div className="px-5 py-3.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
-              <div>
-                <h4 className="text-sm font-bold text-white">{title}</h4>
-                <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3 text-rose-400" />{location} • {timestamp}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <a href={evidenceOpenUrl(sourceUrl, resolvedUrl)} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold">Open Full ↗</a>
-                <button type="button" onClick={() => setOpen(false)} className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800" aria-label="Close evidence viewer"><X className="w-5 h-5" /></button>
-              </div>
-            </div>
-            <div className="p-4 bg-black flex items-center justify-center max-h-[75vh] overflow-hidden">
-              <img src={isProtectedEvidenceUrl(sourceUrl) ? sourceUrl : resolvedUrl} alt="Emergency evidence high resolution" onError={reportImageFailure} className="max-h-[70vh] w-auto max-w-full object-contain rounded-lg" />
-            </div>
-          </div>
-        </div>
-      )}
+      {open && <EvidencePhotoViewer key={sourceUrl} sourceUrl={sourceUrl} alt="Emergency evidence high resolution" title={title} description={`${location} • ${timestamp}`} onClose={() => setOpen(false)} />}
     </>
   );
 }

@@ -54,7 +54,7 @@ export function DialogContent({
   }, [onOpenChange]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !mounted) return;
 
     previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
     if (scrollAreaRef.current) {
@@ -65,6 +65,10 @@ export function DialogContent({
     document.body.style.overflow = 'hidden';
 
     const closeOnEscape = (event: KeyboardEvent) => {
+      // Photo inspection can be nested inside report review. Only the top
+      // dialog owns Escape/Tab, so closing it does not also close its parent.
+      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+      if (dialogs[dialogs.length - 1] !== contentRef.current) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         onOpenChangeRef.current(false);
@@ -107,7 +111,7 @@ export function DialogContent({
       window.removeEventListener('keydown', closeOnEscape);
       previouslyFocusedRef.current?.focus();
     };
-  }, [open]);
+  }, [open, mounted]);
 
   if (!mounted || !open) return null;
 

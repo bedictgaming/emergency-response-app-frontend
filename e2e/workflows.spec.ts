@@ -652,17 +652,16 @@ test('protected evidence is resolved through an authorized short-lived URL', asy
   const evidence = page.getByAltText('Incident Photo Evidence');
   await expect(evidence).toBeVisible();
   await expect(evidence).toHaveAttribute('src', pixel);
-  // The thumbnail may stay visible past the storage URL's 60-second expiry.
-  // Opening it must go back through the authorized endpoint for a fresh URL.
-  await expect(page.getByRole('link', { name: 'View photo →' })).toHaveAttribute(
-    'href',
-    'http://localhost:8000/api/attachments/v1/protected-photo/content',
-  );
-  await expect(page.getByRole('link', { name: 'Incident Photo Evidence' })).toHaveAttribute(
-    'href',
-    'http://localhost:8000/api/attachments/v1/protected-photo/content',
-  );
   expect(accessRequests).toBe(1);
+  // Opening must request fresh authorization and stay inside the dashboard,
+  // rather than navigating the PWA to an external provider browser window.
+  await page.getByRole('button', { name: 'View photo →' }).click();
+  const viewer = page.getByRole('dialog', { name: 'Report photo' });
+  await expect(viewer.getByAltText('Incident Photo Evidence')).toHaveAttribute('src', pixel);
+  expect(accessRequests).toBe(2);
+  await viewer.getByRole('button', { name: 'Close photo' }).click();
+  await expect(viewer).toHaveCount(0);
+  await expect(page).toHaveURL(/\/admin\/main-dashboard$/);
 });
 
 test('missing stored evidence shows an honest retry state instead of a broken photo link', async ({ page }) => {
@@ -703,10 +702,10 @@ test('missing stored evidence shows an honest retry state instead of a broken ph
   await page.goto('/admin/main-dashboard');
   await expect(page.getByText('Photo image unavailable')).toBeVisible();
   await expect(page.getByText('The image could not be loaded. Report details remain available.')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'View photo →' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'View photo →' })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Retry photo' }).click();
-  await expect(page.getByRole('link', { name: 'View photo →' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'View photo →' })).toBeVisible();
   expect(accessRequests).toBe(2);
 });
 
