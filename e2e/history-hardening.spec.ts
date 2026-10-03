@@ -93,7 +93,9 @@ test('drawer traps focus, isolates the dashboard, supports Escape and restores f
   });
   expect(contrast).toBeGreaterThanOrEqual(4.5);
   await page.setViewportSize({ width: 390, height: 720 });
-  expect(await dialog.getByLabel('Search incident history', { exact: true }).evaluate(input => parseFloat(getComputedStyle(input).fontSize))).toBeGreaterThanOrEqual(16);
+  // Wait for the existing responsive font transition after resizing; do not
+  // measure an intermediate animation value or weaken the 16px requirement.
+  await expect.poll(() => dialog.getByLabel('Search incident history', { exact: true }).evaluate(input => parseFloat(getComputedStyle(input).fontSize))).toBeGreaterThanOrEqual(16);
   await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0); await expect(trigger).toBeFocused();
 });
 test('first history outage is not presented as an empty dataset', async ({ page }) => {
