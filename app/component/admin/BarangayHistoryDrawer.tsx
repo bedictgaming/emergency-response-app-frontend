@@ -142,9 +142,9 @@ export default function BarangayHistoryDrawer({
       />
 
       <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-2xl bg-[#f8f9fa] shadow-2xl flex flex-col border-l border-gray-200 transform animate-slideLeft">
+        <div className="w-screen max-w-2xl min-h-0 overflow-hidden bg-[#f8f9fa] shadow-2xl flex flex-col border-l border-gray-200 transform animate-slideLeft">
           {/* Header */}
-          <div className="bg-[#0B0F19] text-white px-6 py-5 flex items-center justify-between shadow-md">
+          <div className="shrink-0 bg-[#0B0F19] text-white px-6 py-5 flex items-center justify-between shadow-md">
             <div className="flex items-center gap-3.5">
               <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center">
                 <MapPin className="text-purple-400" size={22} />
@@ -167,6 +167,7 @@ export default function BarangayHistoryDrawer({
               </button>
               <button
                 onClick={onClose}
+                aria-label="Close incident history"
                 className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
               >
                 <X size={20} />
@@ -174,6 +175,13 @@ export default function BarangayHistoryDrawer({
             </div>
           </div>
 
+          {/* One bounded scroll owner keeps analytics and reports reachable on short screens. */}
+          <div
+            role="region"
+            aria-label="Incident history content"
+            tabIndex={0}
+            className="dialog-scroll-area min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2"
+          >
           {/* Core Analytics Cards */}
           <div className="p-6 pb-3 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -224,7 +232,7 @@ export default function BarangayHistoryDrawer({
                     Total {analytics.incidentsByBarangay.totalIncidents} incidents
                   </span>
                 </div>
-                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                <div className="space-y-2">
                   {analytics.incidentsByBarangay.rankings.slice(0, 5).map((area) => (
                     <div
                       key={area.barangayId}
@@ -295,7 +303,7 @@ export default function BarangayHistoryDrawer({
           </div>
 
           {/* Incident Feed */}
-          <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-3">
+          <div className="px-6 pb-6 space-y-3">
             {isLoading && incidents.length === 0 ? (
               <div className="text-center py-16 text-gray-400 text-xs flex flex-col items-center gap-2">
                 <RefreshCw size={22} className="animate-spin text-purple-600" />
@@ -351,6 +359,7 @@ export default function BarangayHistoryDrawer({
                 </div>
               ))
             )}
+          </div>
           </div>
         </div>
       </div>
