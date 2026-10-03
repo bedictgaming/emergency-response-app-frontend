@@ -1,6 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useId } from "react";
+import { useState, useEffect, useCallback, useId, useRef } from "react";
+import { createPortal } from "react-dom";
+import { useIncidentHistory } from "@/app/hooks/useIncidentHistory";
+import { useModalIsolation } from "@/app/hooks/useModalIsolation";
+import HistoryPagination from "./HistoryPagination";
+import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 import { useRouter } from "next/navigation";
 import {
   X,
@@ -19,11 +24,9 @@ import {
   Calendar,
 } from "lucide-react";
 import {
-  IncidentRecord,
   DashboardAnalytics,
 } from "@/lib/types/barangay-history";
 import { getDashboardAnalytics } from "@/lib/services/analyticsService";
-import { getIncidentHistory } from "@/lib/services/incidentHistoryService";
 import MonthlyResolutionCard from "./MonthlyResolutionCard";
 
 interface BarangayHistoryDrawerProps {
@@ -37,23 +40,29 @@ export default function BarangayHistoryDrawer({
 }: BarangayHistoryDrawerProps) {
   const router = useRouter();
   const searchId = useId();
-  const [incidents, setIncidents] = useState<IncidentRecord[]>([]);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+  const [analyticsError, setAnalyticsError] = useState("");
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBarangayId, setSelectedBarangayId] = useState<string>("ALL");
 
+  const history = useIncidentHistory({ search: searchQuery, barangayId: selectedBarangayId === "ALL" ? undefined : selectedBarangayId }, isOpen);
+  useModalIsolation(isOpen, panelRef, onClose);
   const loadData = useCallback(async () => {
+    const account = adminAccountSnapshot();
     setIsLoading(true);
     try {
-      const [analyticsData, incidentData] = await Promise.all([
-        getDashboardAnalytics(),
-        getIncidentHistory(),
-      ]);
+      const analyticsData = await getDashboardAnalytics();
+      if (adminAccountSnapshot() !== account) return;
+      if (!analyticsData) throw new Error("Analytics unavailable");
       setAnalytics(analyticsData);
-      setIncidents(incidentData);
+      setAnalyticsError("");
     } catch (error) {
-      console.error("Failed to load barangay history", error);
+      void error;
+      setAnalyticsError("Analytics unavailable. Previously loaded totals may be out of date.");
     } finally {
       setIsLoading(false);
     }
@@ -65,24 +74,20 @@ export default function BarangayHistoryDrawer({
     }
   }, [isOpen, loadData]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    const account = adminAccountSnapshot();
+    const logout = localStorage.getItem('emergency-logout-epoch');
+    const changed = () => {
+      if (adminAccountSnapshot() !== account || localStorage.getItem('emergency-logout-epoch') !== logout) { setAnalytics(null); onClose(); }
+    };
+    window.addEventListener('storage', changed);
+    return () => window.removeEventListener('storage', changed);
+  }, [isOpen, onClose]);
 
-  const filteredIncidents = incidents.filter((inc) => {
-    const matchesBarangay =
-      selectedBarangayId === "ALL" ||
-      inc.barangayId === selectedBarangayId ||
-      inc.barangay?.barangayId === selectedBarangayId;
+  if (!isOpen || typeof document === "undefined") return null;
 
-    const matchesSearch =
-      searchQuery.trim() === "" ||
-      inc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (inc.barangay?.name &&
-        inc.barangay.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (inc.type?.typeName &&
-        inc.type.typeName.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    return matchesBarangay && matchesSearch;
-  });
+  const incidents = history.incidents;
+  const filteredIncidents = incidents;
 
   const renderTypeIcon = (typeName?: string) => {
     const upper = (typeName || "").toUpperCase();
@@ -133,42 +138,42 @@ export default function BarangayHistoryDrawer({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-hidden animate-fadeIn">
+  return createPortal(
+    <div data-history-modal className="fixed inset-0 z-[100] overflow-hidden animate-fadeIn">
       {/* Backdrop */}
       <div
         onClick={onClose}
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
       />
 
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-2xl min-h-0 overflow-hidden bg-[#f8f9fa] shadow-2xl flex flex-col border-l border-gray-200 transform animate-slideLeft">
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-0 sm:pl-10">
+        <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId} tabIndex={-1} className="w-screen max-w-2xl min-h-0 overflow-hidden bg-[#f8f9fa] shadow-2xl flex flex-col border-l border-gray-200 transform animate-slideLeft">
           {/* Header */}
-          <div className="shrink-0 bg-[#0B0F19] text-white px-6 py-5 flex items-center justify-between shadow-md">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center">
+          <div className="shrink-0 bg-[#0B0F19] text-white px-4 sm:px-6 py-5 flex items-center justify-between gap-2 shadow-md">
+            <div className="min-w-0 flex items-center gap-2 sm:gap-3.5">
+              <div className="w-10 h-10 shrink-0 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center">
                 <MapPin className="text-purple-400" size={22} />
               </div>
               <div>
-                <h2 className="text-lg font-bold">Barangay Incident History Log</h2>
-                <p className="text-xs text-gray-400">
+                <h2 id={titleId} className="text-base sm:text-lg font-bold">Barangay Incident History Log</h2>
+                <p id={descriptionId} className="text-xs text-white/80">
                   Area frequency ranking, emergency categories & monthly records
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="shrink-0 flex items-center gap-1">
               <button
-                onClick={loadData}
+                onClick={() => { void loadData(); history.refresh(); }}
                 disabled={isLoading}
-                title="Refresh Records"
-                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                aria-label="Refresh history" title="Refresh Records"
+                className="h-11 w-11 shrink-0 flex items-center justify-center rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-white"
               >
                 <RefreshCw size={18} className={isLoading ? "animate-spin text-white" : ""} />
               </button>
               <button
                 onClick={onClose}
-                aria-label="Close incident history"
-                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                data-autofocus aria-label="Close incident history"
+                className="h-11 w-11 shrink-0 flex items-center justify-center rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-white"
               >
                 <X size={20} />
               </button>
@@ -182,6 +187,7 @@ export default function BarangayHistoryDrawer({
             tabIndex={0}
             className="dialog-scroll-area min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2"
           >
+          {analyticsError && <div role="alert" className="m-6 rounded-lg border border-border bg-card p-4 text-sm">{analyticsError} <button onClick={() => void loadData()} className="min-h-11 underline">Retry analytics</button></div>}
           {/* Core Analytics Cards */}
           <div className="p-6 pb-3 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -192,12 +198,12 @@ export default function BarangayHistoryDrawer({
                   <MapPin size={14} className="text-red-500" />
                 </div>
                 <div className="text-base font-extrabold text-gray-900 truncate">
-                  {analytics?.incidentsByBarangay?.topArea?.name || "None"}
+                  {analytics?.incidentsByBarangay?.topArea?.name || (analyticsError ? "Unavailable" : "None")}
                 </div>
                 <div className="text-[11px] text-gray-500 mt-1">
                   {analytics?.incidentsByBarangay?.topArea
                     ? `${analytics.incidentsByBarangay.topArea.incidentCount} reports (${analytics.incidentsByBarangay.topArea.percentage}%)`
-                    : "No records yet"}
+                    : analyticsError ? "Could not load totals" : "No records yet"}
                 </div>
               </div>
 
@@ -213,7 +219,7 @@ export default function BarangayHistoryDrawer({
                 <div className="text-[11px] text-gray-500 mt-1">
                   {analytics?.incidentsByType?.topType
                     ? `${analytics.incidentsByType.topType.count} cases (${analytics.incidentsByType.topType.percentage}%)`
-                    : "No records yet"}
+                    : analyticsError ? "Could not load totals" : "No records yet"}
                 </div>
               </div>
 
@@ -234,14 +240,17 @@ export default function BarangayHistoryDrawer({
                 </div>
                 <div className="space-y-2">
                   {analytics.incidentsByBarangay.rankings.slice(0, 5).map((area) => (
-                    <div
+                    <button
+                      type="button"
+                      disabled={area.barangayId === "UNSPECIFIED"}
+                      aria-pressed={selectedBarangayId === area.barangayId}
                       key={area.barangayId}
                       onClick={() =>
                         setSelectedBarangayId(
                           selectedBarangayId === area.barangayId ? "ALL" : area.barangayId
                         )
                       }
-                      className={`p-2 rounded-lg cursor-pointer transition-all ${
+                      className={`w-full min-h-11 text-left p-2 rounded-lg focus-visible:ring-2 focus-visible:ring-ring cursor-pointer transition-all ${
                         selectedBarangayId === area.barangayId
                           ? "bg-purple-50 border border-purple-200"
                           : "hover:bg-gray-50"
@@ -265,7 +274,7 @@ export default function BarangayHistoryDrawer({
                           style={{ width: `${Math.max(area.percentage, 4)}%` }}
                         />
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -286,7 +295,8 @@ export default function BarangayHistoryDrawer({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search incident title, barangay, or type..."
-                  className="w-full bg-white border border-gray-200 rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  maxLength={160}
+                  className="w-full min-h-11 bg-white border border-gray-200 rounded-xl pl-9 pr-3.5 py-2 text-base sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
               <button
@@ -294,7 +304,7 @@ export default function BarangayHistoryDrawer({
                   onClose();
                   router.push("/admin/barangay-history");
                 }}
-                className="bg-[#0B0F19] hover:bg-[#1a233a] text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0"
+                className="min-h-11 bg-[#0B0F19] hover:bg-[#1a233a] text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0"
               >
                 <span>Full Analytics</span>
                 <ExternalLink size={13} />
@@ -304,12 +314,14 @@ export default function BarangayHistoryDrawer({
 
           {/* Incident Feed */}
           <div className="px-6 pb-6 space-y-3">
-            {isLoading && incidents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">History includes all authorized report records. Rankings and monthly totals count verified reports only.</p>
+            {history.error && <div role="alert" className="rounded-lg border border-border bg-card p-4 text-sm">{history.error} <button onClick={history.refresh} className="min-h-11 underline">Retry history</button></div>}
+            {history.loading && incidents.length === 0 ? (
               <div className="text-center py-16 text-gray-400 text-xs flex flex-col items-center gap-2">
                 <RefreshCw size={22} className="animate-spin text-purple-600" />
                 Loading Barangay incident history...
               </div>
-            ) : filteredIncidents.length === 0 ? (
+            ) : history.error && incidents.length === 0 ? null : filteredIncidents.length === 0 ? (
               <div className="bg-white rounded-2xl p-10 border border-gray-200 text-center shadow-xs">
                 <MapPin size={36} className="text-gray-300 mx-auto mb-2" />
                 <h3 className="text-sm font-bold text-gray-800">No Incident Records Found</h3>
@@ -340,6 +352,7 @@ export default function BarangayHistoryDrawer({
                   </div>
 
                   <h4 className="text-xs font-bold text-gray-900 mb-1">{inc.title}</h4>
+                  {inc.verificationStatus && inc.verificationStatus !== "VERIFIED" && <p className="text-xs text-amber-800">Excluded from verified analytics · {inc.verificationStatus.toLowerCase()}</p>}
                   {inc.description && (
                     <p className="text-[11px] text-gray-500 line-clamp-2 mb-2.5">
                       {inc.description}
@@ -359,10 +372,11 @@ export default function BarangayHistoryDrawer({
                 </div>
               ))
             )}
+            <HistoryPagination pagination={history.pagination} loading={history.loading} onPage={history.setPage} />
           </div>
           </div>
         </div>
       </div>
-    </div>
+    </div>, document.body
   );
 }

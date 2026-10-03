@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircle, Eye, EyeOff, ArrowLeft, LoaderCircle } from 'lucide-react';
 import type { AxiosError } from 'axios';
-import { confirmPasswordReset, getMe, login, requestPasswordReset, signup } from '@/lib/services/authService';
+import { confirmPasswordReset, getMe, login, requestPasswordReset, resendVerification, signup } from '@/lib/services/authService';
 import { registerWebPush } from '@/lib/browserPush';
 import { accountHome } from '@/lib/authorization';
 import { Button } from './ui/button';
@@ -42,7 +42,7 @@ interface LoginPageProps {
 export function LoginPage({ embedded = false }: LoginPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const oauthStatus = searchParams.get('oauth');
+  const oauthStatus = searchParams.get('oauth') ?? searchParams.get('error');
 
   const [isLoading, setIsLoading] = useState(false);
   const [isCompletingOAuth, setIsCompletingOAuth] = useState(oauthStatus === 'success');
@@ -75,6 +75,12 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
     if (oauthStatus === 'oauth_failed') {
       setError('Google login failed. Please try again.');
     }
+    if (oauthStatus === 'oauth_link_required') {
+      setError('Google was not linked to this account. Use your email and password to Log In, or choose “Forgot password?” to recover access.');
+    }
+    if (oauthStatus === 'oauth_email_verification_required') {
+      setError('This Google email cannot be used to create an account securely. Register with email, or use a verified Gmail or Google Workspace account.');
+    }
   }, [oauthStatus, router]);
 
   // Login state
@@ -88,6 +94,23 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
   const [resetEmail, setResetEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [notice, setNotice] = useState('');
+  const [verificationCooldown, setVerificationCooldown] = useState(false);
+  useEffect(() => {
+    if (!verificationCooldown) return;
+    const timer = setTimeout(() => setVerificationCooldown(false), 60_000);
+    return () => clearTimeout(timer);
+  }, [verificationCooldown]);
+
+  const handleResendVerification = async () => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail.trim())) { setError('Enter your account email above, then request verification.'); return; }
+    setIsLoading(true); setError(''); setNotice('');
+    try {
+      const result = await resendVerification(loginEmail.trim());
+      setNotice(result.message); setVerificationCooldown(true);
+    } catch {
+      setError('Verification request could not be completed. Wait a minute, then try again.');
+    } finally { setIsLoading(false); }
+  };
 
   // Password visibility state
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -393,7 +416,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                   </div>
 
                   {error && (
-                    <Alert variant="destructive" className="rounded-xl py-2 px-3">
+                    <Alert variant="destructive" role="alert" className="rounded-xl py-2 px-3">
                       <AlertCircle className="h-3.5 w-3.5" />
                       <AlertDescription className="text-xs">{error}</AlertDescription>
                     </Alert>
@@ -411,6 +434,9 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                     className="mt-1 h-12 w-full rounded-xl border border-primary bg-primary text-sm font-bold text-primary-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:bg-red-700 hover:shadow-md cursor-pointer dark:hover:bg-red-600"
                   >
                     {isLoading ? 'Logging in...' : 'Log In'}
+                  </Button>
+                  <Button type="button" variant="outline" className="min-h-11 w-full" disabled={isLoading || verificationCooldown} onClick={handleResendVerification}>
+                    {verificationCooldown ? 'Verification requested · wait one minute' : 'Resend verification email'}
                   </Button>
                 </form>
               </CardContent>
@@ -473,7 +499,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                       />
                     </div>
                   )}
-                  {error && <Alert variant="destructive" className="rounded-xl py-2 px-3"><AlertDescription className="text-xs">{error}</AlertDescription></Alert>}
+                  {error && <Alert variant="destructive" role="alert" className="rounded-xl py-2 px-3"><AlertDescription className="text-xs">{error}</AlertDescription></Alert>}
                   {notice && <p role="status" className="text-xs text-emerald-700 bg-emerald-50 rounded-xl p-3">{notice}</p>}
                   <Button type="submit" variant="default" disabled={isLoading} className="h-11 w-full rounded-xl border border-primary bg-primary text-xs font-bold text-primary-foreground shadow-sm hover:bg-red-700 transition-all cursor-pointer dark:hover:bg-red-600">
                     {isLoading ? 'Please wait…' : resetToken ? 'Set new password' : 'Send reset link'}
@@ -595,7 +621,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                   </div>
 
                   {error && (
-                    <Alert variant="destructive" className="rounded-xl py-2 px-3">
+                    <Alert variant="destructive" role="alert" className="rounded-xl py-2 px-3">
                       <AlertCircle className="h-3.5 w-3.5" />
                       <AlertDescription className="text-xs">{error}</AlertDescription>
                     </Alert>

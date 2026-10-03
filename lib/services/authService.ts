@@ -44,6 +44,11 @@ export const signup = async (payload: SignupPayload): Promise<AuthResponse> => {
   return response.data;
 };
 
+export const resendVerification = async (email: string): Promise<{ message: string }> => {
+  const response = await apiClient.post('/auth/v1/resend-email-verification', { email });
+  return response.data;
+};
+
 /**
  * POST /api/auth/v1/login
  * Logs in a user. The backend sets an HttpOnly cookie with the refresh token.

@@ -44,6 +44,12 @@ async function fixture(page: Page, department?: string) {
   const trigger = page.getByRole('button', { name: 'View photo →' }).first();
   await expect(trigger).toBeVisible();
   await expect.poll(() => state.requests).toBe(1);
+  // Requests being issued does not mean the thumbnail has finished decoding.
+  // Failure tests must change only the later viewer response, not this image.
+  await expect.poll(() => page.locator('img[src="https://res.cloudinary.com/viewer-test/photo-1.svg"]').evaluate(element => {
+    const photo = element as HTMLImageElement;
+    return photo.complete && photo.naturalWidth > 0;
+  })).toBe(true);
   return { state, trigger, pathname, incident };
 }
 

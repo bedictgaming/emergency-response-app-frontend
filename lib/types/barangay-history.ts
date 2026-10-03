@@ -1,4 +1,4 @@
-export type IncidentStatus = 'OPEN' | 'ACTIVE' | 'RESOLVED' | 'CLOSED';
+export type IncidentStatus = 'OPEN' | 'ACTIVE' | 'RESPONDING' | 'RESOLVED' | 'CLOSED';
 export type SeverityLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type BarangayStatus = 'ACTIVE' | 'INACTIVE';
 
@@ -45,6 +45,7 @@ export interface IncidentUnitAssignment {
 }
 
 export interface IncidentRecord {
+  verificationStatus?: 'UNVERIFIED' | 'VERIFIED' | 'REJECTED';
   incidentId: string;
   title: string;
   description?: string | null;
@@ -71,6 +72,7 @@ export interface BarangayRankingItem {
   status: BarangayStatus;
   incidentCount: number;
   activeCount: number;
+  respondingCount: number;
   resolvedCount: number;
   percentage: number;
   riskLevel: 'HIGH' | 'MODERATE' | 'LOW';

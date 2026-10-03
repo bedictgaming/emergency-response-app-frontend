@@ -30,11 +30,12 @@ export interface BarangayIncidentsResponse {
  * GET /api/barangays/v1/
  * Lists all 13 reference barangays
  */
-export const getBarangays = async (): Promise<BarangayItem[]> => {
+export const getBarangays = async (options?: { throwOnError?: boolean }): Promise<BarangayItem[]> => {
   try {
     const response = await apiClient.get<BarangaysResponse>('/barangays/v1/');
     return response.data?.data?.barangays || [];
   } catch (error) {
+    if (options?.throwOnError) throw error;
     console.error('Failed to fetch barangays', error);
     return [];
   }

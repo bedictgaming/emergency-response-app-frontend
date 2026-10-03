@@ -132,13 +132,13 @@ for (const surface of ['drawer', 'page'] as const) {
       const path = new URL(route.request().url()).pathname.replace(/\/$/, '');
       if (path !== '/api/incidents/v1') return route.fallback();
       return route.fulfill({ json: { data: {
-        incidents, pagination: { page: 1, limit: 20, total: 2, pages: 1 },
+        incidents: incidents.filter(incident => incident.title.toLowerCase().includes((new URL(route.request().url()).searchParams.get('search') ?? '').toLowerCase())), pagination: { page: 1, limit: 50, total: 2, pages: 1 },
         summary: { total: 2, active: 0, responding: 0, resolved: 2 },
         verifiedSummary: { total: 2, active: 0, responding: 0, resolved: 2 },
       } } });
     });
     await open(page);
-    const scope = surface === 'drawer' ? page.locator('.fixed.inset-0.z-50') : page.locator('main');
+    const scope = surface === 'drawer' ? page.getByRole('dialog', { name: 'Barangay Incident History Log' }) : page.locator('main');
     const search = page.getByLabel('Search incident history', { exact: true });
     await expect(search).toHaveAttribute('name', 'incidentHistorySearch');
     const id = await search.getAttribute('id');

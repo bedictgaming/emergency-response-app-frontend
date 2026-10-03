@@ -24,15 +24,15 @@ import {
   Truck,
 } from "lucide-react";
 import {
-  IncidentRecord,
   BarangayItem,
   DashboardAnalytics,
-  IncidentStatus,
   SeverityLevel,
 } from "@/lib/types/barangay-history";
 import { getBarangays } from "@/lib/services/barangayService";
 import { getDashboardAnalytics } from "@/lib/services/analyticsService";
-import { getIncidentHistory } from "@/lib/services/incidentHistoryService";
+import { useIncidentHistory } from "@/app/hooks/useIncidentHistory";
+import HistoryPagination from "@/app/component/admin/HistoryPagination";
+import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 import { useAdminGuard } from "@/app/hooks/useAdminGuard";
 import MonthlyResolutionCard from "@/app/component/admin/MonthlyResolutionCard";
 
@@ -40,7 +40,7 @@ export default function BarangayHistoryPage() {
   const router = useRouter();
   const filterId = useId();
   const isAuthorized = useAdminGuard();
-  const [incidents, setIncidents] = useState<IncidentRecord[]>([]);
+  const [analyticsError, setAnalyticsError] = useState("");
   const [barangays, setBarangays] = useState<BarangayItem[]>([]);
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,82 +52,49 @@ export default function BarangayHistoryPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedPeriod, setSelectedPeriod] = useState<string>("ALL");
 
+  const history = useIncidentHistory({ search: searchQuery, barangayId: selectedBarangayId === "ALL" ? undefined : selectedBarangayId, typeName: selectedType === "ALL" ? undefined : selectedType, status: selectedStatus === "ALL" ? undefined : selectedStatus as import("@/lib/types/barangay-history").IncidentStatus, period: selectedPeriod === "ALL" ? undefined : selectedPeriod as "THIS_MONTH" | "LAST_30_DAYS", includeUnits: true }, isAuthorized);
   const loadAllData = useCallback(async () => {
+    const account = adminAccountSnapshot();
     setIsLoading(true);
     try {
-      const [analyticsData, barangaysData, incidentsData] = await Promise.all([
+      const [analyticsData, barangaysData] = await Promise.all([
         getDashboardAnalytics(),
-        getBarangays(),
-        getIncidentHistory(),
+        getBarangays({ throwOnError: true }),
       ]);
+      if (adminAccountSnapshot() !== account) return;
+      if (!analyticsData) throw new Error("Analytics unavailable");
       setAnalytics(analyticsData);
+      setAnalyticsError("");
       setBarangays(barangaysData);
-      setIncidents(incidentsData);
     } catch (error) {
-      console.error("Failed to load barangay analytics and history", error);
+      void error;
+      setAnalyticsError("Analytics unavailable. Previously loaded totals may be out of date.");
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadAllData();
-  }, [loadAllData]);
+    if (isAuthorized) void loadAllData();
+  }, [loadAllData, isAuthorized]);
+
+  useEffect(() => {
+    if (!isAuthorized) return;
+    const account = adminAccountSnapshot();
+    const logout = localStorage.getItem('emergency-logout-epoch');
+    const changed = () => {
+      if (adminAccountSnapshot() !== account || localStorage.getItem('emergency-logout-epoch') !== logout) {
+        setAnalytics(null); setBarangays([]); router.replace('/');
+      }
+    };
+    window.addEventListener('storage', changed);
+    return () => window.removeEventListener('storage', changed);
+  }, [isAuthorized, router]);
 
   if (!isAuthorized) return null;
 
   // Filter calculations
-  const filteredIncidents = incidents.filter((inc) => {
-    // 1. Barangay Filter
-    const matchesBarangay =
-      selectedBarangayId === "ALL" ||
-      inc.barangayId === selectedBarangayId ||
-      inc.barangay?.barangayId === selectedBarangayId;
-
-    // 2. Type Filter
-    const matchesType =
-      selectedType === "ALL" ||
-      inc.type?.typeName?.toUpperCase() === selectedType.toUpperCase();
-
-    // 3. Status Filter
-    const matchesStatus =
-      selectedStatus === "ALL" ||
-      inc.status.toUpperCase() === selectedStatus.toUpperCase();
-
-    // 4. Period Filter
-    let matchesPeriod = true;
-    if (selectedPeriod === "THIS_MONTH") {
-      const now = new Date();
-      const incDate = new Date(inc.reportedAt);
-      matchesPeriod =
-        incDate.getMonth() === now.getMonth() &&
-        incDate.getFullYear() === now.getFullYear();
-    } else if (selectedPeriod === "LAST_30_DAYS") {
-      const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-      matchesPeriod = new Date(inc.reportedAt).getTime() >= thirtyDaysAgo;
-    }
-
-    // 5. Search Query
-    const matchesSearch =
-      searchQuery.trim() === "" ||
-      inc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (inc.description &&
-        inc.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (inc.barangay?.name &&
-        inc.barangay.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (inc.type?.typeName &&
-        inc.type.typeName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (inc.reporter?.name &&
-        inc.reporter.name.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    return (
-      matchesBarangay &&
-      matchesType &&
-      matchesStatus &&
-      matchesPeriod &&
-      matchesSearch
-    );
-  });
+  const filteredIncidents = history.incidents;
 
   const renderTypeBadge = (typeName?: string) => {
     const upper = (typeName || "").toUpperCase();
@@ -158,7 +125,7 @@ export default function BarangayHistoryPage() {
     );
   };
 
-  const renderStatusBadge = (status: IncidentStatus) => {
+  const renderStatusBadge = (status: string) => {
     switch (status) {
       case "RESOLVED":
       case "CLOSED":
@@ -271,7 +238,7 @@ export default function BarangayHistoryPage() {
                 </span>
               </div>
               <div className="text-2xl font-black text-gray-900 tracking-tight">
-                {analytics?.incidentsByBarangay?.topArea?.name || "None"}
+                {analytics?.incidentsByBarangay?.topArea?.name || (analyticsError ? "Unavailable" : "None")}
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 {analytics?.incidentsByBarangay?.topArea
@@ -305,7 +272,7 @@ export default function BarangayHistoryPage() {
                 </span>
               </div>
               <div className="text-2xl font-black text-gray-900 tracking-tight">
-                {analytics?.incidentsByType?.topType?.typeName || "None"}
+                {analytics?.incidentsByType?.topType?.typeName || (analyticsError ? "Unavailable" : "None")}
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 {analytics?.incidentsByType?.topType
@@ -359,12 +326,12 @@ export default function BarangayHistoryPage() {
                 analytics.incidentsByBarangay.rankings.map((area) => {
                   const isSelected = selectedBarangayId === area.barangayId;
                   return (
-                    <div
+                    <button type="button" disabled={area.barangayId === "UNSPECIFIED"} aria-pressed={selectedBarangayId === area.barangayId}
                       key={area.barangayId}
                       onClick={() =>
                         setSelectedBarangayId(isSelected ? "ALL" : area.barangayId)
                       }
-                      className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      className={`w-full min-h-11 text-left p-3 rounded-xl border focus-visible:ring-2 focus-visible:ring-ring cursor-pointer transition-all ${
                         isSelected
                           ? "bg-purple-50 border-purple-300 ring-2 ring-purple-500/20"
                           : "bg-gray-50/70 border-gray-200 hover:bg-gray-100"
@@ -395,7 +362,7 @@ export default function BarangayHistoryPage() {
                           style={{ width: `${Math.max(area.percentage, 4)}%` }}
                         />
                       </div>
-                    </div>
+                    </button>
                   );
                 })
               )}
@@ -421,12 +388,12 @@ export default function BarangayHistoryPage() {
                 analytics.incidentsByType.distribution.map((type) => {
                   const isSelected = selectedType.toUpperCase() === type.typeName.toUpperCase();
                   return (
-                    <div
+                    <button type="button" aria-pressed={selectedType.toUpperCase() === type.typeName.toUpperCase()}
                       key={type.typeName}
                       onClick={() =>
                         setSelectedType(isSelected ? "ALL" : type.typeName)
                       }
-                      className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      className={`w-full min-h-11 text-left p-3 rounded-xl border focus-visible:ring-2 focus-visible:ring-ring cursor-pointer transition-all ${
                         isSelected
                           ? "bg-blue-50 border-blue-300 ring-2 ring-blue-500/20"
                           : "bg-gray-50/70 border-gray-200 hover:bg-gray-100"
@@ -454,7 +421,7 @@ export default function BarangayHistoryPage() {
                           }}
                         />
                       </div>
-                    </div>
+                    </button>
                   );
                 })
               )}
@@ -465,6 +432,7 @@ export default function BarangayHistoryPage() {
         {/* ============================================================ */}
         {/* SECTION 3: INTERACTIVE FILTER BAR                            */}
         {/* ============================================================ */}
+        {analyticsError && <div role="alert" className="rounded-lg border border-border bg-card p-4 text-sm">{analyticsError} <button onClick={() => void loadAllData()} className="min-h-11 underline">Retry analytics</button></div>}
         <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-2xs space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
             {/* Search Input */}
@@ -513,6 +481,7 @@ export default function BarangayHistoryPage() {
             >
               <option value="ALL">All Statuses</option>
               <option value="RESOLVED">Resolved Only</option>
+              <option value="RESPONDING">Responding Only</option>
               <option value="ACTIVE">Active Only</option>
               <option value="OPEN">Open Only</option>
               <option value="CLOSED">Closed Only</option>
@@ -534,7 +503,7 @@ export default function BarangayHistoryPage() {
               </select>
 
               <button
-                onClick={loadAllData}
+                onClick={() => { void loadAllData(); history.refresh(); }}
                 disabled={isLoading}
                 title="Refresh Records"
                 className="p-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-600 hover:bg-gray-100 shrink-0"
@@ -603,17 +572,19 @@ export default function BarangayHistoryPage() {
                 Incident History Audit Log
               </h3>
               <p className="text-xs text-gray-500">
-                Showing {filteredIncidents.length} of {incidents.length} recorded incidents
+                Showing {filteredIncidents.length} of {history.pagination?.total ?? "…"} matching recorded incidents
               </p>
+              <p className="mt-1 text-xs text-muted-foreground">History includes all authorized records; analytics above count verified reports only.</p>
             </div>
           </div>
 
-          {isLoading ? (
+          {history.error && <div role="alert" className="p-4 text-sm">{history.error} <button onClick={history.refresh} className="min-h-11 underline">Retry history</button></div>}
+          {history.loading && filteredIncidents.length === 0 ? (
             <div className="py-20 text-center text-gray-400 text-xs flex flex-col items-center gap-2">
               <RefreshCw size={26} className="animate-spin text-purple-600" />
               Loading Barangay incident records...
             </div>
-          ) : filteredIncidents.length === 0 ? (
+          ) : history.error && filteredIncidents.length === 0 ? null : filteredIncidents.length === 0 ? (
             <div className="py-16 text-center">
               <MapPin size={40} className="text-gray-300 mx-auto mb-2" />
               <h4 className="text-sm font-bold text-gray-800">No Incident Records Found</h4>
@@ -654,7 +625,7 @@ export default function BarangayHistoryPage() {
                       <td className="py-4 px-5">
                         <div className="font-bold text-purple-900 flex items-center gap-1">
                           <MapPin size={13} className="text-purple-600 shrink-0" />
-                          <span>Barangay {inc.barangay?.name || "Poblacion"}</span>
+                          <span>Barangay {inc.barangay?.name || "unavailable"}</span>
                         </div>
                         {inc.location?.locationName && (
                           <p className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[180px]">
@@ -666,6 +637,7 @@ export default function BarangayHistoryPage() {
                       {/* Title & Description */}
                       <td className="py-4 px-5 max-w-xs">
                         <p className="font-bold text-gray-900">{inc.title}</p>
+                        {inc.verificationStatus && inc.verificationStatus !== "VERIFIED" && <p className="text-xs text-amber-800">Excluded from verified analytics · {inc.verificationStatus.toLowerCase()}</p>}
                         {inc.description && (
                           <p className="text-[11px] text-gray-500 line-clamp-1 mt-0.5">
                             {inc.description}
@@ -696,7 +668,7 @@ export default function BarangayHistoryPage() {
                             <span>{inc.incidentUnits.map((u) => u.unit.unitName).join(", ")}</span>
                           </div>
                         ) : (
-                          <span className="text-gray-400 text-[11px]">None</span>
+                          <span className="text-gray-400 text-[11px]">{inc.incidentUnits ? "None assigned" : "Not loaded"}</span>
                         )}
                       </td>
 
@@ -713,6 +685,7 @@ export default function BarangayHistoryPage() {
                   ))}
                 </tbody>
               </table>
+              <div className="px-6"><HistoryPagination pagination={history.pagination} loading={history.loading} onPage={history.setPage} /></div>
             </div>
           )}
         </div>

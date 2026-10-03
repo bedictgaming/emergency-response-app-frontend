@@ -28,7 +28,7 @@ async function openHistory(page: Page, department: typeof departments[number]) {
       resolvedSummary: { month: 10, year: 2026, totalReportedThisMonth: 24, resolvedThisMonth: 24 },
     } } });
     if (path === '/api/incidents/v1') return route.fulfill({ json: { data: {
-      incidents, pagination: { page: 1, limit: 100, total: 24, pages: 1 },
+      incidents: incidents.filter(incident => incident.title.toLowerCase().includes((new URL(route.request().url()).searchParams.get('search') ?? '').toLowerCase())), pagination: { page: 1, limit: 50, total: 24, pages: 1 },
       summary: { total: 24, active: 0, responding: 0, resolved: 24 },
       verifiedSummary: { total: 24, active: 0, responding: 0, resolved: 24 },
     } } });

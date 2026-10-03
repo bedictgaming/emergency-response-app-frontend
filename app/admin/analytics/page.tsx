@@ -25,6 +25,7 @@ interface BarangayRanking {
   status: string;
   incidentCount: number;
   activeCount: number;
+  respondingCount: number;
   resolvedCount: number;
   percentage: number;
   riskLevel: "HIGH" | "MODERATE" | "LOW";
@@ -87,6 +88,7 @@ function TypeIcon({ name }: { name: string }) {
 export default function AnalyticsDashboard() {
   const isAuthorized = useAdminGuard();
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -94,12 +96,15 @@ export default function AnalyticsDashboard() {
   const loadAnalytics = async () => {
     try {
       const data = await getDashboardAnalytics();
+      if (!data) throw new Error("Analytics unavailable");
+      setError("");
       if (data) {
         setAnalytics(data as DashboardAnalytics);
         setLastUpdated(new Date());
       }
     } catch (err) {
-      console.error("Failed to load analytics:", err);
+      void err;
+      setError("Analytics unavailable. Previously loaded totals may be out of date.");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -126,6 +131,7 @@ export default function AnalyticsDashboard() {
 
   return (
     <div className="figma-shell min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60 pb-12 font-sans">
+      {error && <div role="alert" className="m-4 rounded-lg border border-border bg-card p-4 text-sm">{error} <button onClick={() => void loadAnalytics()} className="min-h-11 underline">Retry analytics</button></div>}
       <AdminHeader
         title="Analytics & Intelligence Hub"
         subtitle="Emergency Response Performance Dashboard"
@@ -336,6 +342,7 @@ export default function AnalyticsDashboard() {
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-400">
                           <span className="text-red-500 font-medium">{b.activeCount} active</span>
+                          <span className="text-amber-700 font-medium">{b.respondingCount ?? 0} responding</span>
                           <span>•</span>
                           <span className="text-emerald-600 font-medium">{b.resolvedCount} resolved</span>
                         </div>

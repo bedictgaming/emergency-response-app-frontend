@@ -1,0 +1,35 @@
+name: Frontend checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  local-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:3100
+      NEXT_PUBLIC_PRODUCTION_VALIDATION: 'false'
+      NEXT_PUBLIC_PUBLIC_LAUNCH: 'false'
+      NEXT_PUBLIC_PREVIEW_ONLY: 'false'
+      NEXT_PUBLIC_STAGING_TEST: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run test:deployment
+      - run: npm run test:gateway
+      - run: node scripts/check-dependency-audit.mjs
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e -- --workers=2
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failures
+          path: test-results
+          retention-days: 7
+      # API mocks and local export only; never use live deployment credentials.
