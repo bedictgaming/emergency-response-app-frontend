@@ -269,14 +269,14 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                 value="login"
                 className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold"
               >
-                Login
+                Log In
               </TabsTrigger>
 
               <TabsTrigger
                 value="signup"
                 className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold"
               >
-                Signin
+                Sign In
               </TabsTrigger>
             </TabsList>
           ) : (
@@ -291,7 +291,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                 className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 bg-white/80 hover:bg-white px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-2xs transition-all cursor-pointer"
               >
                 <ArrowLeft size={14} />
-                Back to Login
+                Back to Log In
               </button>
             </div>
           )}
@@ -410,7 +410,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                     disabled={isLoading}
                     className="mt-1 h-12 w-full rounded-xl border border-primary bg-primary text-sm font-bold text-primary-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:bg-red-700 hover:shadow-md cursor-pointer dark:hover:bg-red-600"
                   >
-                    {isLoading ? 'Logging in...' : 'Login'}
+                    {isLoading ? 'Logging in...' : 'Log In'}
                   </Button>
                 </form>
               </CardContent>
@@ -490,7 +490,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                       className="text-xs text-slate-500 hover:text-slate-800 font-medium inline-flex items-center gap-1 transition-colors hover:underline cursor-pointer"
                     >
                       <ArrowLeft className="w-3.5 h-3.5" />
-                      Back to Login
+                      Back to Log In
                     </button>
                   </div>
                 </form>

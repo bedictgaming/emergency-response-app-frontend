@@ -14,10 +14,10 @@ async function expectBrandLogo(logo: Locator, size: number) {
 
 for (const width of [390, 1280]) {
   for (const theme of ['light', 'dark']) {
-    test(`shared emergency branding and literal Signin tab at ${width}px in ${theme}`, async ({ page }, testInfo) => {
+    test(`shared emergency branding and corrected Log In / Sign In tabs at ${width}px in ${theme}`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 844 });
       await page.addInitScript((preference) => localStorage.setItem('emergency-response-theme', preference), theme);
-      await page.route('**/api/alerts/v1/public**', route => route.fulfill({ json: { data: { alerts: [] } } }));
+      await page.route('**/api/alerts/v1/**', route => route.fulfill({ json: { data: { alerts: [] } } }));
       await page.goto('/');
       await expectBrandLogo(page.locator('header img[src="/emergency-icon.png"]'), 40);
       await expectBrandLogo(page.locator('footer img[src="/emergency-icon.png"]'), 40);
@@ -28,15 +28,16 @@ for (const width of [390, 1280]) {
       await page.goto('/login');
       await expectBrandLogo(page.locator('header img[src="/emergency-icon.png"]'), 32);
       await expect(page.locator('main img[src="/emergency-icon.png"]')).toHaveCSS('width', '80px');
-      await expect(page.getByRole('tab', { name: 'Login', exact: true })).toBeVisible();
+      await expect(page.getByRole('tab', { name: 'Log In', exact: true })).toBeVisible();
       await expect(page.getByRole('tab', { name: 'Sign Up', exact: true })).toHaveCount(0);
-      await page.getByRole('tab', { name: 'Signin', exact: true }).click();
+      await page.getByRole('tab', { name: 'Sign In', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'Create Account', exact: true })).toBeVisible();
       await expect(page.getByLabel('Full Name')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Create Account', exact: true })).toBeVisible();
       await page.screenshot({ path: testInfo.outputPath('login-signin.png'), fullPage: true });
-      await page.getByRole('tab', { name: 'Login', exact: true }).click();
+      await page.getByRole('tab', { name: 'Log In', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'Welcome Back' })).toBeVisible();
+      await expect(page.locator('form').getByRole('button', { name: 'Log In', exact: true })).toBeVisible();
     });
   }
 }

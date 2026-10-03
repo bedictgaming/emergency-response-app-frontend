@@ -2,8 +2,8 @@ import { expect, test } from '@playwright/test';
 
 test('login and signup use an equal-width segmented control', async ({ page }) => {
   await page.goto('/login');
-  const loginTab = page.getByRole('tab', { name: 'Login' });
-  const signupTab = page.getByRole('tab', { name: 'Signin', exact: true });
+  const loginTab = page.getByRole('tab', { name: 'Log In', exact: true });
+  const signupTab = page.getByRole('tab', { name: 'Sign In', exact: true });
   const [loginBox, signupBox] = await Promise.all([loginTab.boundingBox(), signupTab.boundingBox()]);
 
   expect(loginBox).not.toBeNull();
@@ -506,7 +506,7 @@ test('a citizen authenticated through the shared login cannot open an admin rout
   await page.goto('/login');
   await page.getByLabel('Email').first().fill('citizen@example.test');
   await page.getByLabel('Password', { exact: true }).first().fill('test-password');
-  await page.locator('form').getByRole('button', { name: 'Login' }).click();
+  await page.locator('form').getByRole('button', { name: 'Log In' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await page.goto('/admin/main-dashboard');
   await expect(page).toHaveURL(/\/dashboard$/);
@@ -525,7 +525,7 @@ test('invalid credentials stay in the shared login form without a console error 
   await page.goto('/login');
   await page.locator('input[type="email"]').fill('ADMIN@EMERGENCY.GOV');
   await page.locator('input[type="password"]').fill('wrong-password');
-  await page.locator('form').getByRole('button', { name: 'Login' }).click();
+  await page.locator('form').getByRole('button', { name: 'Log In' }).click();
 
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByText('Invalid email or password')).toBeVisible();
@@ -939,7 +939,7 @@ test('new department login waits for an in-flight refresh in another tab', async
   await otherTab.goto('/login');
   await otherTab.getByLabel('Email').first().fill('hazard@example.test');
   await otherTab.getByLabel('Password', { exact: true }).first().fill('test-password');
-  await otherTab.getByRole('button', { name: 'Login', exact: true }).click();
+  await otherTab.getByRole('button', { name: 'Log In', exact: true }).click();
   await otherTab.waitForTimeout(250);
   expect(loginRequests).toBe(0);
 
