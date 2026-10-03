@@ -1,4 +1,5 @@
-import { PhoneCall, Shield, Smartphone } from 'lucide-react';
+import { PhoneCall, Smartphone } from 'lucide-react';
+import { EmergencyLogo } from '../EmergencyLogo';
 
 export function LandingFooter() {
   return (
@@ -7,9 +8,7 @@ export function LandingFooter() {
         <div className="grid gap-8 md:grid-cols-[1.5fr_1fr_1fr]">
           <div>
             <div className="flex items-center gap-3 text-slate-950 dark:text-white">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-white">
-                <Shield className="h-5 w-5" aria-hidden="true" />
-              </span>
+              <EmergencyLogo />
               <span className="font-bold tracking-tight">Cordova Emergency Response</span>
             </div>
             <p className="mt-3 max-w-md text-sm leading-6">

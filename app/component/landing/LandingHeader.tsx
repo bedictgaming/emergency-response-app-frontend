@@ -1,14 +1,13 @@
 import Link from 'next/link';
-import { PhoneCall, Shield } from 'lucide-react';
+import { PhoneCall } from 'lucide-react';
+import { EmergencyLogo } from '../EmergencyLogo';
 
 export function LandingHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white">
-            <Shield className="h-5 w-5" aria-hidden="true" />
-          </span>
+          <EmergencyLogo />
           <span className="min-w-0">
             <span className="block truncate text-sm font-bold tracking-tight text-slate-950 sm:text-base dark:text-white">
               Cordova Emergency Response

@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('login and signup use an equal-width segmented control', async ({ page }) => {
   await page.goto('/login');
   const loginTab = page.getByRole('tab', { name: 'Login' });
-  const signupTab = page.getByRole('tab', { name: 'Sign Up' });
+  const signupTab = page.getByRole('tab', { name: 'Signin', exact: true });
   const [loginBox, signupBox] = await Promise.all([loginTab.boundingBox(), signupTab.boundingBox()]);
 
   expect(loginBox).not.toBeNull();
@@ -11,6 +11,8 @@ test('login and signup use an equal-width segmented control', async ({ page }) =
   expect(Math.abs(loginBox!.width - signupBox!.width)).toBeLessThanOrEqual(1);
   await signupTab.click();
   await expect(signupTab).toHaveAttribute('aria-selected', 'true');
+  // The operator deliberately renamed this tab; it still creates an account.
+  await expect(page.getByRole('heading', { name: 'Create Account' })).toBeVisible();
   await loginTab.click();
   await expect(loginTab).toHaveAttribute('aria-selected', 'true');
 });

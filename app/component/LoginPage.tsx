@@ -276,7 +276,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                 value="signup"
                 className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold"
               >
-                Sign Up
+                Signin
               </TabsTrigger>
             </TabsList>
           ) : (

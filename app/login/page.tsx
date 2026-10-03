@@ -2,8 +2,9 @@
 
 import { Suspense } from "react";
 import Link from "next/link";
-import { Shield, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { LoginPage } from "../component/LoginPage";
+import { EmergencyLogo } from "../component/EmergencyLogo";
 
 export default function LoginRoute() {
   return (
@@ -19,9 +20,7 @@ export default function LoginRoute() {
             <span className="text-sm font-semibold">Back to Home</span>
           </Link>
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600 text-white">
-              <Shield className="h-4 w-4" strokeWidth={2} />
-            </div>
+            <EmergencyLogo size={32} />
             <span className="text-sm font-bold tracking-tight text-slate-900 dark:text-white">
               Cordova Emergency Response
             </span>
