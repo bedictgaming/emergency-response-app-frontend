@@ -211,7 +211,9 @@ test('main admin paginates 14 All and Resolved reports across three pages', asyn
 });
 
 for (const department of ['FIRE', 'MEDICAL', 'POLICE', 'DRRMO'] as const) {
-  test(`${department} admin sees six reports without numbered pagination`, async ({ page }) => {
+  for (const width of [1280, 375]) {
+  test(`${department} admin paginates five reports at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
     await page.addInitScript((currentDepartment) => {
       localStorage.setItem('user', JSON.stringify({
         id: 'department-admin', role: 'ADMIN', department: currentDepartment, isMainAdmin: false,
@@ -225,34 +227,81 @@ for (const department of ['FIRE', 'MEDICAL', 'POLICE', 'DRRMO'] as const) {
     }));
     const service = department === 'DRRMO' ? 'HAZARD' : department;
     const typeName = department === 'DRRMO' ? 'Hazard' : department[0] + department.slice(1).toLowerCase();
-    const requestedLimits: string[] = [];
+    const requestedUrls: URL[] = [];
+    const incidents = Array.from({ length: 7 }, (_, index) => {
+      const status = index === 6 ? 'RESOLVED' : 'RESPONDING';
+      return {
+        incidentId: `incident-${index}`, title: `${typeName} report ${index + 1}`,
+        description: 'Synthetic pagination test report', status, verificationStatus: 'VERIFIED',
+        reportedBy: 'citizen', reportedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        type: { typeId: 'type', typeName }, location: { locationId: 'loc', locationName: 'Poblacion' },
+        reporter: { id: 'citizen', name: 'Test citizen' }, attachments: [], incidentUnits: [],
+        serviceResponses: [{ service, status }],
+      };
+    });
     await page.route('**/api/incidents/v1/**', route => {
       const url = new URL(route.request().url());
-      requestedLimits.push(url.searchParams.get('limit') ?? '');
+      requestedUrls.push(url);
+      const currentPage = Number(url.searchParams.get('page') ?? '1');
+      const limit = Number(url.searchParams.get('limit') ?? '5');
+      const statuses = url.searchParams.get('serviceStatuses')?.split(',');
+      const filtered = incidents.filter(incident => !statuses || statuses.includes(incident.status));
       return route.fulfill({ json: { data: {
-        incidents: Array.from({ length: 6 }, (_, index) => ({
-          incidentId: `incident-${index}`, title: `${typeName} report ${index + 1}`,
-          description: 'Test report', status: 'RESPONDING', verificationStatus: 'VERIFIED',
-          reportedBy: 'citizen', reportedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-          type: { typeId: 'type', typeName }, location: { locationId: 'loc', locationName: 'Poblacion' },
-          reporter: { id: 'citizen', name: 'Citizen' }, attachments: [],
-          serviceResponses: [{ service, status: 'RESPONDING' }],
-        })),
-        pagination: { page: 1, limit: 20, total: 6, pages: 1 },
-        summary: { total: 6, active: 0, responding: 6, resolved: 0, services: {
-          fire: department === 'FIRE' ? 6 : 0,
-          medical: department === 'MEDICAL' ? 6 : 0,
-          police: department === 'POLICE' ? 6 : 0,
-          hazard: department === 'DRRMO' ? 6 : 0,
+        incidents: filtered.slice((currentPage - 1) * limit, currentPage * limit),
+        pagination: { page: currentPage, limit, total: filtered.length, pages: Math.ceil(filtered.length / limit) },
+        summary: { total: 7, active: 0, responding: 6, resolved: 1, services: {
+          fire: department === 'FIRE' ? 7 : 0,
+          medical: department === 'MEDICAL' ? 7 : 0,
+          police: department === 'POLICE' ? 7 : 0,
+          hazard: department === 'DRRMO' ? 7 : 0,
         } },
       } } });
     });
 
     await page.goto(`/admin/${department.toLowerCase()}-dashboard`);
+    const cards = page.locator('h3').filter({ hasText: new RegExp(`^${typeName} report \\d+$`) });
+    const pager = page.locator('[aria-label="Incident reports pagination"]');
+    const navigation = page.getByRole('navigation', { name: 'Report pages' });
+    await expect(cards).toHaveCount(5);
+    await expect(page.getByRole('button', { name: 'Responding (6)', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Resolved (1)', exact: true })).toBeVisible();
+    await expect(pager).toHaveCount(1);
+    await expect(pager).toContainText('Showing 1-5 of 6 reports');
+    await expect(navigation.getByRole('button', { name: 'Previous page', exact: true })).toBeDisabled();
+    await navigation.getByRole('button', { name: 'Next page', exact: true }).click();
+    await expect(cards).toHaveCount(1);
     await expect(page.getByText(`${typeName} report 6`)).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Incident reports pagination' })).toHaveCount(0);
-    expect(requestedLimits).toContain('20');
+    await expect(pager).toContainText('Showing 6-6 of 6 reports');
+    await expect(page.getByRole('button', { name: 'Responding (6)', exact: true })).toBeVisible();
+    await expect(navigation.getByRole('button', { name: 'Next page', exact: true })).toBeDisabled();
+    if (department === 'FIRE') {
+      await pager.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: testInfo.outputPath(`department-pagination-${width}.png`) });
+    }
+    await navigation.getByRole('button', { name: 'Previous page', exact: true }).click();
+    await expect(cards).toHaveCount(5);
+    await expect(page.getByText(`${typeName} report 1`, { exact: true })).toBeVisible();
+    await navigation.getByRole('button', { name: 'Next page', exact: true }).click();
+    await expect(pager).toContainText('Showing 6-6 of 6 reports');
+    await page.getByRole('button', { name: 'Resolved (1)', exact: true }).click();
+    await expect(page.getByText(`${typeName} report 7`, { exact: true })).toBeVisible();
+    await expect(cards).toHaveCount(1);
+    await expect(pager).toHaveCount(0);
+    await page.getByRole('button', { name: 'Responding (6)', exact: true }).click();
+    await expect(cards).toHaveCount(5);
+    await expect(pager).toContainText('Showing 1-5 of 6 reports');
+    const listRequests = requestedUrls.filter(url => url.searchParams.has('page'));
+    expect(listRequests.length).toBeGreaterThan(0);
+    for (const url of listRequests) {
+      expect(url.searchParams.get('limit')).toBe('5');
+      expect(url.searchParams.get('department')).toBe(department);
+      expect(url.searchParams.get('responseService')).toBe(service);
+    }
+    expect(listRequests.some(url => url.searchParams.get('page') === '2')).toBe(true);
+    expect(listRequests.some(url => url.searchParams.get('page') === '1'
+      && url.searchParams.get('serviceStatuses') === 'RESOLVED')).toBe(true);
   });
+  }
 }
 
 test('main verified totals match history without hiding rejected review records', async ({ page }, testInfo) => {
