@@ -210,6 +210,9 @@ export default function AdminUsersPage() {
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
+              id="admin-users-search"
+              name="admin-users-search"
+              aria-label="Search user accounts"
               type="text"
               placeholder="Search by name or email..."
               value={searchQuery}
@@ -219,6 +222,9 @@ export default function AdminUsersPage() {
           </div>
           <div className="relative">
             <select
+              id="admin-users-role-filter"
+              name="admin-users-role-filter"
+              aria-label="Filter users by role"
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value as "" | UserRole)}
               className="appearance-none h-9 pl-3 pr-8 rounded-xl bg-gray-50 border border-gray-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-gray-700"
@@ -365,6 +371,8 @@ export default function AdminUsersPage() {
                         <td className="px-5 py-4">
                           <div className="flex items-center justify-end gap-2">
                             <select
+                              id={`admin-user-role-${user.id}`}
+                              name={`admin-user-role-${user.id}`}
                               value={user.role}
                               onChange={(event) => handleRoleChange(user, event.target.value as UserRole)}
                               disabled={isActing}
@@ -378,6 +386,8 @@ export default function AdminUsersPage() {
                             </select>
                             {['ADMIN', 'DISPATCHER'].includes(user.role) && (
                               <select
+                                id={`admin-user-department-${user.id}`}
+                                name={`admin-user-department-${user.id}`}
                                 value={user.department || ''}
                                 onChange={(event) => handleDepartmentChange(user, event.target.value as AdminDepartment)}
                                 disabled={isActing}
@@ -395,6 +405,8 @@ export default function AdminUsersPage() {
                             {user.role === 'ADMIN' && user.department === 'MAIN' && (
                               <label className="flex items-center gap-1 text-[11px] font-semibold text-gray-600">
                                 <input
+                                  id={`admin-user-main-admin-${user.id}`}
+                                  name={`admin-user-main-admin-${user.id}`}
                                   type="checkbox"
                                   checked={Boolean(user.isMainAdmin)}
                                   onChange={(event) => handleMainAdminChange(user, event.target.checked)}
