@@ -23,6 +23,7 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run test:deployment
       - run: npm run test:gateway
+      - run: npm run test:worker
       - run: node scripts/check-dependency-audit.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e -- --workers=2

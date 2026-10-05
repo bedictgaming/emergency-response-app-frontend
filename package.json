@@ -8,6 +8,7 @@
     "deploy:build": "npm run deploy:check && npm run build",
     "test:deployment": "node --test scripts/deployment-policy.test.mjs",
     "test:gateway": "node --test gateway/sign-request.test.mjs",
+    "test:worker": "node --test scripts/notification-worker.test.mjs",
     "prebuild": "node scripts/validation-preflight.mjs",
     "dev": "next dev",
     "build": "next build",
