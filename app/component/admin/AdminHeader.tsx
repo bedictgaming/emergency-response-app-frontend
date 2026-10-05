@@ -89,9 +89,9 @@ export default function AdminHeader({
   return (
     <>
       <header className="figma-admin-header sticky top-0 z-40 border-b border-white/70 bg-white/90 px-4 py-3 text-slate-900 shadow-sm backdrop-blur-xl sm:px-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-3">
+        <div className="mx-auto grid w-full max-w-[1600px] min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         {/* Department Info & Navigation */}
-        <div className="flex min-w-0 items-center gap-3.5">
+        <div className="flex min-w-0 items-center gap-3.5 xl:pt-1">
           {shouldShowBack && (
             <button
               type="button"
@@ -116,9 +116,11 @@ export default function AdminHeader({
         </div>
 
         {/* Action Controls */}
-        <div className="flex max-w-full items-center gap-2 overflow-x-auto pb-1 sm:gap-3 sm:pb-0">
+        <div data-admin-toolbar className="grid min-w-0 max-w-full gap-2 pb-1 sm:flex sm:items-start sm:gap-3 sm:overflow-x-auto sm:pb-0">
           {/* Real-time Emergency Siren & Incoming Report Monitor */}
           <AdminEmergencyMonitor responseService={monitorService} />
+
+          <nav aria-label="Admin navigation" className="flex min-w-0 max-w-full shrink-0 items-center gap-2 overflow-x-auto pt-1.5 sm:gap-3 [&>button]:min-h-11">
 
           {/* Barangay History Quick Drawer */}
           <button
@@ -163,6 +165,7 @@ export default function AdminHeader({
             <LogOut size={15} />
             {isLoggingOut ? "Logging out…" : "Logout"}
           </button>
+          </nav>
         </div>
         </div>
       </header>

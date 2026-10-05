@@ -215,33 +215,34 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   return (
     <>
       {/* Header Siren Status & Control Button */}
-      <div data-siren-control className="flex shrink-0 items-center gap-2">
+      <div data-admin-monitor className="w-full min-w-0 sm:w-[28rem] sm:shrink-0">
+      <div data-siren-control className="grid h-22 grid-cols-[8.5rem_minmax(0,1fr)] items-center gap-2 sm:h-14">
         <button type="button" onClick={() => { if (incomingCount) setDialogOpen(true); void checkIncomingIncidents(); }}
-          className="min-h-11 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground">
+          className="h-11 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground">
           Outstanding alerts: {incomingCount}{hasMore ? '+' : ''}
         </button>
         {isSirenPlaying ? (
           <button
             onClick={handleSilenceSiren}
-            className="motion-press flex min-h-11 items-center gap-2 px-3 py-1.5 rounded-xl bg-red-600 text-white font-bold text-xs hover:bg-red-700 shadow-sm border border-red-400"
+            className="motion-press flex h-22 items-center justify-center gap-2 px-3 py-1.5 rounded-xl bg-red-600 text-white font-bold text-xs hover:bg-red-700 shadow-sm border border-red-400 sm:h-14"
             title="Siren is wailing! Click to mute audio"
           >
             <VolumeX className="w-4 h-4" />
             <span>MUTE SIREN</span>
           </button>
         ) : (
-          <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card px-2.5 py-1.5 text-xs">
-            <span className="flex h-2 w-2 relative">
+          <div className="grid h-22 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-1.5 gap-y-1 rounded-xl border border-border bg-card px-2.5 py-1 text-xs sm:flex sm:h-14 sm:gap-1.5 sm:py-1.5">
+            <span className="relative flex h-2 w-2 shrink-0">
               <span className={`relative inline-flex h-2 w-2 rounded-full ${sirenState.audioReady ? 'bg-success' : 'bg-warning'}`}></span>
             </span>
-            <span role="status" className="text-xs font-semibold text-foreground">
+            <span role="status" className="min-w-0 flex-1 text-xs font-semibold text-foreground">
               {sirenState.audioReady ? 'Siren Armed' : sirenState.unavailable ? 'Sound unavailable' : soundPreferenceSaved ? 'Sound saved · click to arm' : 'Sound not enabled'}
             </span>
             <button
               type="button"
               disabled={enablingSound}
               onClick={() => { void handleEnableSound(queue.some(item => !mutedKeysRef.current.has(attentionKey(item)))); }}
-              className="min-h-11 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-60"
+              className="col-span-2 min-h-11 min-w-0 shrink-0 rounded-lg border border-border bg-card px-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-60 sm:min-w-[7rem] sm:px-3"
               title={sirenState.audioReady ? "Test loud emergency siren" : soundPreferenceSaved ? "Your preference is saved. Click or press a key on this dashboard to arm sound, or use Resume sound to test it." : "Enable and test emergency alert sound; remember this preference in this browser"}
             >
               {enablingSound ? 'Enabling sound…' : sirenState.audioReady ? 'Test' : soundPreferenceSaved ? 'Resume sound' : 'Enable sound'}
@@ -249,9 +250,10 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
           </div>
         )}
       </div>
-      <span role="status" className="max-w-xs text-xs text-muted-foreground">
+      <span role="status" className="mt-1 block min-h-8 text-xs leading-4 text-muted-foreground">
         {queueError || (connection === 'live' ? 'Live connection · queue checked every 20s' : connection === 'offline' ? 'Offline · alerts cannot be confirmed' : 'Reconnecting · report polling continues')}
       </span>
+      </div>
 
       {/* Emergency Report Audio/Visual Strobe Banner / Modal */}
       {dialogOpen && newIncidentAlert && typeof document !== "undefined" && createPortal(
