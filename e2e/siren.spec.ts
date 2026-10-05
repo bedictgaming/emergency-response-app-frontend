@@ -65,13 +65,21 @@ async function setup(page: Page, mode: 'native' | 'reject' | 'held' | 'unsupport
     id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true,
   } } } }));
   let showReport = false;
+  let acknowledged = false;
   let monitorReads = 0;
   await page.route('**/api/incidents/v1/**', route => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: {
       flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 },
     } } });
-    if (url.searchParams.get('includeTotal') === 'false') monitorReads += 1;
+    if (url.pathname.endsWith('/attention/acknowledge')) { acknowledged = true; return route.fulfill({ json: { message: 'Acknowledged' } }); }
+    if (url.pathname.endsWith('/attention')) {
+      monitorReads += 1;
+      return route.fulfill({ json: { data: { hasMore: false, items: showReport && !acknowledged ? [{
+        incidentId: 'audio-test-report', title: 'SYNTHETIC AUDIO TEST', description: 'No emergency', version: 1, scope: 'MAIN',
+        status: 'RESPONDING', reportedAt: new Date().toISOString(), type: { typeName: 'Fire' }, reporter: { name: 'Test Citizen' }, location: { locationName: 'Poblacion' },
+      }] : [] } } });
+    }
     return route.fulfill({ json: { data: { incidents: showReport ? [{
       incidentId: 'audio-test-report', title: 'SYNTHETIC AUDIO TEST', description: 'No emergency',
       status: 'RESPONDING', verificationStatus: 'VERIFIED', reportedBy: 'citizen',
@@ -109,7 +117,7 @@ for (const viewport of [{ width: 1366, height: 900 }, { width: 390, height: 844 
     await page.getByRole('dialog').getByRole('button', { name: 'Enable sound', exact: true }).click();
     await expect(page.getByRole('button', { name: 'MUTE SIREN', exact: true })).toBeVisible();
     expect(await page.evaluate(() => (window as ProbedWindow).audioProbe.starts)).toBe(2);
-    await page.getByRole('button', { name: 'Acknowledge & Respond' }).click();
+    await page.getByRole('button', { name: 'Acknowledge this report' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page.getByText('Siren Armed', { exact: true })).toBeVisible();
   });
@@ -164,7 +172,7 @@ test('acknowledging during audio activation cannot start a stale siren', async (
   await arrive();
   await page.getByRole('dialog').getByRole('button', { name: 'Enable sound', exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as ProbedWindow).audioProbe.resumes)).toBe(1);
-  await page.getByRole('button', { name: 'Acknowledge & Respond' }).click();
+  await page.getByRole('button', { name: 'Acknowledge this report' }).click();
   await page.evaluate(() => (window as ProbedWindow).audioProbe.release?.());
   await expect(page.getByText('Siren Armed', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Test', exact: true })).toBeEnabled();
@@ -247,7 +255,7 @@ test('a saved preference does not unlock background alerts or replay acknowledge
   const arrive = await setup(page, 'held', true);
   await arrive();
   expect(await page.evaluate(() => window.audioProbe.contexts)).toBe(0);
-  await page.getByRole('button', { name: 'Acknowledge & Respond' }).click();
+  await page.getByRole('button', { name: 'Acknowledge this report' }).click();
   expect(await page.evaluate(() => window.audioProbe.contexts)).toBe(0);
   await page.getByRole('button', { name: 'Refresh', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.audioProbe.resumes)).toBe(1);

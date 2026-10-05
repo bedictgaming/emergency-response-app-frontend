@@ -655,6 +655,10 @@ test('citizen dashboard does not continuously poll while live events are connect
   await page.addInitScript(() => {
     localStorage.setItem('accessToken', 'citizen-access');
     localStorage.setItem('user', JSON.stringify({ id: 'citizen', role: 'USER', name: 'Citizen' }));
+    // A finite mocked SSE response immediately disconnects, causing legitimate
+    // reconnect catch-up reads. Keep one live stream for this polling test.
+    class ConnectedStream { onopen: (() => void) | null = null; constructor() { Object.assign(window, { __connectedStream: this }); } addEventListener() {} close() {} }
+    Object.defineProperty(window, 'EventSource', { value: ConnectedStream });
   });
   let incidentRequests = 0;
   await page.route('**/api/auth/v1/me', route => route.fulfill({
@@ -672,9 +676,14 @@ test('citizen dashboard does not continuously poll while live events are connect
 
   await page.goto('/dashboard');
   await expect(page.getByText('Choose emergency type')).toBeVisible();
+  await expect(page.getByText('No emergency reports', { exact: true })).toBeVisible();
+  // Open only after the initial request settles, so API in-flight deduplication
+  // cannot legitimately combine that read with the catch-up read.
+  await page.evaluate(() => (window as unknown as { __connectedStream: { onopen: () => void } }).__connectedStream.onopen());
+  await expect.poll(() => incidentRequests).toBe(2);
   await page.waitForTimeout(5_000);
 
-  expect(incidentRequests).toBe(1);
+  expect(incidentRequests).toBe(2); // initial list plus the one connection catch-up
 });
 
 test('citizen dashboard recovers when the incident API comes back online', async ({ page }) => {
@@ -727,6 +736,7 @@ test('passive dashboard mounts do not request push configuration before opt-in',
 });
 
 test('police dashboard recovers after an incident-list outage', async ({ page }) => {
+  await page.addInitScript(() => { class QuietStream { addEventListener() {} close() {} } Object.defineProperty(window, 'EventSource', { value: QuietStream }); });
   let policeRequests = 0;
   let monitorRequests = 0;
   await page.route('**/api/auth/v1/me', route => route.fulfill({
@@ -737,10 +747,10 @@ test('police dashboard recovers after an incident-list outage', async ({ page })
   }));
   await page.route('**/api/incidents/v1/**', route => {
     const url = new URL(route.request().url());
-    if (url.searchParams.get('includeTotal') === 'false') {
+    if (url.pathname.endsWith('/attention')) {
       expect(url.searchParams.get('responseService')).toBe('POLICE');
       monitorRequests += 1;
-      return route.fulfill({ json: { data: { incidents: [] } } });
+      return route.fulfill({ json: { data: { items: [], hasMore: false } } });
     }
     policeRequests += 1;
     if (policeRequests <= 2) return route.fulfill({ status: 504, json: { message: 'Temporary database delay' } });
@@ -768,9 +778,10 @@ test('medical monitor is department-scoped and pauses when another account signs
   let monitorRequests = 0;
   await page.route('**/api/incidents/v1/**', route => {
     const url = new URL(route.request().url());
-    if (url.searchParams.get('includeTotal') === 'false') {
+    if (url.pathname.endsWith('/attention')) {
       expect(url.searchParams.get('responseService')).toBe('MEDICAL');
       monitorRequests += 1;
+      return route.fulfill({ json: { data: { items: [], hasMore: false } } });
     }
     return route.fulfill({ json: { data: { incidents: [], pagination: { page: 1, limit: 5, total: 0, pages: 0 } } } });
   });
@@ -844,6 +855,7 @@ test('a pending medical read does not log a 403 after the browser account switch
 });
 
 test('failed police reads do not immediately retry queued same-view refreshes', async ({ page }) => {
+  await page.addInitScript(() => { class QuietStream { addEventListener() {} close() {} } Object.defineProperty(window, 'EventSource', { value: QuietStream }); });
   const police = { id: 'police-admin', role: 'ADMIN', name: 'Police Admin', email: 'police@example.test', department: 'POLICE', isMainAdmin: false };
   let pageReads = 0;
   let delayNextRead = false;
@@ -858,8 +870,8 @@ test('failed police reads do not immediately retry queued same-view refreshes', 
   }));
   await page.route('**/api/incidents/v1/**', async route => {
     const url = new URL(route.request().url());
-    if (url.searchParams.get('includeTotal') === 'false') {
-      return route.fulfill({ json: { data: { incidents: [] } } });
+    if (url.pathname.endsWith('/attention')) {
+      return route.fulfill({ json: { data: { items: [], hasMore: false } } });
     }
     pageReads += 1;
     if (delayNextRead) {
@@ -1003,6 +1015,7 @@ test('citizen polling stops when its session is removed', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('accessToken', 'citizen-access');
     localStorage.setItem('user', JSON.stringify({ id: 'citizen', role: 'USER', name: 'Citizen' }));
+    class QuietStream { addEventListener() {} close() {} } Object.defineProperty(window, 'EventSource', { value: QuietStream });
   });
   let incidentRequests = 0;
   await page.route('**/api/auth/v1/me', route => route.fulfill({

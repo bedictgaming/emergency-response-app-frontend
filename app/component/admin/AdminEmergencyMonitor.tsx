@@ -14,7 +14,10 @@ import {
   CheckCircle,
   BellRing
 } from "lucide-react";
-import { getIncidents, type Incident, type ResponseService } from "@/lib/services/incidentService";
+import { type ResponseService } from "@/lib/services/incidentService";
+import { getIncidentAttention, acknowledgeIncidentAttention, attentionKey, type IncidentAttention } from '@/lib/services/incidentAttentionService';
+import { type EmergencyConnectionState } from '@/lib/emergencyEventStream';
+import { useModalIsolation } from '@/app/hooks/useModalIsolation';
 import { sirenManager } from "@/lib/services/sirenService";
 import { useEmergencyEvents } from "@/app/hooks/useEmergencyEvents";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
@@ -25,12 +28,23 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   const [enablingSound, setEnablingSound] = useState(false);
   const [soundPreferenceSaved, setSoundPreferenceSaved] = useState(false);
   const isSirenPlaying = sirenState.playing;
-  const [newIncidentAlert, setNewIncidentAlert] = useState<Incident | null>(null);
-  const [incomingCount, setIncomingCount] = useState(0);
-
-  // Keep track of known incident IDs so we only alert on genuinely new reports
-  const knownIdsRef = useRef<Set<string>>(new Set());
-  const isInitializedRef = useRef(false);
+  const [queue, setQueue] = useState<IncidentAttention[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [selected, setSelected] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [queueError, setQueueError] = useState('');
+  const [ackError, setAckError] = useState('');
+  const [acknowledging, setAcknowledging] = useState(false);
+  const [connection, setConnection] = useState<EmergencyConnectionState>('connecting');
+  const newIncidentAlert = queue.find(item => attentionKey(item) === selected) ?? queue[0];
+  const incomingCount = queue.length;
+  const queueRef = useRef<IncidentAttention[]>([]);
+  const knownKeysRef = useRef(new Set<string>());
+  const mutedKeysRef = useRef(new Set<string>());
+  const pendingRefreshRef = useRef(false);
+  const queueRevisionRef = useRef(0);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const refreshRef = useRef<() => Promise<void>>(async () => {});
   const isMountedRef = useRef(true);
   const requestInFlightRef = useRef(false);
   const audioActionRef = useRef(0);
@@ -43,54 +57,40 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   }, []);
 
   const checkIncomingIncidents = useCallback(async () => {
-      if (requestInFlightRef.current) return;
+      if (requestInFlightRef.current) { pendingRefreshRef.current = true; return; }
       requestInFlightRef.current = true;
       const accountAtStart = adminAccountSnapshot();
+      const logoutAtStart = localStorage.getItem('emergency-logout-epoch');
+      const revision = queueRevisionRef.current;
       try {
-        // The stream is the primary notification path. A small newest-first
-        // recovery window avoids competing with the dashboard's paginated
-        // query for remote database connections.
-        const incidents = await getIncidents({
-          limit: 10,
-          includeTotal: false,
-          ...(responseService && { responseService }),
-        });
-        if (!isMountedRef.current || adminAccountSnapshot() !== accountAtStart) return;
-
-        if (!isInitializedRef.current) {
-          // Initial population
-          incidents.forEach((inc) => knownIdsRef.current.add(inc.incidentId));
-          isInitializedRef.current = true;
-          return;
+        const page = await getIncidentAttention(responseService);
+        if (!isMountedRef.current || revision !== queueRevisionRef.current || adminAccountSnapshot() !== accountAtStart || localStorage.getItem('emergency-logout-epoch') !== logoutAtStart) return;
+        const keys = new Set(page.items.map(attentionKey));
+        const arrived = page.items.some(item => !knownKeysRef.current.has(attentionKey(item)));
+        knownKeysRef.current = keys;
+        mutedKeysRef.current = new Set([...mutedKeysRef.current].filter(key => keys.has(key)));
+        queueRef.current = page.items; setQueue(page.items); setHasMore(page.hasMore); setQueueError('');
+        if (!page.items.length) { audioActionRef.current++; sirenManager.stopSiren(); setDialogOpen(false); setAckError(''); }
+        else {
+          if (arrived) setDialogOpen(true);
+          if (page.items.some(item => !mutedKeysRef.current.has(attentionKey(item)))) sirenManager.startSiren();
+          else { audioActionRef.current++; sirenManager.stopSiren(); }
         }
-
-        // Find newly arrived reports
-        const newReports = incidents.filter(
-          (inc) => !knownIdsRef.current.has(inc.incidentId)
-        );
-
-        if (newReports.length > 0) {
-          // Register new IDs
-          newReports.forEach((inc) => knownIdsRef.current.add(inc.incidentId));
-
-          // Pick the most recent new report to display
-          const latest = newReports[0];
-          setNewIncidentAlert(latest);
-          setIncomingCount((prev) => prev + newReports.length);
-
-          // Visual alerts always appear; sound starts only after explicit audio activation.
-          sirenManager.startSiren();
-        }
-      } catch (err) {
-        if (isMountedRef.current && adminAccountSnapshot() === accountAtStart) {
-          console.warn("Incident monitor poll error:", err);
+      } catch {
+        if (isMountedRef.current && revision === queueRevisionRef.current && adminAccountSnapshot() === accountAtStart && localStorage.getItem('emergency-logout-epoch') === logoutAtStart) {
+          audioActionRef.current++; sirenManager.stopSiren();
+          setQueueError('Alert queue unavailable. Shown alerts may be out of date. Check report lists and retry.');
         }
       } finally {
         requestInFlightRef.current = false;
+        if (pendingRefreshRef.current && isMountedRef.current && adminAccountSnapshot() === accountAtStart) {
+          pendingRefreshRef.current = false; void refreshRef.current();
+        }
       }
   }, [responseService]);
+  useEffect(() => { refreshRef.current = checkIncomingIncidents; }, [checkIncomingIncidents]);
 
-  useEmergencyEvents(checkIncomingIncidents, true);
+  useEmergencyEvents(checkIncomingIncidents, true, setConnection);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -103,7 +103,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') void checkIncomingIncidents();
     };
-    const interval = window.setInterval(refreshWhenVisible, 60_000);
+    const interval = window.setInterval(refreshWhenVisible, 20_000);
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
 
@@ -118,15 +118,34 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   }, [checkIncomingIncidents]);
 
   const handleSilenceSiren = () => {
+    mutedKeysRef.current = new Set(queueRef.current.map(attentionKey));
     audioActionRef.current += 1;
     sirenManager.stopSiren();
   };
 
-  const handleAcknowledgeAlert = () => {
-    audioActionRef.current += 1;
-    sirenManager.stopSiren();
-    setNewIncidentAlert(null);
-    setIncomingCount(0);
+  const handleAcknowledgeAlert = async () => {
+    if (!newIncidentAlert || acknowledging) return;
+    const item = newIncidentAlert, account = adminAccountSnapshot();
+    // Cancel a gesture's pending audio unlock immediately, before the network
+    // acknowledgement settles. The visual item remains until server success.
+    audioActionRef.current++; sirenManager.stopSiren();
+    queueRevisionRef.current++;
+    setAckError('');
+    setAcknowledging(true);
+    try {
+      await acknowledgeIncidentAttention(item, responseService);
+      if (!isMountedRef.current || adminAccountSnapshot() !== account) return;
+      queueRevisionRef.current++;
+      queueRef.current = queueRef.current.filter(row => attentionKey(row) !== attentionKey(item));
+      setQueue(queueRef.current);
+      if (!queueRef.current.length) { audioActionRef.current++; sirenManager.stopSiren(); setDialogOpen(false); }
+      void checkIncomingIncidents();
+    } catch {
+      if (isMountedRef.current && adminAccountSnapshot() === account) {
+        setAckError('Acknowledgement not confirmed. Retry this report; response status is unchanged.');
+        void checkIncomingIncidents();
+      }
+    } finally { if (isMountedRef.current && adminAccountSnapshot() === account) setAcknowledging(false); }
   };
 
   const activateSound = useCallback(async (mode: 'test' | 'alert' | 'restore') => {
@@ -145,7 +164,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
       setSoundPreferenceSaved(saveAdminSoundPreference(accountAtStart));
     }
     if (ready && audioActionRef.current === action) {
-      if (mode === 'alert') sirenManager.startSiren();
+      if (mode === 'alert' && queueRef.current.some(item => !mutedKeysRef.current.has(attentionKey(item)))) sirenManager.startSiren();
       else if (mode === 'test') sirenManager.testSiren();
       // Restoring readiness must never replay an old or acknowledged alert.
     }
@@ -177,7 +196,13 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
     };
   }, [activateSound]);
 
-  const handleEnableSound = (playAlert = false) => activateSound(playAlert ? 'alert' : 'test');
+  const handleEnableSound = (playAlert = false) => {
+    if (playAlert && newIncidentAlert && !queueError) mutedKeysRef.current.delete(attentionKey(newIncidentAlert));
+    return activateSound(playAlert && !queueError ? 'alert' : 'test');
+  };
+  useModalIsolation(dialogOpen && Boolean(newIncidentAlert), panelRef, () => {
+    handleSilenceSiren(); setDialogOpen(false);
+  });
 
   const getCategoryIcon = (type?: string) => {
     const t = (type || "").toLowerCase();
@@ -191,6 +216,10 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
     <>
       {/* Header Siren Status & Control Button */}
       <div data-siren-control className="flex shrink-0 items-center gap-2">
+        <button type="button" onClick={() => { if (incomingCount) setDialogOpen(true); void checkIncomingIncidents(); }}
+          className="min-h-11 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground">
+          Outstanding alerts: {incomingCount}{hasMore ? '+' : ''}
+        </button>
         {isSirenPlaying ? (
           <button
             onClick={handleSilenceSiren}
@@ -211,7 +240,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
             <button
               type="button"
               disabled={enablingSound}
-              onClick={() => { void handleEnableSound(Boolean(newIncidentAlert)); }}
+              onClick={() => { void handleEnableSound(queue.some(item => !mutedKeysRef.current.has(attentionKey(item)))); }}
               className="min-h-11 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-60"
               title={sirenState.audioReady ? "Test loud emergency siren" : soundPreferenceSaved ? "Your preference is saved. Click or press a key on this dashboard to arm sound, or use Resume sound to test it." : "Enable and test emergency alert sound; remember this preference in this browser"}
             >
@@ -220,39 +249,55 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
           </div>
         )}
       </div>
+      <span role="status" className="max-w-xs text-xs text-muted-foreground">
+        {queueError || (connection === 'live' ? 'Live connection · queue checked every 20s' : connection === 'offline' ? 'Offline · alerts cannot be confirmed' : 'Reconnecting · report polling continues')}
+      </span>
 
       {/* Emergency Report Audio/Visual Strobe Banner / Modal */}
-      {newIncidentAlert && typeof document !== "undefined" && createPortal(
+      {dialogOpen && newIncidentAlert && typeof document !== "undefined" && createPortal(
         <div
+          ref={panelRef}
+          data-history-modal
+          tabIndex={-1}
           className="motion-dialog-backdrop fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
           role="dialog"
           data-siren-control
           aria-modal="true"
           aria-labelledby="emergency-alert-title"
         >
-          <div className="motion-dialog-panel relative my-auto flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border-2 border-red-500 bg-[#0F172A] text-white shadow-2xl shadow-red-600/50">
+          <div className="motion-dialog-panel relative my-auto flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border-2 border-destructive bg-card text-foreground shadow-2xl">
             {/* Flashing Siren Header */}
-            <div className="flex shrink-0 items-center justify-between bg-gradient-to-r from-red-600 via-rose-600 to-red-600 px-5 py-3.5">
+            <div className="flex shrink-0 items-center justify-between gap-3 bg-destructive px-5 py-3.5 text-destructive-foreground">
               <div className="flex items-center gap-2.5">
                 <BellRing className="w-6 h-6 text-white" />
                 <div>
                   <h3 id="emergency-alert-title" className="text-base font-black tracking-wide text-white uppercase">
-                    🚨 Emergency Report Received!
+                    Outstanding report
                   </h3>
                   <p className="text-xs text-red-100 font-medium">
-                    Immediate dispatcher attention required
+                    Current work awaiting your acknowledgement
                   </p>
                 </div>
               </div>
               {incomingCount > 1 && (
-                <span className="bg-white text-red-700 text-xs font-black px-2 py-0.5 rounded-full shadow">
-                  +{incomingCount} Reports
+                <span className="shrink-0 rounded-full bg-card px-2 py-1 text-xs font-semibold text-destructive">
+                  {incomingCount}{hasMore ? '+' : ''} waiting
                 </span>
               )}
             </div>
 
             {/* Incident Details */}
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
+              <p className="text-xs text-muted-foreground">Reported {new Date(newIncidentAlert.reportedAt).toLocaleString()}. This may be outstanding work from before you opened the dashboard.</p>
+              {incomingCount > 1 && <div>
+                <label htmlFor="outstanding-alert-selection" className="mb-1 block text-xs">Choose a report to review</label>
+                <select id="outstanding-alert-selection" name="outstandingAlert" value={attentionKey(newIncidentAlert)} onChange={event => setSelected(event.target.value)}
+                  className="min-h-11 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground">
+                  {queue.map(item => <option key={attentionKey(item)} value={attentionKey(item)}>{item.title}</option>)}
+                </select>
+              </div>}
+              {hasMore && <p className="text-xs text-muted-foreground">More reports remain in the server queue. Acknowledge reviewed items to load the next ones; none are cleared together.</p>}
+              {(queueError || ackError) && <p role="alert" className="rounded-lg bg-warning p-3 text-sm text-warning-foreground">{queueError || ackError}</p>}
               {!sirenState.audioReady && (
                 <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-warning p-3 text-sm text-warning-foreground">
                   <p className="min-w-0 flex-1">
@@ -268,27 +313,27 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
               {/* Type and Status */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="p-2.5 rounded-xl bg-slate-800 border border-slate-700">
+                  <div className="rounded-xl border border-border bg-muted p-2.5">
                     {getCategoryIcon(newIncidentAlert.type?.typeName)}
                   </div>
                   <div>
-                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
+                    <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
                       Incident Type
                     </span>
-                    <h4 className="text-lg font-bold text-white">
+                    <h4 className="text-lg font-bold text-foreground">
                       {newIncidentAlert.type?.typeName || "General Emergency"}
                     </h4>
                   </div>
                 </div>
 
-                <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40">
+                <span className="rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1 text-xs font-semibold text-destructive">
                   {newIncidentAlert.status || "ACTIVE"}
                 </span>
               </div>
 
               {/* Title & Description */}
-              <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800">
-                <p className="text-sm font-semibold text-white mb-1">
+              <div className="rounded-xl border border-border bg-muted p-3.5">
+                <p className="mb-1 text-sm font-semibold text-foreground">
                   {newIncidentAlert.title}
                 </p>
                 {(() => {
@@ -297,11 +342,11 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
                     .trim();
                   if (!cleanDesc) return null;
                   return (
-                    <div className="mt-2 pt-2 border-t border-slate-800/80">
-                      <span className="text-[10px] uppercase tracking-wider font-bold text-amber-400/90 block mb-0.5">
+                    <div className="mt-2 pt-2 border-t border-border">
+                      <span className="mb-0.5 block text-xs font-semibold text-muted-foreground">
                         Report Description:
                       </span>
-                      <p className="text-xs text-slate-200 leading-relaxed font-medium whitespace-pre-wrap">
+                      <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
                         {cleanDesc}
                       </p>
                     </div>
@@ -311,11 +356,11 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
 
               {/* Location & Reporter Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60">
+                <div className="flex items-start gap-2 rounded-lg border border-border bg-muted p-2.5">
                   <MapPin className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <span className="text-slate-400 block text-[10px] font-medium">Location</span>
-                    <span className="font-semibold text-white break-words">
+                    <span className="text-muted-foreground block text-xs font-medium">Location</span>
+                    <span className="font-semibold text-foreground break-words">
                       {newIncidentAlert.location?.address ||
                         newIncidentAlert.location?.locationName ||
                         "Cordova, Cebu"}
@@ -323,26 +368,25 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
                   </div>
                 </div>
 
-                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60">
+                <div className="flex items-start gap-2 rounded-lg border border-border bg-muted p-2.5">
                   <User className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
                   <div>
-                    <span className="text-slate-400 block text-[10px] font-medium">Reporter</span>
-                    <span className="font-semibold text-white">
+                    <span className="text-muted-foreground block text-xs font-medium">Reporter</span>
+                    <span className="font-semibold text-foreground">
                       {newIncidentAlert.reporter?.name || "Citizen Reporter"}
                     </span>
                     {(() => {
                       const phone =
-                        newIncidentAlert.reporter?.phone ||
                         newIncidentAlert.description?.match(/\[Contact:\s*([^\]]+)\]/)?.[1];
                       if (!phone) return null;
                       return (
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <span className="text-[11px] text-slate-300 font-mono">
+                          <span className="text-xs text-foreground font-mono">
                             📞 {phone}
                           </span>
                           <a
                             href={`tel:${phone.replace(/[^0-9+]/g, "")}`}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold transition-colors"
+                            className="inline-flex min-h-11 items-center gap-1 rounded border border-border bg-card px-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
                           >
                             <Phone className="w-2.5 h-2.5" />
                             <span>Call Contact</span>
@@ -362,7 +406,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
                   className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${
                     isSirenPlaying
                       ? "bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-600/30"
-                      : "bg-slate-800 hover:bg-slate-700 text-slate-300"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   <VolumeX className="w-4 h-4" />
@@ -371,13 +415,16 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
 
                 <button
                   type="button"
-                  onClick={handleAcknowledgeAlert}
-                  className="flex-1 py-3 px-4 rounded-xl font-bold text-xs bg-red-600 hover:bg-red-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-red-600/40 transition-all"
+                  disabled={acknowledging || Boolean(queueError)}
+                  onClick={() => { void handleAcknowledgeAlert(); }}
+                  className="flex-1 rounded-xl bg-destructive px-4 py-3 text-xs font-semibold text-destructive-foreground flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   <CheckCircle className="w-4 h-4" />
-                  <span>Acknowledge & Respond</span>
+                  <span>{acknowledging ? 'Saving acknowledgement…' : 'Acknowledge this report'}</span>
                 </button>
               </div>
+              <p className="text-xs text-muted-foreground">Acknowledgement is personal. It does not dispatch units, resolve the report or clear another department’s alert.</p>
+              <button type="button" onClick={() => { handleSilenceSiren(); setDialogOpen(false); }} className="min-h-11 w-full rounded-lg border border-border px-3 text-sm">Review later — keep in queue</button>
             </div>
           </div>
         </div>,
