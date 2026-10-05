@@ -196,8 +196,8 @@ export default function DrrmoAdminDashboard() {
                 </div>
 
                 {/* Report Section */}
-                <div className="flex justify-between items-center mb-4">
-                    <div className="flex items-center gap-2.5">
+                <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                         <h2 className="text-xl font-bold">Hazard & Disaster Reports</h2>
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>

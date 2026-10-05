@@ -58,6 +58,8 @@ for (const width of [1366, 1280, 1024, 768, 375, 320]) {
     test(`shared ${route} header remains stable and reachable at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: width < 768 ? 667 : 900 });
       const state = await setup(page, route, department);
+      // Exercise a wider fallback font too: native font metrics differ on CI/phones.
+      if (width === 320) await page.addStyleTag({ content: 'body, .figma-shell { font-family: Verdana, sans-serif !important; }' });
       const initial = await geometry(page);
       expect(initial.pageOverflow).toBe(false);
       if (width >= 1280) {
@@ -98,7 +100,7 @@ for (const width of [1366, 1280, 1024, 768, 375, 320]) {
         await page.getByRole('button', { name: 'Outstanding alerts: 0', exact: true }).focus();
       }
       expect((await geometry(page)).pageOverflow).toBe(false);
-      if (route === 'main' && (width === 1366 || width === 375)) {
+      if ((route === 'main' && (width === 1366 || width === 375)) || (route === 'fire' && width === 320)) {
         await page.screenshot({ path: test.info().outputPath(`header-${width}.png`) });
       }
     });

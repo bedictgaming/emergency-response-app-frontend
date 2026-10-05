@@ -196,8 +196,8 @@ export default function MedicalAdminDashboard() {
                 </div>
 
                 {/* Report Section */}
-                <div className="flex justify-between items-center mb-4">
-                    <div className="flex items-center gap-2.5">
+                <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                         <h2 className="text-xl font-bold">Medical Emergency Reports</h2>
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
