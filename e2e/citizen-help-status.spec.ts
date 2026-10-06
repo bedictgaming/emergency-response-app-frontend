@@ -47,8 +47,8 @@ test('help panel shows truthful own status and opens the latest report across hi
   await expect(help).toBeVisible();
   await expect(help.getByRole('link', { name: 'Call 911 for emergency help' })).toHaveAttribute('href', 'tel:911');
   await expect(help.getByText('Coordination in progress')).toBeVisible();
-  await expect(help.getByText('1 emergency report remaining today')).toBeVisible();
-  await expect(page.getByText('0 emergency reports remaining today')).toHaveCount(0);
+  await expect(help.getByText('No daily report limit.')).toBeVisible();
+  await expect(help.getByText('Similar active emergencies within 100 metres', { exact: false })).toBeVisible();
   if (process.env.HELP_STATUS_CAPTURE === '1') {
     await page.screenshot({ path: 'test-results/help-status-desktop.png', fullPage: true });
   }
@@ -73,7 +73,8 @@ test('mobile keeps the telephone action ahead of emergency choices and handles u
   const help = page.getByRole('complementary', { name: 'Help and status' });
   await expect(call).toBeVisible();
   await expect(call).toHaveAttribute('href', 'tel:911');
-  await expect(help.getByText('Allowance unavailable. The server will check when you submit.')).toBeVisible();
+  await expect(help.getByText('No daily report limit.')).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Latest report', exact: true }).getByText('Your latest report is unavailable. Retry reports to check its status.')).toBeVisible();
   if (process.env.HELP_STATUS_CAPTURE === '1') {
     await page.screenshot({ path: 'test-results/help-status-mobile.png', fullPage: true });
   }
@@ -88,25 +89,33 @@ test('an empty history and a later refresh failure remain distinct', async ({ pa
   await mockCitizenDashboard(page, []);
   await page.goto('/dashboard');
   const help = page.getByRole('complementary', { name: 'Help and status' });
-  await expect(help.getByText('2 emergency reports remaining today')).toBeVisible();
+  await expect(help.getByText('No daily report limit.')).toBeVisible();
   await expect(help.getByText('No reports yet. Choose an emergency type to start a report.')).toBeVisible();
   await expect(page.getByText('No emergency reports')).toBeVisible();
 
   await page.route('**/api/incidents/v1/**', route => route.fulfill({ status: 503, json: { status: 'error', message: 'Unavailable' } }));
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await expect(help.getByText('Last loaded: 0 of 2 reports today')).toBeVisible();
+  await expect(page.getByText('Reports could not be refreshed.', { exact: false })).toBeVisible();
+  await expect(help.getByText('No daily report limit.')).toBeVisible();
   await expect(page.getByText('No emergency reports')).toBeVisible();
   await expect(help.getByRole('link', { name: 'Call 911 for emergency help' })).toBeVisible();
 });
 
-test('the displayed daily allowance resets at Manila midnight', async ({ page }) => {
+test('all emergency choices stay available after more than two same-day reports, including across midnight', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-09-24T15:59:00.000Z') });
   const report = { ...incident(1), reportedAt: '2026-09-24T15:55:00.000Z' };
-  await mockCitizenDashboard(page, [report]);
+  await mockCitizenDashboard(page, [1, 2, 3, 4, 5].map(index => ({ ...report, incidentId: `same-day-${index}` })));
   await page.goto('/dashboard');
   const help = page.getByRole('complementary', { name: 'Help and status' });
-  await expect(help.getByText('1 emergency report remaining today')).toBeVisible();
+  await expect(help.getByText('No daily report limit.')).toBeVisible();
+  for (const name of ['Report a fire emergency', 'Report a medical emergency', 'Report a police emergency', 'Report a hazard emergency', 'Report an emergency that needs other or multiple services']) {
+    await expect(page.getByRole('button', { name, exact: true })).toBeEnabled();
+  }
+  await page.getByRole('button', { name: 'Report a fire emergency', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Report Emergency', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 
   await page.clock.fastForward(61_000);
-  await expect(help.getByText('2 emergency reports remaining today')).toBeVisible();
+  await expect(help.getByText('No daily report limit.')).toBeVisible();
+  await expect(page.getByText(/remaining today|daily report limit reached|allowance resets/i)).toHaveCount(0);
 });

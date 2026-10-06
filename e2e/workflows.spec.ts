@@ -355,7 +355,7 @@ test('blocked direct upload of a large photo preserves the draft without sending
   expect(creations).toBe(0);
 });
 
-test('citizen daily-limit response stays in the form without a development error overlay', async ({ page }) => {
+test('citizen short-term rate-limit response preserves the draft without a development error overlay', async ({ page }) => {
   await session(page, 'USER');
   const consoleErrors: string[] = [];
   page.on('console', message => {
@@ -378,7 +378,7 @@ test('citizen daily-limit response stays in the form without a development error
     if (route.request().method() === 'POST') {
       return route.fulfill({
         status: 429,
-        json: { status: 'error', message: 'You have reached the daily limit of 2 emergency reports. You can submit again after midnight (Asia/Manila).' },
+        json: { status: 'error', message: 'Too many requests. Please try again shortly.' },
       });
     }
     return route.fulfill({ json: { data: { incidents: [] } } });
@@ -397,7 +397,7 @@ test('citizen daily-limit response stays in the form without a development error
   });
   await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
 
-  await expect(page.getByText('You have reached the daily limit of 2 emergency reports.', { exact: false })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Too many requests. Please try again shortly.', { exact: false })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByLabel('Description of Incident')).toHaveValue('Smoke coming from a building');
   expect(consoleErrors.some(message => message.includes('Incident report error:'))).toBe(false);
 });
@@ -709,7 +709,7 @@ test('missing stored evidence shows an honest retry state instead of a broken ph
   expect(accessRequests).toBe(2);
 });
 
-test('citizen dashboard allows a second report and disables a third until the next Manila day', async ({ page }) => {
+test('citizen dashboard keeps reporting enabled as same-day history grows beyond two reports', async ({ page }) => {
   await session(page, 'USER');
   const makeIncident = (id: string, title: string) => ({
     incidentId: id,
@@ -735,20 +735,20 @@ test('citizen dashboard allows a second report and disables a third until the ne
 
   await page.goto('/dashboard');
   const help = page.getByRole('complementary', { name: 'Help and status' });
-  await expect(help.getByText('1 emergency report remaining today', { exact: true })).toBeVisible();
-  await expect(help.getByText('1/2 Today', { exact: true })).toBeVisible();
+  await expect(help.getByText('No daily report limit.', { exact: true })).toBeVisible();
 
   await page.getByRole('heading', { name: 'Fire', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Report Emergency', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 
-  incidents = [...incidents, makeIncident('second', 'Second emergency')];
+  incidents = [...incidents, makeIncident('second', 'Second emergency'), makeIncident('third', 'Third emergency')];
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 
-  await expect(help.getByText('Daily report limit reached', { exact: true })).toBeVisible();
-  await expect(help.getByText('2/2 Today', { exact: true })).toBeVisible();
-  await page.getByRole('heading', { name: 'Fire', exact: true }).click({ force: true });
-  await expect(page.getByRole('heading', { name: 'Report Emergency', exact: true })).toHaveCount(0);
+  await expect(page.getByText('Third emergency', { exact: true })).toBeVisible();
+  await expect(help.getByText('No daily report limit.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Report a fire emergency' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Report a fire emergency' }).click();
+  await expect(page.getByRole('heading', { name: 'Report Emergency', exact: true })).toBeVisible();
 });
 
 test('one citizen submission becomes visible to main admin without a list-request storm', async ({ page }) => {

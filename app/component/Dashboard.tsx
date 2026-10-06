@@ -22,14 +22,6 @@ import { getAdminDepartment, getDepartmentDashboardUrl } from '../hooks/useAdmin
 import { useEmergencyEvents } from '../hooks/useEmergencyEvents';
 import { isDefinitiveAuthFailure, markSessionEnded } from '@/lib/apiClient';
 
-const DAILY_REPORT_LIMIT = 2;
-const manilaDateFormatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-});
-
 const mapIncidentToReport = (inc: Incident): EmergencyReport => {
     const typeName = inc.type?.typeName?.toLowerCase() || '';
     let category: EmergencyCategory = 'other';
@@ -85,32 +77,11 @@ export function Dashboard() {
     const [reportsLoadError, setReportsLoadError] = useState(false);
     const reportsRequestInFlight = useRef(false);
     const { latitude, longitude, accuracy, error: locationError, loading: locationLoading, refreshLocation } = useGeolocation();
-    const [manilaToday, setManilaToday] = useState(() => manilaDateFormatter.format(new Date()));
 
     useEffect(() => {
         if (submitError) submitErrorRef.current?.focus();
     }, [submitError]);
 
-    useEffect(() => {
-        // Reset the informational quota at Manila midnight without polling the API.
-        const dayMs = 86_400_000;
-        const manilaOffsetMs = 8 * 60 * 60 * 1000;
-        const untilNextMidnight = () => dayMs - ((Date.now() + manilaOffsetMs) % dayMs) + 100;
-        let timeout: number;
-        const updateDay = () => {
-            setManilaToday(manilaDateFormatter.format(new Date()));
-            timeout = window.setTimeout(updateDay, untilNextMidnight());
-        };
-        timeout = window.setTimeout(updateDay, untilNextMidnight());
-        return () => window.clearTimeout(timeout);
-    }, []);
-
-    const reportsToday = useMemo(() => {
-        return reports.filter(report => manilaDateFormatter.format(new Date(report.timestamp)) === manilaToday);
-    }, [reports, manilaToday]);
-    const dailyReportCount = reportsToday.length;
-    const remainingReportsToday = Math.max(0, DAILY_REPORT_LIMIT - dailyReportCount);
-    const hasReachedDailyLimit = dailyReportCount >= DAILY_REPORT_LIMIT;
     const latestReport = useMemo(() => reports.reduce<EmergencyReport | null>((latest, report) => {
         if (!latest || new Date(report.timestamp).getTime() > new Date(latest.timestamp).getTime()) return report;
         return latest;
@@ -408,7 +379,6 @@ export function Dashboard() {
     };
 
     const handleQuickReport = (category: EmergencyCategory) => {
-        if (hasReachedDailyLimit) return;
         setSubmitError('');
         setDuplicateReportBlocked(false);
         setSelectedCategory(category);
@@ -510,8 +480,6 @@ export function Dashboard() {
                     className="mb-6 xl:hidden"
                     reportsLoaded={reportsLoaded}
                     reportsLoadError={reportsLoadError}
-                    dailyReportCount={dailyReportCount}
-                    remainingReportsToday={remainingReportsToday}
                     latestReport={latestReport}
                     onViewReport={viewLatestReport}
                 />
@@ -525,11 +493,10 @@ export function Dashboard() {
                         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Select the response service you need. You can request multiple services in the report form.</p>
                     </div>
 
-                    <div className={`grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4 ${hasReachedDailyLimit ? 'select-none opacity-50' : ''}`}>
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
                         {/* Fire */}
                         <button
                             type="button"
-                            disabled={hasReachedDailyLimit}
                             aria-label="Report a fire emergency"
                             aria-haspopup="dialog"
                             className="motion-choice motion-press group min-h-36 cursor-pointer rounded-2xl border border-slate-200 bg-white transition-colors duration-200 hover:border-red-300 hover:bg-red-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed dark:border-slate-800 dark:bg-slate-900 dark:hover:border-red-900 dark:hover:bg-red-950/20"
@@ -549,7 +516,6 @@ export function Dashboard() {
                         {/* Medical */}
                         <button
                             type="button"
-                            disabled={hasReachedDailyLimit}
                             aria-label="Report a medical emergency"
                             aria-haspopup="dialog"
                             className="motion-choice motion-press group min-h-36 cursor-pointer rounded-2xl border border-slate-200 bg-white transition-colors duration-200 hover:border-red-300 hover:bg-red-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed dark:border-slate-800 dark:bg-slate-900 dark:hover:border-red-900 dark:hover:bg-red-950/20"
@@ -569,7 +535,6 @@ export function Dashboard() {
                         {/* Police */}
                         <button
                             type="button"
-                            disabled={hasReachedDailyLimit}
                             aria-label="Report a police emergency"
                             aria-haspopup="dialog"
                             className="motion-choice motion-press group min-h-36 cursor-pointer rounded-2xl border border-slate-200 bg-white transition-colors duration-200 hover:border-slate-400 hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-600 dark:hover:bg-slate-800"
@@ -589,7 +554,6 @@ export function Dashboard() {
                         {/* Hazard */}
                         <button
                             type="button"
-                            disabled={hasReachedDailyLimit}
                             aria-label="Report a hazard emergency"
                             aria-haspopup="dialog"
                             className="motion-choice motion-press group min-h-36 cursor-pointer rounded-2xl border border-slate-200 bg-white transition-colors duration-200 hover:border-amber-300 hover:bg-amber-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed dark:border-slate-800 dark:bg-slate-900 dark:hover:border-amber-800 dark:hover:bg-amber-950/20"
@@ -609,7 +573,6 @@ export function Dashboard() {
 
                     <button
                         type="button"
-                        disabled={hasReachedDailyLimit}
                         aria-label="Report an emergency that needs other or multiple services"
                         aria-haspopup="dialog"
                         className="motion-choice motion-press mt-3 flex min-h-14 w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 text-left transition-colors hover:border-slate-400 hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-600 dark:hover:bg-slate-800"
@@ -630,8 +593,6 @@ export function Dashboard() {
                     className="mb-8 xl:hidden"
                     reportsLoaded={reportsLoaded}
                     reportsLoadError={reportsLoadError}
-                    dailyReportCount={dailyReportCount}
-                    remainingReportsToday={remainingReportsToday}
                     latestReport={latestReport}
                     onViewReport={viewLatestReport}
                 />
@@ -664,8 +625,6 @@ export function Dashboard() {
                     className="hidden xl:block"
                     reportsLoaded={reportsLoaded}
                     reportsLoadError={reportsLoadError}
-                    dailyReportCount={dailyReportCount}
-                    remainingReportsToday={remainingReportsToday}
                     latestReport={latestReport}
                     onViewReport={viewLatestReport}
                 />

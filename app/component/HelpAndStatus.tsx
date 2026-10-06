@@ -1,6 +1,6 @@
 'use client';
 
-import { Clock3, FileText, Phone } from 'lucide-react';
+import { ShieldCheck, FileText, Phone } from 'lucide-react';
 import type { EmergencyReport } from '../types';
 
 type Variant = 'summary' | 'details' | 'full';
@@ -10,8 +10,6 @@ interface HelpAndStatusProps {
   className?: string;
   reportsLoaded: boolean;
   reportsLoadError: boolean;
-  dailyReportCount: number;
-  remainingReportsToday: number;
   latestReport: EmergencyReport | null;
   onViewReport: () => void;
 }
@@ -45,8 +43,6 @@ export function HelpAndStatus({
   className = '',
   reportsLoaded,
   reportsLoadError,
-  dailyReportCount,
-  remainingReportsToday,
   latestReport,
   onViewReport,
 }: HelpAndStatusProps) {
@@ -77,28 +73,13 @@ export function HelpAndStatus({
 
           <div className="border-t border-slate-200 pt-4 dark:border-slate-800">
             <div className="flex items-center gap-2 text-slate-950 dark:text-white">
-              <Clock3 className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <h3 className="text-sm font-semibold">Reports today</h3>
+              <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <h3 className="text-sm font-semibold">Reporting</h3>
             </div>
-            {!reportsLoaded && !reportsLoadError ? (
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Checking your report allowance…</p>
-            ) : !reportsLoaded ? (
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Allowance unavailable. The server will check when you submit.</p>
-            ) : (
-              <>
-                <p className="mt-2 text-sm font-semibold text-slate-950 dark:text-white">
-                  {reportsLoadError
-                    ? `Last loaded: ${dailyReportCount} of 2 reports today`
-                    : dailyReportCount >= 2
-                      ? 'Daily report limit reached'
-                      : `${remainingReportsToday} emergency report${remainingReportsToday === 1 ? '' : 's'} remaining today`}
-                </p>
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                  {reportsLoadError ? 'Could not refresh your reports. ' : <><span>{dailyReportCount}/2 Today</span>. </>}
-                  Allowance resets at midnight, Asia/Manila.
-                </p>
-              </>
-            )}
+            <p className="mt-2 text-sm font-semibold text-slate-950 dark:text-white">No daily report limit.</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">
+              Similar active emergencies within 100 metres are checked for duplicates. For a separate or worsening emergency nearby, call 911.
+            </p>
           </div>
         </div>
       )}
