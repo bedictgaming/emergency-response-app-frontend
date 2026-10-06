@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { deploymentFailures, FIRST_PARTY_ORIGIN } from './deployment-policy.mjs';
+import { deploymentBuildEnvironment, deploymentFailures, stagingGatewayOrigin, FIRST_PARTY_ORIGIN } from './deployment-policy.mjs';
 
 const publicEnv = {
   NEXT_PUBLIC_API_URL: FIRST_PARTY_ORIGIN,
@@ -39,6 +39,58 @@ test('explicit staging remains isolated and cannot use the default live command'
   assert.deepEqual(deploymentFailures(staging, { allowStaging: true }), []);
   assert.ok(deploymentFailures({ ...staging, NEXT_PUBLIC_API_URL: FIRST_PARTY_ORIGIN }, { allowStaging: true }).length);
   assert.ok(deploymentFailures({ ...staging, NEXT_PUBLIC_PRODUCTION_VALIDATION: 'true' }, { allowStaging: true }).length);
+});
+const gatewayStage = {
+  ...publicEnv, NEXT_PUBLIC_API_URL: '', NEXT_PUBLIC_PUBLIC_LAUNCH: 'false',
+  NEXT_PUBLIC_STAGING_TEST: 'true', NEXT_PUBLIC_PREVIEW_ONLY: 'true', EMERGENCY_STAGING_GATEWAY: 'true',
+  VERCEL: '1', VERCEL_ENV: 'preview', VERCEL_PROJECT_ID: 'prj_EoB1SDCIdo2thmzHpsJb1kQmuDtO',
+  VERCEL_URL: 'emergency-response-synthetic-benedict-mequiabas-projects.vercel.app',
+  API_GATEWAY_UPSTREAM: 'https://api-staging-staging-86d9.up.railway.app',
+  API_GATEWAY_AUDIENCE: 'emergency-response-staging-v1',
+};
+test('first-party staging freezes only its own deployment origin with explicit isolated identity', () => {
+  const env = deploymentBuildEnvironment(gatewayStage);
+  assert.equal(env.NEXT_PUBLIC_API_URL, `https://${gatewayStage.VERCEL_URL}`);
+  assert.equal(gatewayStage.NEXT_PUBLIC_API_URL, '');
+  assert.deepEqual(deploymentFailures(env, { allowStaging: true }), []);
+  assert.ok(deploymentFailures(env).length);
+  assert.deepEqual(deploymentBuildEnvironment(publicEnv), publicEnv);
+  assert.deepEqual(deploymentBuildEnvironment({ ...publicEnv, EMERGENCY_STAGING_GATEWAY: 'false' }), { ...publicEnv, EMERGENCY_STAGING_GATEWAY: 'false' });
+});
+test('staging origin derivation rejects other projects, production, missing identity and external hosts', () => {
+  for (const patch of [
+    { VERCEL: '' }, { VERCEL_ENV: 'production' }, { VERCEL_PROJECT_ID: 'another-project' },
+    { VERCEL_URL: 'cordova-emergency-response.vercel.app' }, { VERCEL_URL: 'attacker.vercel.app' },
+    { VERCEL_URL: gatewayStage.VERCEL_URL + '/path' }, { VERCEL_URL: gatewayStage.VERCEL_URL + '?x=1' },
+    { VERCEL_URL: 'https://' + gatewayStage.VERCEL_URL }, { VERCEL_URL: '' },
+    { API_GATEWAY_UPSTREAM: 'https://api-production-49dea.up.railway.app' },
+    { API_GATEWAY_AUDIENCE: 'emergency-response-production-v1' },
+  ]) {
+    const env = { ...gatewayStage, ...patch };
+    assert.equal(stagingGatewayOrigin(env), undefined);
+    assert.throws(() => deploymentBuildEnvironment(env));
+    assert.ok(deploymentFailures(env, { allowStaging: true }).length);
+  }
+});
+test('staging flags never relax production or legacy direct-API origin checks', () => {
+  const env = deploymentBuildEnvironment(gatewayStage);
+  for (const patch of [
+    { NEXT_PUBLIC_API_URL: FIRST_PARTY_ORIGIN },
+    { NEXT_PUBLIC_API_URL: gatewayStage.API_GATEWAY_UPSTREAM },
+    { NEXT_PUBLIC_PUBLIC_LAUNCH: 'true' }, { NEXT_PUBLIC_PRODUCTION_VALIDATION: 'true' },
+    { NEXT_PUBLIC_PREVIEW_ONLY: 'false' }, { NEXT_PUBLIC_STAGING_TEST: 'false' },
+    { EMERGENCY_STAGING_GATEWAY: 'TRUE' },
+  ]) assert.ok(deploymentFailures({ ...env, ...patch }, { allowStaging: true }).length);
+  assert.ok(deploymentFailures({ ...publicEnv, EMERGENCY_STAGING_GATEWAY: 'true' }, { allowStaging: true }).length);
+});
+test('the build wrapper blocks invalid configuration before any build process starts', () => {
+  const invalid = runGate('scripts/deploy-build.mjs', { ...publicEnv, NEXT_PUBLIC_PUBLIC_LAUNCH: '' });
+  assert.equal(invalid.status, 1);
+  assert.match(invalid.stderr, /Deployment blocked/);
+  const code = readFileSync(new URL('./deploy-build.mjs', import.meta.url), 'utf8');
+  assert.match(code, /scripts\/deployment-preflight\.mjs/);
+  assert.match(code, /scripts\/validation-preflight\.mjs/);
+  assert.match(code, /node_modules\/next\/dist\/bin\/next/);
 });
 test('default and explicit live configs preserve both proxy path forms, no-store and CSP', () => {
   const load = name => JSON.parse(readFileSync(new URL(`../${name}`, import.meta.url), 'utf8'));

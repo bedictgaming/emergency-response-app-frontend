@@ -5,7 +5,7 @@
   "scripts": {
     "release:check": "node scripts/release-preflight.mjs",
     "deploy:check": "node scripts/deployment-preflight.mjs",
-    "deploy:build": "npm run deploy:check && npm run build",
+    "deploy:build": "node scripts/deploy-build.mjs",
     "test:deployment": "node --test scripts/deployment-policy.test.mjs",
     "test:gateway": "node --test gateway/sign-request.test.mjs",
     "test:worker": "node --test scripts/notification-worker.test.mjs",

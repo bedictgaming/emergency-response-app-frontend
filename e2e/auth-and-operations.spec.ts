@@ -27,7 +27,7 @@ test('login is blank by default and password reset is usable', async ({ page }) 
   await page.getByRole('button', { name: 'Forgot password?' }).click();
   await page.getByLabel('Email').fill('citizen@example.test');
   await page.getByRole('button', { name: 'Send reset link' }).click();
-  await expect(page.getByRole('status')).toContainText('password-reset instructions');
+  await expect(page.getByRole('status').filter({ hasText: 'password-reset instructions' })).toContainText('password-reset instructions');
 });
 
 test('emailed password-reset link opens the reset form and confirms the new password', async ({ page }) => {
@@ -49,7 +49,7 @@ test('emailed password-reset link opens the reset form and confirms the new pass
 
   await expect.poll(() => confirmation).toEqual({ token, password: 'NewPassword123' });
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole('status')).toContainText('Password reset successfully');
+  await expect(page.getByRole('tabpanel', { name: 'Log In' }).getByRole('status')).toContainText('Password reset successfully');
 });
 
 test('previously emailed root reset links redirect to the unified reset form', async ({ page }) => {
