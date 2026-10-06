@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { LoginPage } from "../component/LoginPage";
+import { AccountEmailEntry } from "../component/EmailVerification";
 import { EmergencyLogo } from "../component/EmergencyLogo";
 
 export default function LoginRoute() {
@@ -37,7 +37,7 @@ export default function LoginRoute() {
             </div>
           }
         >
-          <LoginPage />
+          <AccountEmailEntry />
         </Suspense>
       </main>
 

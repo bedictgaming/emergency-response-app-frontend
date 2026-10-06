@@ -141,7 +141,9 @@ apiClient.interceptors.response.use(
     const method = config?.method?.toUpperCase();
     const timedOut = error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT';
     const retryableStatus = (!status && !timedOut) || [408, 502, 503, 504].includes(status);
-    if (config && ['GET', 'HEAD', 'OPTIONS'].includes(method ?? '') && retryableStatus && !config.safeRetryCount) {
+    // This legacy GET consumes a capability; it is not a safe read to replay.
+    const isVerificationAction = requestUrl.split('?')[0].endsWith('/auth/v1/verify-email');
+    if (config && !isVerificationAction && ['GET', 'HEAD', 'OPTIONS'].includes(method ?? '') && retryableStatus && !config.safeRetryCount) {
       config.safeRetryCount = 1;
       return apiClient.request(config);
     }

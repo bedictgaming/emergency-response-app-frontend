@@ -29,6 +29,7 @@ import {
   AlertDescription,
 } from './ui/alert';
 import { API_ORIGIN, markSessionChanged } from '@/lib/apiClient';
+import { EmailVerificationResult } from './EmailVerificationResult';
 
 type AuthErrorPayload = {
   message?: string;
@@ -284,6 +285,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <EmailVerificationResult />
 
           {/* Tabs Navigation (Reset tab removed from here; accessed via Forgot Password) */}
           {activeTab !== 'reset' ? (
