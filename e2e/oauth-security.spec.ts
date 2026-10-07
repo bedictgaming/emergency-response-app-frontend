@@ -6,7 +6,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 
     ['oauth_email_verification_required', 'This Google email cannot be used to create an account securely. Register with email, or use a verified Gmail or Google Workspace account.'],
     ['oauth_failed', 'Google login failed. Please try again.'],
   ]) {
-    test(`${reason} explains recovery without starting a session (${viewport.width}px)`, async ({ page }, testInfo) => {
+    test(`${reason} explains sign-in without starting a session (${viewport.width}px)`, async ({ page }, testInfo) => {
       await page.setViewportSize(viewport);
       let profileRequests = 0;
       await page.route('**/api/**', route => {
@@ -24,7 +24,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 
       if (reason === 'oauth_link_required') {
         await page.screenshot({ path: testInfo.outputPath('oauth-recovery.png'), fullPage: true });
         await page.getByRole('button', { name: 'Forgot password?' }).click();
-        await expect(page.getByRole('heading', { name: 'Reset password' })).toBeVisible();
+        await expect(page.getByLabel('Account email')).toBeVisible();
       }
     });
   }

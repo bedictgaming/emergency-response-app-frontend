@@ -3,9 +3,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertCircle, Eye, EyeOff, ArrowLeft, LoaderCircle } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import type { AxiosError } from 'axios';
-import { confirmPasswordReset, getMe, login, requestPasswordReset, resendVerification, signup } from '@/lib/services/authService';
+import { getMe, login, signup } from '@/lib/services/authService';
 import { registerWebPush } from '@/lib/browserPush';
 import { accountHome } from '@/lib/authorization';
 import { Button } from './ui/button';
@@ -30,6 +30,7 @@ import {
 } from './ui/alert';
 import { API_ORIGIN, markSessionChanged } from '@/lib/apiClient';
 import { EmailVerificationResult } from './EmailVerificationResult';
+import { PasswordRecovery } from './PasswordRecovery';
 
 type AuthErrorPayload = {
   message?: string;
@@ -43,7 +44,7 @@ interface LoginPageProps {
 export function LoginPage({ embedded = false }: LoginPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const oauthStatus = searchParams.get('oauth') ?? searchParams.get('error');
+  const oauthStatus = searchParams.has('resetToken') ? null : searchParams.get('oauth') ?? searchParams.get('error');
 
   const [isLoading, setIsLoading] = useState(false);
   const [isCompletingOAuth, setIsCompletingOAuth] = useState(oauthStatus === 'success');
@@ -92,39 +93,24 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
   const [signupName, setSignupName] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
-  const [resetEmail, setResetEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [notice, setNotice] = useState('');
-  const [verificationCooldown, setVerificationCooldown] = useState(false);
-  useEffect(() => {
-    if (!verificationCooldown) return;
-    const timer = setTimeout(() => setVerificationCooldown(false), 60_000);
-    return () => clearTimeout(timer);
-  }, [verificationCooldown]);
-
-  const handleResendVerification = async () => {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail.trim())) { setError('Enter your account email above, then request verification.'); return; }
-    setIsLoading(true); setError(''); setNotice('');
-    try {
-      const result = await resendVerification(loginEmail.trim());
-      setNotice(result.message); setVerificationCooldown(true);
-    } catch {
-      setError('Verification request could not be completed. Wait a minute, then try again.');
-    } finally { setIsLoading(false); }
-  };
 
   // Password visibility state
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
-  const [showResetPassword, setShowResetPassword] = useState(false);
 
   // Tab state
   const [activeTab, setActiveTab] = useState('login');
+  const [notice, setNotice] = useState('');
+  const hasResetLink = searchParams.has('resetToken');
   const resetToken = searchParams.get('resetToken');
-
-  useEffect(() => {
-    if (resetToken) setActiveTab('reset');
-  }, [resetToken]);
+  const validResetLink = searchParams.getAll('resetToken').length === 1
+    && /^[0-9a-f]{64}$/i.test(resetToken ?? '')
+    && !searchParams.has('verificationToken') && !searchParams.has('oauth');
+  const visibleTab = hasResetLink ? 'reset' : activeTab;
+  const returnToLogin = (message = '') => {
+    setActiveTab('login'); setError(''); setNotice(message);
+    if (hasResetLink) router.replace('/login');
+  };
 
   const handleGoogleAuth = () => {
     // Google sign-in starts an account switch. Do not carry a prior account's
@@ -141,7 +127,6 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setNotice('');
 
     if (!loginEmail || !loginPassword) {
       setError('Please fill in all fields');
@@ -162,30 +147,6 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
       setIsLoading(false);
     }
   };
-
-  const handlePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setNotice('');
-    setIsLoading(true);
-    try {
-      const message = resetToken
-        ? await confirmPasswordReset(resetToken, newPassword)
-        : await requestPasswordReset(resetEmail);
-      setNotice(message);
-      if (resetToken) {
-        window.history.replaceState({}, '', '/login');
-        setNewPassword('');
-        setActiveTab('login');
-      }
-    } catch (err: unknown) {
-      const authError = err as AxiosError<AuthErrorPayload>;
-      setError(authError.response?.data?.message || 'Password reset failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -284,12 +245,11 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
         </div>
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={visibleTab} onValueChange={value => { setActiveTab(value); setError(''); setNotice(''); }} className="w-full">
           <EmailVerificationResult />
 
-          {/* Tabs Navigation (Reset tab removed from here; accessed via Forgot Password) */}
-          {activeTab !== 'reset' ? (
-            <TabsList className="mb-5 grid w-full grid-cols-2 rounded-xl border-border/70 bg-muted p-1 shadow-sm">
+          {/* Existing login and account creation remain the only tabs. */}
+            {visibleTab !== 'reset' && <TabsList className="mb-5 grid w-full grid-cols-2 rounded-xl border-border/70 bg-muted p-1 shadow-sm">
               <TabsTrigger
                 value="login"
                 className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold"
@@ -303,23 +263,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
               >
                 Sign In
               </TabsTrigger>
-            </TabsList>
-          ) : (
-            <div className="mb-3.5 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => {
-                  setError('');
-                  setNotice('');
-                  setActiveTab('login');
-                }}
-                className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 bg-white/80 hover:bg-white px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-2xs transition-all cursor-pointer"
-              >
-                <ArrowLeft size={14} />
-                Back to Log In
-              </button>
-            </div>
-          )}
+            </TabsList>}
 
           {/* LOGIN TAB */}
           <TabsContent value="login" className="mt-0 focus-visible:outline-none">
@@ -379,15 +323,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <Label htmlFor="login-password" className="text-slate-600 font-medium text-xs">Password</Label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setError('');
-                          setNotice('');
-                          setActiveTab('reset');
-                        }}
-                        className="text-xs text-slate-500 hover:text-slate-900 font-medium transition-colors hover:underline cursor-pointer"
-                      >
+                      <button type="button" disabled={isLoading} className="min-h-11 text-xs font-medium text-muted-foreground underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-primary" onClick={() => { setError(''); setNotice(''); setActiveTab('reset'); }}>
                         Forgot password?
                       </button>
                     </div>
@@ -423,11 +359,8 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                       <AlertDescription className="text-xs">{error}</AlertDescription>
                     </Alert>
                   )}
-                  {notice && (
-                    <Alert variant="success" role="status" className="rounded-xl px-3 py-2">
-                      <AlertDescription className="text-xs">{notice}</AlertDescription>
-                    </Alert>
-                  )}
+
+                  {notice && <Alert variant="success" role="status" className="rounded-xl text-sm">{notice}</Alert>}
 
                   <Button
                     type="submit"
@@ -437,93 +370,14 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                   >
                     {isLoading ? 'Logging in...' : 'Log In'}
                   </Button>
-                  <Button type="button" variant="outline" className="min-h-11 w-full" disabled={isLoading || verificationCooldown} onClick={handleResendVerification}>
-                    {verificationCooldown ? 'Verification requested · wait one minute' : 'Resend verification email'}
-                  </Button>
                 </form>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="reset" className="mt-0 focus-visible:outline-none">
-            <Card className="rounded-3xl border border-border bg-white/90 shadow-lg dark:bg-card">
-              <CardHeader className="pt-5 px-5 pb-3">
-                <CardTitle className="text-xl font-bold text-black tracking-tight">
-                  {resetToken ? 'Choose a new password' : 'Reset password'}
-                </CardTitle>
-                <CardDescription className="text-xs text-slate-400 mt-0.5">
-                  {resetToken ? 'Use at least 12 characters with upper/lowercase letters and a number.' : 'We will email a secure link if the account exists.'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="px-5 pb-5 pt-0">
-                <form onSubmit={handlePasswordReset} className="space-y-3.5">
-                  {resetToken ? (
-                    <div>
-                      <Label htmlFor="reset-password" className="text-slate-600 font-medium text-xs mb-1.5 block">New password</Label>
-                      <div className="relative">
-                        <Input
-                          type={showResetPassword ? 'text' : 'password'}
-                          minLength={12}
-                          required
-                          value={newPassword}
-                          id="reset-password"
-                          autoComplete="new-password"
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          className="w-full h-10 bg-[#eef4fa] border-0 rounded-xl pl-3 pr-10 text-xs text-slate-900"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowResetPassword((prev) => !prev)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none p-1 cursor-pointer"
-                          title={showResetPassword ? "Hide password" : "Show password"}
-                          aria-label={showResetPassword ? "Hide password" : "Show password"}
-                        >
-                          {showResetPassword ? (
-                            <EyeOff className="w-4 h-4 text-slate-500" />
-                          ) : (
-                            <Eye className="w-4 h-4 text-slate-500" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <Label htmlFor="reset-email" className="text-slate-600 font-medium text-xs mb-1.5 block">Email</Label>
-                      <Input
-                        type="email"
-                        required
-                        placeholder="your.email@example.com"
-                        value={resetEmail}
-                        id="reset-email"
-                        autoComplete="email"
-                        onChange={(e) => setResetEmail(e.target.value)}
-                        className="w-full h-10 bg-[#eef4fa] border-0 rounded-xl px-3 text-xs text-slate-900"
-                      />
-                    </div>
-                  )}
-                  {error && <Alert variant="destructive" role="alert" className="rounded-xl py-2 px-3"><AlertDescription className="text-xs">{error}</AlertDescription></Alert>}
-                  {notice && <p role="status" className="text-xs text-emerald-700 bg-emerald-50 rounded-xl p-3">{notice}</p>}
-                  <Button type="submit" variant="default" disabled={isLoading} className="h-11 w-full rounded-xl border border-primary bg-primary text-xs font-bold text-primary-foreground shadow-sm hover:bg-red-700 transition-all cursor-pointer dark:hover:bg-red-600">
-                    {isLoading ? 'Please wait…' : resetToken ? 'Set new password' : 'Send reset link'}
-                  </Button>
 
-                  <div className="pt-1 text-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setError('');
-                        setNotice('');
-                        setActiveTab('login');
-                      }}
-                      className="text-xs text-slate-500 hover:text-slate-800 font-medium inline-flex items-center gap-1 transition-colors hover:underline cursor-pointer"
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      Back to Log In
-                    </button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
+          <TabsContent value="reset" className="mt-0 focus-visible:outline-none">
+            <PasswordRecovery key={searchParams.toString()} token={hasResetLink ? resetToken : null} hasResetLink={hasResetLink} validLink={validResetLink} initialEmail={loginEmail} onBack={returnToLogin} />
           </TabsContent>
 
           {/* SIGNUP TAB */}
@@ -532,7 +386,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
               <CardHeader className="pt-5 px-5 pb-3">
                 <CardTitle className="text-xl font-bold text-black tracking-tight">Create Account</CardTitle>
                 <CardDescription className="text-xs text-slate-400 mt-0.5">
-                  Sign up to start reporting emergencies
+                  Create a citizen account and log in immediately. No email verification required.
                 </CardDescription>
               </CardHeader>
 

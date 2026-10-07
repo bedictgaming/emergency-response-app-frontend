@@ -17,49 +17,26 @@ test('login and signup use an equal-width segmented control', async ({ page }) =
   await expect(loginTab).toHaveAttribute('aria-selected', 'true');
 });
 
-test('login is blank by default and password reset is usable', async ({ page }) => {
-  await page.route('**/api/auth/v1/password-reset/request', async (route) => {
-    await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ message: 'If that account exists, password-reset instructions have been sent' }) });
-  });
+test('traditional login has blank credentials, optional Google and recovery but no resend', async ({ page }) => {
   await page.goto('/login');
-  await expect(page.getByLabel('Email').first()).toHaveValue('');
-  await expect(page.getByLabel('Password', { exact: true }).first()).toHaveValue('');
-  await page.getByRole('button', { name: 'Forgot password?' }).click();
-  await page.getByLabel('Email').fill('citizen@example.test');
-  await page.getByRole('button', { name: 'Send reset link' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'password-reset instructions' })).toContainText('password-reset instructions');
+  await expect(page.getByLabel('Email', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('');
+  await expect(page.getByRole('button', { name: 'Continue with Google', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Forgot password?' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Resend verification|Send reset link|Set new password/i })).toHaveCount(0);
 });
 
-test('emailed password-reset link opens the reset form and confirms the new password', async ({ page }) => {
-  const token = 'a'.repeat(64);
-  let confirmation: { token: string; password: string } | undefined;
-  await page.route('**/api/auth/v1/password-reset/confirm', async route => {
-    confirmation = route.request().postDataJSON();
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ code: 200, status: 'success', message: 'Password reset successfully' }),
-    });
+for (const path of ['/', '/login']) {
+  test(`reset links require explicit submission on ${path}`, async ({ page }) => {
+    let requests = 0;
+    await page.route('**/api/auth/v1/password-reset/**', route => { requests++; return route.abort(); });
+    await page.goto(`${path}?resetToken=${'b'.repeat(64)}`);
+    await expect(page.getByLabel('New password', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Set new password' })).toBeVisible();
+    expect(requests).toBe(0);
+    await expect(page).toHaveURL(`/login?resetToken=${'b'.repeat(64)}`);
   });
-
-  await page.goto(`/login?resetToken=${token}`);
-  await expect(page.getByRole('heading', { name: 'Choose a new password' })).toBeVisible();
-  await page.getByLabel('New password').fill('NewPassword123');
-  await page.getByRole('button', { name: 'Set new password' }).click();
-
-  await expect.poll(() => confirmation).toEqual({ token, password: 'NewPassword123' });
-  await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole('tabpanel', { name: 'Log In' }).getByRole('status')).toContainText('Password reset successfully');
-});
-
-test('previously emailed root reset links redirect to the unified reset form', async ({ page }) => {
-  const token = 'b'.repeat(64);
-
-  await page.goto(`/?resetToken=${token}`);
-
-  await expect(page).toHaveURL(`/login?resetToken=${token}`);
-  await expect(page.getByRole('heading', { name: 'Choose a new password' })).toBeVisible();
-});
+}
 
 test('admin can reach the operations management surface', async ({ page }) => {
   await page.addInitScript(() => {

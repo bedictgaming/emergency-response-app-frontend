@@ -116,13 +116,11 @@ test('changing accounts closes the drawer and discards private history', async (
   });
   await expect(dialog).toHaveCount(0);
 });
-test('verification recovery sends one explicit request and displays a cooldown', async ({ page }) => {
-  await page.route('**/api/auth/v1/resend-email-verification', route => route.fulfill({ status: 202, json: { message: 'If an eligible account exists, verification delivery has been requested.' } }));
+test('retired verification resend is absent and sends no request', async ({ page }) => {
+  let requests = 0;
+  await page.route('**/api/auth/v1/resend-email-verification', route => { requests++; return route.abort(); });
   await page.goto('/login');
-  await page.getByRole('button', { name: 'Resend verification email', exact: true }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'Enter your account email' })).toBeVisible();
   await page.getByLabel('Email', { exact: true }).fill('synthetic@example.test');
-  await page.getByRole('button', { name: 'Resend verification email', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('verification delivery has been requested');
-  await expect(page.getByRole('button', { name: 'Verification requested · wait one minute' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Resend verification email', exact: true })).toHaveCount(0);
+  expect(requests).toBe(0);
 });

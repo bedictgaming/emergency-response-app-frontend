@@ -44,9 +44,17 @@ export const signup = async (payload: SignupPayload): Promise<AuthResponse> => {
   return response.data;
 };
 
-export const resendVerification = async (email: string): Promise<{ message: string }> => {
-  const response = await apiClient.post('/auth/v1/resend-email-verification', { email });
-  return response.data;
+/** Requests mail, not proof of delivery or of an account's existence. */
+export const requestPasswordReset = async (email: string, signal?: AbortSignal): Promise<string> => {
+  const response = await apiClient.post<{ message: string }>('/auth/v1/password-reset/request', { email }, { signal });
+  return response.data.message;
+};
+
+/** Explicit single-use redemption; no automatic login. */
+export const confirmPasswordReset = async (token: string, password: string, signal?: AbortSignal): Promise<string> => {
+  const response = await apiClient.post<{ code: number; status: string; message: string }>('/auth/v1/password-reset/confirm', { token, password }, { signal });
+  if (response.data.code !== 200 || response.data.status !== 'success') throw new Error('Password reset was not confirmed');
+  return response.data.message;
 };
 
 /** Explicit pre-auth capability redemption. No session creation or auto retry. */
@@ -109,14 +117,4 @@ export const getMe = (): Promise<AuthUser> => {
 export const refreshToken = async (): Promise<AuthResponse> => {
   const response = await apiClient.post<AuthResponse>('/auth/v1/refresh-token');
   return response.data;
-};
-
-export const requestPasswordReset = async (email: string): Promise<string> => {
-  const response = await apiClient.post<{ message: string }>('/auth/v1/password-reset/request', { email });
-  return response.data.message;
-};
-
-export const confirmPasswordReset = async (token: string, password: string): Promise<string> => {
-  const response = await apiClient.post<{ message: string }>('/auth/v1/password-reset/confirm', { token, password });
-  return response.data.message;
 };
