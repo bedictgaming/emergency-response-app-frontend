@@ -23,6 +23,7 @@ import { useEmergencyEvents } from '../hooks/useEmergencyEvents';
 import { isDefinitiveAuthFailure, markSessionEnded } from '@/lib/apiClient';
 import { HeaderFrame } from './HeaderFrame';
 import { EmergencyLogo } from './EmergencyLogo';
+import { GoogleAccountConnection } from './GoogleAccountConnection';
 
 const mapIncidentToReport = (inc: Incident): EmergencyReport => {
     const typeName = inc.type?.typeName?.toLowerCase() || '';
@@ -617,6 +618,7 @@ export function Dashboard() {
                     onViewReport={viewLatestReport}
                 />
                 </div>
+                {user?.role === 'USER' && <GoogleAccountConnection key={user.id} userId={user.id} email={user.email} />}
             </main>
 
             {/* Figma-style report modal */}

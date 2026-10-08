@@ -27,6 +27,7 @@ function isProtectedRequest(url = '', method = 'get'): boolean {
   if (url.includes('/notifications/v1/web-push-key')) return false;
   if (method.toUpperCase() === 'GET' && url.includes('/alerts/v1/')) return false;
   if (!url.includes('/auth/v1/')) return true;
+  if (/\/auth\/v1\/google\/(?:link|unlink)(?:\?|$)/.test(url)) return true;
   return url.includes('/auth/v1/me');
 }
 

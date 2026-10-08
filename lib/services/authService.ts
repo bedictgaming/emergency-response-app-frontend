@@ -118,3 +118,23 @@ export const refreshToken = async (): Promise<AuthResponse> => {
   const response = await apiClient.post<AuthResponse>('/auth/v1/refresh-token');
   return response.data;
 };
+
+export interface GoogleConnectionStatus { available: boolean; linked: boolean; hasPassword: boolean }
+export const getGoogleConnection = async (signal: AbortSignal): Promise<GoogleConnectionStatus> => {
+  const response = await apiClient.get<{ data: GoogleConnectionStatus }>('/auth/v1/google/link', { signal });
+  if (!response.data.data || ['available', 'linked', 'hasPassword'].some(key => typeof response.data.data[key as keyof GoogleConnectionStatus] !== 'boolean')) {
+    throw new Error('Google connection status could not be confirmed.');
+  }
+  return response.data.data;
+};
+export const beginGoogleConnection = async (password: string, signal: AbortSignal): Promise<string> => {
+  const response = await apiClient.post<{ data: { authorizationUrl: string } }>('/auth/v1/google/link', { password }, { signal });
+  const url = new URL(response.data.data.authorizationUrl);
+  if (url.origin !== 'https://accounts.google.com' || url.pathname !== '/o/oauth2/v2/auth' || url.username || url.password || url.hash) {
+    throw new Error('Google connection could not be started safely.');
+  }
+  return url.toString();
+};
+export const disconnectGoogle = async (password: string, signal: AbortSignal): Promise<void> => {
+  await apiClient.post('/auth/v1/google/unlink', { password }, { signal });
+};
