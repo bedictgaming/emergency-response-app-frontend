@@ -1,0 +1,48 @@
+.scene {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  width: 100%;
+  overflow-x: clip;
+  padding: 5rem 1.5rem;
+  --recovery-action: color-mix(in srgb, var(--primary) 88%, black);
+  background: var(--background);
+  color: var(--foreground);
+  isolation: isolate;
+}
+.scene ::selection { background: var(--accent); color: var(--accent-foreground); }
+.canvas, .characters { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.canvas { z-index: -2; }
+.characters { z-index: -1; overflow: hidden; }
+.traveler { position: absolute; width: 160px; height: 160px; left: 100%; }
+.traveler img { width: 100%; height: 100%; object-fit: contain; filter: brightness(0); }
+:global(.dark) .traveler img, :global(.dark) .restingFigure { filter: brightness(0) invert(1); }
+.scene[data-motion-active="true"] .traveler { animation-name: cross; animation-timing-function: linear; animation-fill-mode: forwards; }
+.restingFigure { position: absolute; bottom: 3%; right: 8%; width: 120px; height: 120px; object-fit: contain; }
+.message { width: min(100%, 36rem); padding: 1.5rem; text-align: center; background: var(--background); }
+.message h1 { margin: 0; font-size: 2.25rem; font-weight: 600; line-height: 1.2; text-wrap: balance; }
+.code { margin: 0.75rem 0; font-size: 5rem; line-height: 1; font-weight: 800; color: var(--primary); }
+.description { margin: 1.5rem auto 0; max-width: 42ch; font-size: 1rem; line-height: 1.6; color: var(--muted-foreground); }
+.actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; margin-top: 2rem; }
+.actions button, .actions a { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 48px; padding: 0.75rem 1.5rem; border: 2px solid var(--foreground); border-radius: var(--radius-control); font-size: 1rem; font-weight: 600; text-decoration: none; cursor: pointer; transition: background-color 150ms, color 150ms; }
+.back { background: var(--background); color: var(--foreground); }
+.back:hover, .back:active { background: var(--muted); }
+.actions .home { background: var(--recovery-action); color: var(--primary-foreground); border-color: var(--recovery-action); }
+.home:hover, .home:active { background: color-mix(in srgb, var(--primary) 80%, black); }
+.actions :focus-visible, .emergency a:focus-visible { outline: 3px solid var(--ring); outline-offset: 4px; }
+.emergency { margin: 1.5rem 0 0; font-size: 0.875rem; line-height: 1.6; }
+.emergency a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; }
+@keyframes cross { to { transform: translateX(calc(-100vw - 160px)) rotate(var(--figure-rotation)); } }
+@media (max-width: 480px) {
+  .message { padding: 1rem 0; }
+  .message h1 { font-size: 1.875rem; }
+  .actions { flex-direction: column; }
+  .restingFigure { width: 80px; height: 80px; right: 20%; bottom: 1%; }
+}
+@media (max-height: 500px) { .restingFigure { width: 64px; height: 64px; right: 2%; bottom: 2%; } }
+@media (prefers-reduced-motion: reduce) {
+  .scene .traveler { animation: none; display: none; }
+  .canvas { display: none; }
+  .actions button, .actions a { transition: none; }
+}

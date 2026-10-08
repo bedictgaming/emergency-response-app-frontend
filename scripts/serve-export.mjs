@@ -18,6 +18,9 @@ createServer(async (req, res) => {
       res.end(await readFile(candidate));
       return;
     }
-    res.writeHead(404).end('Not found');
+    const pathname = new URL(req.url, 'http://localhost').pathname;
+    const isApi = pathname === '/api' || pathname.startsWith('/api/');
+    const notFound = isApi ? null : await readFile(resolve(root, '404.html')).catch(() => null);
+    res.writeHead(404, { 'Content-Type': notFound ? 'text/html' : 'text/plain', 'Cache-Control': 'no-store' }).end(notFound || 'Not found');
   } catch { res.writeHead(400).end('Bad request'); }
 }).listen(Number(process.env.PORT || 3100), '127.0.0.1');

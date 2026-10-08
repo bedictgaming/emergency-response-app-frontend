@@ -1,5 +1,15 @@
 # Third-party notices
 
+## Shared Page Not Found
+
+The browser-only missing-page component adapts the operator-supplied minhxthanh/page-not-found source from 21st.dev. The four decorative SVGs are locally vendored, unchanged, from the exact cdn.21st.dev mirror URLs included in that source:
+- 54/54f366bdbf75b7a2d3b9f2264c3ada12aefcaf6e6a467bcecc856ffcd686e52e.svg
+- 7e/7e48603d6fd3fac9720b25b4b6a06d107feea2d21ef8fa0720921808b9808514.svg
+- 4f/4fd3a604a36cc8811c341ef3221010ed11e2563d4add29901922d7464c28c186.svg
+- 66/668d66f4c4d1dbc5c421692b4e5ad644c0f11f0327da214bcae21f78816c6b2f.svg
+
+No unverified upstream license is asserted. Project adaptations add Next.js routing, immediately readable content, bounded/reduced-motion-aware canvas and figure animation, responsive controls, lifecycle cleanup and local assets without external runtime image requests. No React Router or CLI package is required.
+
 ## MacBook scroll and requested loading/footer components
 
 The landing laptop frame, keyboard and bounded screen reveal adapt the public Aceternity MacBook Scroll registry:
