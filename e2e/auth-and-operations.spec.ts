@@ -104,9 +104,9 @@ test('main admin has no verification queue and receives new incidents as respond
   await expect(page.getByRole('button', { name: 'Responding (1)' })).toBeVisible();
   await expect(page.getByText('RESPONDING', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /Verify|Reject/ })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Resolve Incident (Main Admin Override)' }).click();
-  await expect.poll(() => resolutionRequests).toBe(1);
-  await expect(page.getByText('✓ Incident Resolved', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Resolve Incident|Main Admin Override/ })).toHaveCount(0);
+  await expect(page.getByText('Resolution is handled by the assigned departments.')).toBeVisible();
+  expect(resolutionRequests).toBe(0);
 });
 
 test('main admin paginates 14 All and Resolved reports across three pages', async ({ page }) => {

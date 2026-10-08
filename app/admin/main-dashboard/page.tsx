@@ -11,7 +11,6 @@ import {
 import AdminHeader from "@/app/component/admin/AdminHeader";
 import {
     getIncidentPage,
-    updateIncident,
     formatIncidentForDashboard,
     DashboardIncident,
     IncidentDashboardTab,
@@ -34,8 +33,6 @@ export default function MainDashboard() {
     const [emergencies, setEmergencies] = useState<DashboardIncident[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
-    const [statusError, setStatusError] = useState<string | null>(null);
     const [copiedPhoneId, setCopiedPhoneId] = useState<string | null>(null);
     const [page, setPage] = useState(1);
     const [reviewRevision, setReviewRevision] = useState(0);
@@ -134,21 +131,6 @@ export default function MainDashboard() {
     }, [loadIncidents]);
 
     if (!isAuthorized) return null;
-
-    const handleUpdateStatus = async (id: string, newStatus: 'ACTIVE' | 'RESOLVED' | 'CLOSED') => {
-        setActionLoadingId(id);
-        setStatusError(null);
-        try {
-            await updateIncident(id, { status: newStatus });
-            await loadIncidents();
-        } catch (err: unknown) {
-            await loadIncidents();
-            const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message;
-            setStatusError(message || "Could not update incident status. Please try again.");
-        } finally {
-            setActionLoadingId(null);
-        }
-    };
 
     // Do not substitute unverified record counts if verified aggregates are missing.
     const activeCount = verifiedSummary?.active ?? '—';
@@ -274,19 +256,6 @@ export default function MainDashboard() {
                         <span>Refresh</span>
                     </button>
                 </div>
-
-                {statusError && (
-                    <div role="alert" className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                        <span>{statusError}</span>
-                        <button
-                            type="button"
-                            onClick={() => setStatusError(null)}
-                            className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold hover:bg-red-100"
-                        >
-                            Dismiss
-                        </button>
-                    </div>
-                )}
 
                 {/* Tabs */}
                 <p className="mb-3 text-sm text-gray-600">
@@ -414,16 +383,8 @@ export default function MainDashboard() {
                             {/* Action Buttons */}
                             <IncidentReviewActions incident={item.raw} mainAdmin onChanged={loadIncidents} />
                             <div className="flex gap-3 pt-2">
-                                {/* Responding incidents can be completed directly. */}
                                 {item.status === 'responding' && (
-                                    <button
-                                        type="button"
-                                        disabled={actionLoadingId === item.id}
-                                        onClick={() => handleUpdateStatus(item.id, 'RESOLVED')}
-                                        className="w-full border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl py-2.5 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60"
-                                    >
-                                        Resolve Incident (Main Admin Override)
-                                    </button>
+                                    <p className="text-xs text-muted-foreground">Resolution is handled by the assigned departments.</p>
                                 )}
                                 {item.status === 'resolved' && (
                                     <div className="w-full text-center py-2 text-xs font-semibold text-emerald-700 bg-emerald-50/60 rounded-xl border border-emerald-200">

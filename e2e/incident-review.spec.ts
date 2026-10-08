@@ -36,7 +36,7 @@ for (const [department, service, path] of [
     await page.goto(`/admin/${path}-dashboard`);
     await page.getByRole('button', { name: 'Flag suspected false report' }).click();
     const dialog = page.getByRole('dialog');
-    await expect(dialog).toContainText('response work continues');
+    await expect(dialog).toContainText('assigned departments remain responsible');
     await expect(dialog.getByRole('button', { name: 'Send review request' })).toBeDisabled();
     await dialog.getByLabel('Why do you suspect this report is false?').fill('The caller says this was a training test.');
     await dialog.getByRole('button', { name: 'Send review request' }).click();
@@ -66,7 +66,7 @@ test('main admin reviews, closes and deliberately deletes a report with a reason
       return route.fulfill({ json: { data: { flag } } });
     }
     if (req.method() === 'PUT') {
-      expect(['RESOLVED', 'CLOSED']).toContain(req.postDataJSON().status);
+      expect(req.postDataJSON().status).toBe('CLOSED');
       report = { ...report, status: req.postDataJSON().status };
       return route.fulfill({ json: { data: { incident: report } } });
     }
@@ -87,7 +87,13 @@ test('main admin reviews, closes and deliberately deletes a report with a reason
   await dialog.getByRole('button', { name: 'Confirm false report' }).click();
   await expect(dialog).toContainText('Confirmed false report');
   await expect(dialog.getByRole('button', { name: 'Delete closed report permanently' })).toHaveCount(0);
-  await dialog.getByRole('button', { name: 'Resolve confirmed false report' }).click();
+  await expect(dialog.getByRole('button', { name: /Resolve confirmed|Main Admin Override/ })).toHaveCount(0);
+  await expect(dialog).toContainText('Wait for the assigned departments');
+  // Simulate a separate assigned department completing its response. Main
+  // cannot create this state through the review surface.
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  report = { ...report, status: 'RESOLVED', serviceResponses: [{ service: 'FIRE', status: 'RESOLVED' }] };
+  await page.getByRole('button', { name: 'Review / manage report' }).first().click();
   await expect(dialog).toContainText('Current status: RESOLVED');
   await dialog.getByRole('button', { name: 'Close resolved report' }).click();
   await expect(dialog).toContainText('Current status: CLOSED');

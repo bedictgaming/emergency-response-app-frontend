@@ -30,6 +30,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   const isSirenPlaying = sirenState.playing;
   const [queue, setQueue] = useState<IncidentAttention[]>([]);
   const [hasMore, setHasMore] = useState(false);
+  const [mainMonitoring, setMainMonitoring] = useState(false);
   const [selected, setSelected] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [queueError, setQueueError] = useState('');
@@ -70,6 +71,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
         knownKeysRef.current = keys;
         mutedKeysRef.current = new Set([...mutedKeysRef.current].filter(key => keys.has(key)));
         queueRef.current = page.items; setQueue(page.items); setHasMore(page.hasMore); setQueueError('');
+        setMainMonitoring(page.acknowledgementMode === 'DEPARTMENT_HANDOFF' || page.scope === 'MAIN' || page.items.some(item => item.scope === 'MAIN'));
         if (!page.items.length) { audioActionRef.current++; sirenManager.stopSiren(); setDialogOpen(false); setAckError(''); }
         else {
           if (arrived) setDialogOpen(true);
@@ -124,7 +126,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   };
 
   const handleAcknowledgeAlert = async () => {
-    if (!newIncidentAlert || acknowledging) return;
+    if (!newIncidentAlert || acknowledging || mainMonitoring) return;
     const item = newIncidentAlert, account = adminAccountSnapshot();
     // Cancel a gesture's pending audio unlock immediately, before the network
     // acknowledgement settles. The visual item remains until server success.
@@ -277,7 +279,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
                     Outstanding report
                   </h3>
                   <p className="text-xs text-red-100 font-medium">
-                    Current work awaiting your acknowledgement
+                    {mainMonitoring ? 'Awaiting an assigned department admin’s acknowledgement' : 'Current work awaiting your acknowledgement'}
                   </p>
                 </div>
               </div>
@@ -298,7 +300,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
                   {queue.map(item => <option key={attentionKey(item)} value={attentionKey(item)}>{item.title}</option>)}
                 </select>
               </div>}
-              {hasMore && <p className="text-xs text-muted-foreground">More reports remain in the server queue. Acknowledge reviewed items to load the next ones; none are cleared together.</p>}
+              {hasMore && <p className="text-xs text-muted-foreground">{mainMonitoring ? 'More reports remain in the server queue. Each clears here when an assigned department admin acknowledges it.' : 'More reports remain in the server queue. Acknowledge reviewed items to load the next ones; none are cleared together.'}</p>}
               {(queueError || ackError) && <p role="alert" className="rounded-lg bg-warning p-3 text-sm text-warning-foreground">{queueError || ackError}</p>}
               {!sirenState.audioReady && (
                 <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-warning p-3 text-sm text-warning-foreground">
@@ -415,7 +417,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
                   <span>{isSirenPlaying ? "Silence Loud Siren" : "Sound not playing"}</span>
                 </button>
 
-                <button
+                {!mainMonitoring && <button
                   type="button"
                   disabled={acknowledging || Boolean(queueError)}
                   onClick={() => { void handleAcknowledgeAlert(); }}
@@ -423,9 +425,9 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
                 >
                   <CheckCircle className="w-4 h-4" />
                   <span>{acknowledging ? 'Saving acknowledgement…' : 'Acknowledge this report'}</span>
-                </button>
+                </button>}
               </div>
-              <p className="text-xs text-muted-foreground">Acknowledgement is personal. It does not dispatch units, resolve the report or clear another department’s alert.</p>
+              <p className="text-xs text-muted-foreground">{mainMonitoring ? 'Only an assigned Fire, Medical, Police or DRRMO Admin’s acknowledgement clears this Main Admin alert. It does not resolve the incident.' : 'Acknowledgement does not dispatch units or resolve the incident. An assigned department admin’s acknowledgement also clears the Main Admin alert; other departments keep theirs.'}</p>
               <button type="button" onClick={() => { handleSilenceSiren(); setDialogOpen(false); }} className="min-h-11 w-full rounded-lg border border-border px-3 text-sm">Review later — keep in queue</button>
             </div>
           </div>

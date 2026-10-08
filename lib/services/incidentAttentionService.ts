@@ -6,8 +6,14 @@ export interface IncidentAttention {
   type?: { typeName: string }; location?: { address?: string; locationName?: string }; reporter?: { name?: string };
 }
 export const attentionKey = (item: IncidentAttention) => `${item.incidentId}:${item.scope}:${item.version}`;
+export interface IncidentAttentionPage {
+  items: IncidentAttention[];
+  hasMore: boolean;
+  scope?: 'MAIN' | ResponseService;
+  acknowledgementMode?: 'DEPARTMENT_HANDOFF' | 'PERSONAL';
+}
 export async function getIncidentAttention(responseService?: ResponseService) {
-  const response = await apiClient.get<{ data: { items: IncidentAttention[]; hasMore: boolean } }>('/incidents/v1/attention', { params: { responseService }, timeout: 30_000 });
+  const response = await apiClient.get<{ data: IncidentAttentionPage }>('/incidents/v1/attention', { params: { responseService }, timeout: 30_000 });
   if (!Array.isArray(response.data.data?.items) || typeof response.data.data.hasMore !== 'boolean') throw new Error('Invalid alert queue response');
   return response.data.data;
 }

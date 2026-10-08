@@ -20,6 +20,7 @@ import {
 } from "@/lib/services/incidentService";
 import IncidentDispatchedUnits from "@/app/component/admin/IncidentDispatchedUnits";
 import { useAdminGuard } from "@/app/hooks/useAdminGuard";
+import { useDepartmentResponseAuthority } from "@/app/hooks/useDepartmentResponseAuthority";
 import { useEmergencyEvents } from "@/app/hooks/useEmergencyEvents";
 import IncidentPager from "@/app/component/admin/IncidentPager";
 import { CompactEvidencePhoto } from "@/app/component/SecureEvidencePhoto";
@@ -28,6 +29,7 @@ import IncidentReviewActions from "@/app/component/admin/IncidentReviewActions";
 
 export default function FireAdminDashboard() {
     const isAuthorized = useAdminGuard("FIRE");
+    const canResolveResponse = useDepartmentResponseAuthority("FIRE", isAuthorized);
     const [activeTab, setActiveTab] = useState<Exclude<IncidentDashboardTab, "All" | "Active">>("Responding");
     const [emergencies, setEmergencies] = useState<DashboardIncident[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -127,6 +129,7 @@ export default function FireAdminDashboard() {
     if (!isAuthorized) return null;
 
     const handleUpdateStatus = async (id: string, newStatus: 'ACTIVE' | 'RESOLVED' | 'CLOSED') => {
+        if (newStatus === 'RESOLVED' && !canResolveResponse) return;
         if (actionLoadingId === id) return;
         setActionLoadingId(id);
         try {
@@ -357,17 +360,17 @@ export default function FireAdminDashboard() {
                                         >
                                             Dispatch Fire Engine / Mark Responding
                                         </button>
-                                        <button
+                                        {canResolveResponse && <button
                                             type="button"
                                             disabled={actionLoadingId === item.id}
                                             onClick={() => handleUpdateStatus(item.id, 'RESOLVED')}
                                             className="flex-1 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl py-2.5 text-xs font-semibold transition-colors cursor-pointer"
                                         >
                                             Mark as Resolved
-                                        </button>
+                                        </button>}
                                     </>
                                 )}
-                                {item.status === 'responding' && (
+                                {item.status === 'responding' && canResolveResponse && (
                                     <button
                                         type="button"
                                         disabled={actionLoadingId === item.id}
@@ -377,6 +380,7 @@ export default function FireAdminDashboard() {
                                         Mark as Resolved
                                     </button>
                                 )}
+                                {['active', 'responding'].includes(item.status) && !canResolveResponse && <p className="text-xs text-muted-foreground">Resolution is handled by the assigned department.</p>}
                                 {item.status === 'resolved' && (
                                     <div className="w-full text-center py-2 text-xs font-semibold text-emerald-700 bg-emerald-50/60 rounded-xl border border-emerald-200">
                                         ✓ Incident Resolved

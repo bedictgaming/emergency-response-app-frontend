@@ -72,10 +72,10 @@ async function setup(page: Page, mode: 'native' | 'reject' | 'held' | 'unsupport
     if (url.pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: {
       flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 },
     } } });
-    if (url.pathname.endsWith('/attention/acknowledge')) { acknowledged = true; return route.fulfill({ json: { message: 'Acknowledged' } }); }
+    if (url.pathname.endsWith('/attention/acknowledge')) throw new Error('Main Admin must not acknowledge its own queue');
     if (url.pathname.endsWith('/attention')) {
       monitorReads += 1;
-      return route.fulfill({ json: { data: { hasMore: false, items: showReport && !acknowledged ? [{
+      return route.fulfill({ json: { data: { hasMore: false, acknowledgementMode: 'DEPARTMENT_HANDOFF', items: showReport && !acknowledged ? [{
         incidentId: 'audio-test-report', title: 'SYNTHETIC AUDIO TEST', description: 'No emergency', version: 1, scope: 'MAIN',
         status: 'RESPONDING', reportedAt: new Date().toISOString(), type: { typeName: 'Fire' }, reporter: { name: 'Test Citizen' }, location: { locationName: 'Poblacion' },
       }] : [] } } });
@@ -93,7 +93,7 @@ async function setup(page: Page, mode: 'native' | 'reject' | 'held' | 'unsupport
   await expect.poll(() => monitorReads).toBeGreaterThan(0);
   // Let the initial empty monitoring read settle before introducing a new ID.
   await expect(page.getByRole('button', { name: 'All (0)' })).toBeVisible();
-  return async () => {
+  const arrive = async () => {
     showReport = true;
     // A focus refresh can be coalesced while the initial mocked read is still
     // settling. Exercise the recovery trigger until the visual alert appears;
@@ -103,6 +103,11 @@ async function setup(page: Page, mode: 'native' | 'reject' | 'held' | 'unsupport
       return page.getByRole('dialog').filter({ hasText: 'SYNTHETIC AUDIO TEST' }).isVisible();
     }).toBe(true);
   };
+  return Object.assign(arrive, { clear: async () => {
+    acknowledged = true; // Synthetic server state after department-admin acknowledgement.
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  } });
 }
 
 for (const viewport of [{ width: 1366, height: 900 }, { width: 390, height: 844 }]) {
@@ -117,7 +122,7 @@ for (const viewport of [{ width: 1366, height: 900 }, { width: 390, height: 844 
     await page.getByRole('dialog').getByRole('button', { name: 'Enable sound', exact: true }).click();
     await expect(page.getByRole('button', { name: 'MUTE SIREN', exact: true })).toBeVisible();
     expect(await page.evaluate(() => (window as ProbedWindow).audioProbe.starts)).toBe(2);
-    await page.getByRole('button', { name: 'Acknowledge this report' }).click();
+    await arrive.clear();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page.getByText('Siren Armed', { exact: true })).toBeVisible();
   });
@@ -167,12 +172,12 @@ test('account switch cancels pending audio and unmounts the old alert', async ({
   expect(await page.evaluate(() => (window as ProbedWindow).audioProbe.starts)).toBe(0);
 });
 
-test('acknowledging during audio activation cannot start a stale siren', async ({ page }) => {
+test('department handoff during Main audio activation cannot start a stale siren', async ({ page }) => {
   const arrive = await setup(page, 'held');
   await arrive();
   await page.getByRole('dialog').getByRole('button', { name: 'Enable sound', exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as ProbedWindow).audioProbe.resumes)).toBe(1);
-  await page.getByRole('button', { name: 'Acknowledge this report' }).click();
+  await arrive.clear();
   await page.evaluate(() => (window as ProbedWindow).audioProbe.release?.());
   await expect(page.getByText('Siren Armed', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Test', exact: true })).toBeEnabled();
@@ -255,7 +260,7 @@ test('a saved preference does not unlock background alerts or replay acknowledge
   const arrive = await setup(page, 'held', true);
   await arrive();
   expect(await page.evaluate(() => window.audioProbe.contexts)).toBe(0);
-  await page.getByRole('button', { name: 'Acknowledge this report' }).click();
+  await arrive.clear();
   expect(await page.evaluate(() => window.audioProbe.contexts)).toBe(0);
   await page.getByRole('button', { name: 'Refresh', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.audioProbe.resumes)).toBe(1);

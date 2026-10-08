@@ -91,7 +91,7 @@ export default function IncidentReviewActions({ incident, mainAdmin = false, onC
       <DialogContent className="max-w-xl bg-white text-gray-900">
         <DialogHeader>
           <DialogTitle>{deleteMode ? "Permanently delete this report?" : mainAdmin ? "Review and manage report" : "Flag a suspected false report"}</DialogTitle>
-          <DialogDescription>{deleteMode ? "This removes the report, its attachments and linked operational records. The audit history remains. This action cannot be undone in the app." : "Flagging requests main-admin review. The report stays visible and response work continues until an authorized administrator changes its status."}</DialogDescription>
+          <DialogDescription>{deleteMode ? "This removes the report, its attachments and linked operational records. The audit history remains. This action cannot be undone in the app." : "Flagging requests main-admin review. Review does not resolve the report; assigned departments remain responsible for their responses."}</DialogDescription>
         </DialogHeader>
         <h3 className="break-words text-base font-semibold">{incident.title}</h3>
         {error && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
@@ -105,13 +105,12 @@ export default function IncidentReviewActions({ incident, mainAdmin = false, onC
             {current.attachments?.[0]?.fileUrl && <CompactEvidencePhoto sourceUrl={current.attachments[0].fileUrl} alt="Report evidence for review" />}
           </>}
           {mainAdmin && !deleteMode ? <>
-            <div className="mt-4 space-y-3">{flags.map(flag => <FlagDecision key={`${flag.reviewFlagId}:${flag.updatedAt}`} flag={flag} busy={busy} onReview={(target, decision, notes) => void act(() => reviewIncidentFlag(target, decision, notes), decision === "CONFIRMED" ? "False report confirmed. Resolve and close the report before deletion." : "Suspicion dismissed. The report remains available.")} />)}</div>
+            <div className="mt-4 space-y-3">{flags.map(flag => <FlagDecision key={`${flag.reviewFlagId}:${flag.updatedAt}`} flag={flag} busy={busy} onReview={(target, decision, notes) => void act(() => reviewIncidentFlag(target, decision, notes), decision === "CONFIRMED" ? "False report confirmed. Assigned departments must resolve their responses before this report can be closed." : "Suspicion dismissed. The report remains available.")} />)}</div>
             {flags.length === 0 && <p className="mt-4 text-sm text-gray-600">No active review flags for this report.</p>}
             <div className="mt-5 border-t border-gray-200 pt-4">
-              {["OPEN", "ACTIVE", "RESPONDING"].includes(current.status) && flags.some(flag => flag.status === "CONFIRMED") && <button type="button" disabled={busy || current.status === "OPEN"} onClick={() => void act(() => updateIncident(current.incidentId, { status: "RESOLVED" }), "Confirmed false report resolved by main-admin override. Close it before deletion.")} className={`${buttonClass} border-amber-300 bg-amber-50 text-amber-900`}>Resolve confirmed false report</button>}
               {current.status === "RESOLVED" && <button type="button" disabled={busy} onClick={() => void act(() => updateIncident(current.incidentId, { status: "CLOSED" }), "Report closed. Permanent deletion is now available after confirmation.")} className={`${buttonClass} border-gray-300 bg-white text-gray-800`}>Close resolved report</button>}
               {current.status === "CLOSED" && <button type="button" disabled={busy} onClick={() => { setDeleteMode(true); setReason(""); setNotice(null); }} className={`${buttonClass} inline-flex items-center gap-2 border-red-300 bg-red-50 text-red-800`}><Trash2 size={16} aria-hidden="true" />Delete closed report permanently</button>}
-              {!["RESOLVED", "CLOSED"].includes(current.status) && <p className="mt-3 text-sm text-gray-600">Resolve the report after review, then close it here. Return assigned units and finish tasks before deleting.</p>}
+              {!["RESOLVED", "CLOSED"].includes(current.status) && <p className="mt-3 text-sm text-gray-600">Wait for the assigned departments to resolve their responses, then close the report here. Return assigned units and finish tasks before deleting.</p>}
             </div>
           </> : !mainAdmin && !deleteMode && ownFlag ? <p className="mt-4 text-sm text-amber-800">{ownFlag.status === "CONFIRMED" ? "The main admin confirmed this report as false." : "Your department already has a review request for this report."}</p> : <form className="mt-5" onSubmit={event => {
             event.preventDefault();
