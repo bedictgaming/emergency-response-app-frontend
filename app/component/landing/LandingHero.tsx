@@ -39,7 +39,7 @@ export function LandingHero() {
         <div className="relative isolate mx-auto flex max-w-5xl flex-col items-center py-16 text-center lg:py-20">
           <h1 id="landing-hero-title" className="text-balance text-4xl font-bold leading-[1.08] tracking-[-0.035em] text-slate-950 sm:text-6xl lg:text-7xl dark:text-white">
             <span className="block"><TextScanner text="Report an emergency." /></span>{' '}
-            <span className="mt-2 block text-[1.875rem] leading-[1.15] text-red-700 sm:text-5xl lg:text-[3.5rem] dark:text-red-400">
+            <span className="mt-2 block text-[1.875rem] leading-[1.15] text-red-700 sm:text-5xl dark:text-red-400">
               <TextScanner text="Share the details responders need." accent />
             </span>
           </h1>

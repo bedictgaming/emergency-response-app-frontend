@@ -4,7 +4,10 @@ const unusedLogoPreload = 'link[rel="preload"][as="image"][href$="/emergency-ico
 
 test('login logo loads without an unnecessary preload', async ({ page }) => {
   await page.goto('/login');
-  const logo = page.getByRole('img', { name: 'Emergency Response' });
+  const logo = page.locator('header img[src="/emergency-icon.png"]');
+  await expect(logo).toHaveAttribute('alt', '');
+  await expect(logo).toHaveAttribute('aria-hidden', 'true');
+  await expect(logo).toHaveAttribute('fetchpriority', 'low');
   await expect(logo).toBeVisible();
   await expect.poll(() => logo.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
   await expect(page.locator(unusedLogoPreload)).toHaveCount(0);
@@ -21,7 +24,10 @@ test('citizen dashboard logo loads without an unnecessary preload', async ({ pag
     json: { data: { incidents: [], pagination: { page: 1, pages: 1, total: 0, limit: 50 } } },
   }));
   await page.goto('/dashboard');
-  const logo = page.getByRole('img', { name: 'Emergency Response' });
+  const logo = page.locator('header img[src="/emergency-icon.png"]');
+  await expect(logo).toHaveAttribute('alt', '');
+  await expect(logo).toHaveAttribute('aria-hidden', 'true');
+  await expect(logo).toHaveAttribute('fetchpriority', 'low');
   await expect(logo).toBeVisible();
   await expect.poll(() => logo.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
   await expect(page.locator(unusedLogoPreload)).toHaveCount(0);

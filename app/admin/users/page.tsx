@@ -312,12 +312,12 @@ export default function AdminUsersPage() {
                         {/* Role Badge */}
                         <td className="px-5 py-4">
                           {user.role === "ADMIN" ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            <span className="inline-flex whitespace-nowrap items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 [&>svg]:shrink-0">
                               <Crown size={11} />
                               ADMIN
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            <span className="inline-flex whitespace-nowrap items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 [&>svg]:shrink-0">
                               <User size={11} />
                               CITIZEN
                             </span>

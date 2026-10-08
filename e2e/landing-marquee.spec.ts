@@ -58,6 +58,8 @@ test('service motion freezes offscreen and hidden, then resumes', async ({ page 
   await expect(strip).toHaveAttribute('data-running', 'true');
   await page.locator('footer').scrollIntoViewIfNeeded();
   await expect(strip).toHaveAttribute('data-running', 'false');
+  await expect(track).toHaveCSS('animation-play-state', 'paused');
+  await track.evaluate(async el => { await Promise.all(el.getAnimations().map(animation => animation.ready)); });
   const paused = await time();
   await page.waitForTimeout(150);
   expect(await time()).toBe(paused);
@@ -69,6 +71,8 @@ test('service motion freezes offscreen and hidden, then resumes', async ({ page 
     document.dispatchEvent(new Event('visibilitychange'));
   });
   await expect(strip).toHaveAttribute('data-running', 'false');
+  await expect(track).toHaveCSS('animation-play-state', 'paused');
+  await track.evaluate(async el => { await Promise.all(el.getAnimations().map(animation => animation.ready)); });
   const hidden = await time();
   await page.waitForTimeout(150);
   expect(await time()).toBe(hidden);

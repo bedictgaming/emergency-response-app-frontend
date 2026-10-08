@@ -17,6 +17,8 @@ for (const width of [320, 375, 390, 768, 1024, 1365, 1440]) {
       await page.setViewportSize({ width, height: width < 768 ? 667 : 900 });
       await page.addInitScript(theme => localStorage.setItem('emergency-response-theme', theme), theme);
       await page.goto('/');
+      // Keep the desktop two-line composition under wider fallback metrics too.
+      if (width >= 1024) await page.addStyleTag({ content: 'body { font-family: Verdana, sans-serif !important; }' });
       if (theme === 'dark') await expect(page.locator('html')).toHaveClass(/dark/);
       else await expect(page.locator('html')).not.toHaveClass(/dark/);
       const hero = page.getByRole('region', { name: /Report an emergency/ });
