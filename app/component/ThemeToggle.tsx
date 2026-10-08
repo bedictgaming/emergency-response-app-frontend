@@ -35,7 +35,8 @@ export default function ThemeToggle() {
     };
     window.addEventListener('storage', syncAcrossTabs);
     return () => window.removeEventListener('storage', syncAcrossTabs);
-  }, [isAdmin]);
+  // Reconcile the same saved preference across route changes and admin policy.
+  }, [isAdmin, pathname]);
 
   const toggle = () => {
     const next: Theme = theme === 'dark' ? 'light' : 'dark';
@@ -45,7 +46,9 @@ export default function ThemeToggle() {
   };
 
   const dark = theme === 'dark';
-  if (isAdmin) return null;
+  // SSR and the first client render both omit this browser-preference control.
+  // Resolve its theme/route placement only after the existing effect runs.
+  if (theme === null || isAdmin) return null;
   return (
     <button
       type="button"

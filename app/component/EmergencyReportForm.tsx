@@ -501,7 +501,7 @@ export function EmergencyReportForm({
             </div>
 
             {/* Reporter Information */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                     <Label htmlFor="reporterName" className="text-sm font-semibold text-slate-900">Reporter Name *</Label>
                     <Input
@@ -531,7 +531,7 @@ export function EmergencyReportForm({
                         onPaste={handleContactPaste}
                         aria-invalid={Boolean(errors.contactNumber)}
                         aria-describedby={`contact-number-hint${errors.contactNumber ? ' contact-number-error' : ''}`}
-                        className={`h-10 rounded-xl bg-slate-50 px-3.5 text-base! sm:text-sm! focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-red-600 ${errors.contactNumber ? 'border-red-500' : 'border-slate-200'}`}
+                        className={`h-10 rounded-xl bg-slate-50 px-3.5 text-base! lg:text-sm! focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-red-600 ${errors.contactNumber ? 'border-red-500' : 'border-slate-200'}`}
                     />
                     <p id="contact-number-hint" className="text-sm text-muted-foreground">Numbers only, up to 11 digits.</p>
                     {errors.contactNumber && <p id="contact-number-error" className="text-sm text-red-600">{errors.contactNumber}</p>}

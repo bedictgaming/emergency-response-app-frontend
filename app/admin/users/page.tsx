@@ -258,8 +258,8 @@ export default function AdminUsersPage() {
               No users found matching your search.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div role="region" aria-label="User accounts table — scroll horizontally for all controls" tabIndex={0} className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
                     <th className="text-left px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wider">

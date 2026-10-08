@@ -61,6 +61,9 @@ for (const width of [1366, 1280, 1024, 768, 375, 320]) {
       // Exercise a wider fallback font too: native font metrics differ on CI/phones.
       if (width === 320) await page.addStyleTag({ content: 'body, .figma-shell { font-family: Verdana, sans-serif !important; }' });
       const initial = await geometry(page);
+      await expect(page.locator('header')).toHaveAttribute('data-header-frame', 'shared');
+      await expect(page.locator('header')).toHaveAttribute('data-pinned', 'true');
+      await expect(page.locator('header img[src="/emergency-icon.png"]')).toHaveAttribute('width', '40');
       expect(initial.pageOverflow).toBe(false);
       if (width >= 1280) {
         expect(initial.monitor.y).toBeLessThan(initial.title.bottom);
@@ -100,6 +103,13 @@ for (const width of [1366, 1280, 1024, 768, 375, 320]) {
         await page.getByRole('button', { name: 'Outstanding alerts: 0', exact: true }).focus();
       }
       expect((await geometry(page)).pageOverflow).toBe(false);
+      await page.evaluate(() => window.scrollTo({ top: 500, behavior: 'instant' }));
+      await expect(page.locator('header')).toHaveAttribute('data-hidden', 'false');
+      expect((await page.locator('header').boundingBox())!.y).toBeGreaterThanOrEqual(0);
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+      if (process.env.DASHBOARD_HEADER_CAPTURE === 'true' && [1366, 375].includes(width)) {
+        await page.locator('header').screenshot({ path: `.impeccable/review/dashboard-header-${route}-${width}.png` });
+      }
       if ((route === 'main' && (width === 1366 || width === 375)) || (route === 'fire' && width === 320)) {
         await page.screenshot({ path: test.info().outputPath(`header-${width}.png`) });
       }

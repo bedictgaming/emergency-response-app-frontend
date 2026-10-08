@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useId } from "react";
+import { createPortal } from "react-dom";
+import { useModalIsolation } from "@/app/hooks/useModalIsolation";
 import {
   X,
   Shield,
@@ -43,6 +45,11 @@ export default function DispatchUnitModal({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [mounted, setMounted] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useEffect(() => setMounted(true), []);
+  useModalIsolation(isOpen && mounted, panelRef, onClose);
 
   useEffect(() => {
     if (isOpen) {
@@ -78,7 +85,7 @@ export default function DispatchUnitModal({
     }
   }, [isOpen, incidentId, incidentType]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const typeLower = incidentType.toLowerCase();
 
@@ -142,17 +149,19 @@ export default function DispatchUnitModal({
     return <Truck className="w-5 h-5 text-amber-500" />;
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh]">
+  // Escape the animated report card's stacking context so pinned admin
+  // navigation cannot cover the dialog or intercept its Close control.
+  return createPortal(
+    <div data-modal-root data-responsive-controls className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)]">
         {/* Modal Header */}
         <div className="bg-[#0B0F19] text-white px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400">
               <Truck size={20} />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white tracking-tight">
+              <h3 id={titleId} className="text-base font-bold text-white tracking-tight">
                 Dispatch Emergency Unit
               </h3>
               <p className="text-xs text-gray-400">
@@ -162,7 +171,8 @@ export default function DispatchUnitModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            aria-label="Close dispatch unit"
+            className="shrink-0 p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
           >
             <X size={18} />
           </button>
@@ -184,7 +194,7 @@ export default function DispatchUnitModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 flex-1 overflow-y-auto space-y-4">
+        <form onSubmit={handleSubmit} className="min-h-0 p-4 sm:p-6 flex-1 overflow-y-auto overscroll-contain space-y-4">
           {errorMessage && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs text-red-700 font-medium">
               <AlertCircle size={16} className="shrink-0 text-red-500" />
@@ -194,7 +204,7 @@ export default function DispatchUnitModal({
 
           {/* Unit Filter Tabs */}
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
                 Select Response Unit *
               </label>
@@ -326,7 +336,7 @@ export default function DispatchUnitModal({
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-2 flex items-center justify-end gap-2 border-t border-gray-100">
+          <div className="pt-2 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100">
             <button
               type="button"
               onClick={onClose}
@@ -354,6 +364,7 @@ export default function DispatchUnitModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -142,7 +142,7 @@ export default function AnalyticsDashboard() {
 
       <main className="max-w-6xl mx-auto px-6 mt-8">
         {/* Page Title Row */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Incident Intelligence Dashboard</h2>
             <p className="text-xs text-gray-500 mt-0.5">

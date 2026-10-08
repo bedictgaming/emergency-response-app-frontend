@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AxiosError } from 'axios';
 import { confirmPasswordReset, requestPasswordReset } from '@/lib/services/authService';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { AccountPanel } from './AccountPanel';
 import { Alert } from './ui/alert';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -50,34 +50,27 @@ export function PasswordRecovery({ token, hasResetLink, validLink, initialEmail,
   }
 
   return (
-    <Card className="rounded-3xl border border-border bg-white/90 shadow-lg dark:bg-card">
-      <CardHeader className="px-6 pb-4 pt-7 sm:px-7">
-        <CardTitle className="text-2xl font-bold tracking-tight">{hasResetLink ? 'Choose a new password' : 'Reset password'}</CardTitle>
-        <CardDescription className="mt-1 text-sm leading-6">
-          {hasResetLink ? 'Your reset link expires after 30 minutes and can be used once.' : 'Enter your account email. If eligible, we will request a secure reset link. Email delivery may take a few minutes.'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 px-6 pb-7 pt-0 sm:px-7">
+    <AccountPanel title={hasResetLink ? 'Choose a new password' : 'Reset password'}
+      description={hasResetLink ? 'Your reset link expires after 30 minutes and can be used once.' : 'Enter your account email. If eligible, we will request a secure reset link. Email delivery may take a few minutes.'}>
         {hasResetLink && !validLink && <Alert variant="destructive" role="alert">This reset link is incomplete or invalid. Return to Log In and choose Forgot password to request a new link.</Alert>}
         <form onSubmit={submit} className="space-y-4">
           {hasResetLink ? (
             <div>
               <Label htmlFor="reset-password" className="mb-2 block">New password</Label>
-              <Input id="reset-password" name="new-password" type="password" autoComplete="new-password" required maxLength={128} disabled={pending || !validLink} value={password} onChange={event => setPassword(event.target.value)} aria-describedby="reset-password-help" className="h-12 rounded-xl" />
+              <Input id="reset-password" name="new-password" type="password" autoComplete="new-password" required maxLength={128} disabled={pending || !validLink} value={password} onChange={event => setPassword(event.target.value)} aria-describedby="reset-password-help" className="h-12 rounded-lg text-base" />
               <p id="reset-password-help" className="mt-2 text-sm leading-6 text-muted-foreground">Use 12–128 characters with uppercase and lowercase letters and a number.</p>
             </div>
           ) : (
             <div>
               <Label htmlFor="reset-email" className="mb-2 block">Account email</Label>
-              <Input id="reset-email" name="email" type="email" autoComplete="email" required maxLength={254} disabled={pending} value={email} onChange={event => setEmail(event.target.value)} className="h-12 rounded-xl" />
+              <Input id="reset-email" name="email" type="email" autoComplete="email" required maxLength={254} disabled={pending} value={email} onChange={event => setEmail(event.target.value)} className="h-12 rounded-lg text-base" />
             </div>
           )}
           {error && <Alert variant="destructive" role="alert" className="text-sm">{error}</Alert>}
           {notice && <Alert variant="success" role="status" className="text-sm">{notice}</Alert>}
-          <Button type="submit" disabled={pending || (hasResetLink && !validLink)} className="h-12 w-full rounded-xl">{pending ? 'Please wait…' : hasResetLink ? 'Set new password' : 'Send reset link'}</Button>
+          <Button type="submit" disabled={pending || (hasResetLink && !validLink)} className="h-12 w-full rounded-lg">{pending ? 'Please wait…' : hasResetLink ? 'Set new password' : 'Send reset link'}</Button>
         </form>
-        <Button type="button" variant="outline" disabled={pending} onClick={() => onBack()} className="min-h-11 w-full rounded-xl">Back to Log In</Button>
-      </CardContent>
-    </Card>
+        <Button type="button" variant="outline" disabled={pending} onClick={() => onBack()} className="min-h-11 w-full rounded-lg">Back to Log In</Button>
+    </AccountPanel>
   );
 }

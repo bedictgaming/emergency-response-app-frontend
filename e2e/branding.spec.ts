@@ -8,8 +8,8 @@ async function expectBrandLogo(logo: Locator, size: number) {
   await expect(logo).toHaveAttribute('height', String(size));
   await expect.poll(() => logo.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0)).toBe(true);
   const box = await logo.boundingBox();
-  expect(box?.width).toBe(size);
-  expect(box?.height).toBe(size);
+  expect(box?.width).toBeCloseTo(size, 2);
+  expect(box?.height).toBeCloseTo(size, 2);
 }
 
 for (const width of [390, 1280]) {
@@ -26,8 +26,8 @@ for (const width of [390, 1280]) {
       await page.locator('footer').screenshot({ path: testInfo.outputPath('landing-footer.png') });
 
       await page.goto('/login');
-      await expectBrandLogo(page.locator('header img[src="/emergency-icon.png"]'), 32);
-      await expect(page.locator('main img[src="/emergency-icon.png"]')).toHaveCSS('width', '80px');
+      await expectBrandLogo(page.locator('header img[src="/emergency-icon.png"]'), 40);
+      await expectBrandLogo(page.locator('main img[src="/emergency-icon.png"]'), 40);
       await expect(page.getByRole('tab', { name: 'Log In', exact: true })).toBeVisible();
       await expect(page.getByRole('tab', { name: 'Sign Up', exact: true })).toHaveCount(0);
       await page.getByRole('tab', { name: 'Sign In', exact: true }).click();

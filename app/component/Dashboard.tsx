@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from './ui/button';
@@ -21,6 +20,8 @@ import {
 import { getAdminDepartment, getDepartmentDashboardUrl } from '../hooks/useAdminGuard';
 import { useEmergencyEvents } from '../hooks/useEmergencyEvents';
 import { isDefinitiveAuthFailure, markSessionEnded } from '@/lib/apiClient';
+import { HeaderFrame } from './HeaderFrame';
+import { EmergencyLogo } from './EmergencyLogo';
 
 const mapIncidentToReport = (inc: Incident): EmergencyReport => {
     const typeName = inc.type?.typeName?.toLowerCase() || '';
@@ -395,39 +396,28 @@ export function Dashboard() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] dark:bg-slate-950">
+        <div data-responsive-controls className="min-h-screen bg-slate-50 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] dark:bg-slate-950">
             {/* Header */}
-            <header className="sticky top-0 z-10 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-                <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center">
-                                <img
-                                    src="/emergency-icon.png"
-                                    alt="Emergency Response"
-                                    fetchPriority="low"
-                                    className="h-10 w-10 rounded-xl object-contain"
-                                />
-                            </div>
-                            <div>
-                                <h1 className="text-base font-bold tracking-tight text-slate-950 sm:text-lg dark:text-white">Emergency Response</h1>
-                                <p className="text-xs text-slate-600 dark:text-slate-400">Community reporting</p>
+            <HeaderFrame surfaceClassName="flex min-h-16 items-center justify-between gap-3 px-2 py-2 sm:px-4 lg:px-6">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <EmergencyLogo />
+                            <div className="min-w-0">
+                                <h1 className="truncate text-sm font-bold tracking-tight text-foreground sm:text-base">Cordova Emergency Response</h1>
+                                <p className="hidden text-xs text-muted-foreground sm:block">Community reporting</p>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-4">
-                            <div className="text-right hidden sm:block">
-                                <p className="text-sm font-medium text-slate-950 dark:text-white">{user?.name}</p>
-                                <p className="text-xs text-slate-600 dark:text-slate-400">{user?.email}</p>
+                        <div className="flex shrink-0 items-center gap-3">
+                            <div className="hidden max-w-40 text-right sm:block lg:max-w-64">
+                                <p className="truncate text-sm font-medium text-foreground">{user?.name}</p>
+                                <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
                             </div>
-                            <Button onClick={handleLogout} variant="outline" size="sm" className="h-11 rounded-lg border-slate-300 bg-white px-4 font-semibold text-slate-900 shadow-none hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:bg-slate-900">
+                            <Button onClick={handleLogout} variant="outline" size="sm" className="theme-inverse-surface theme-inverse-action h-11 rounded-lg px-4 font-semibold shadow-none">
                                 <LogOut className="w-4 h-4 mr-2" />
                                 Logout
                             </Button>
                         </div>
-                    </div>
-                </div>
-            </header>
+            </HeaderFrame>
 
             {/* Main Content */}
             <main className="mx-auto max-w-6xl px-4 py-7 sm:px-6 lg:px-8 lg:py-9">

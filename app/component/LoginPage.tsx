@@ -1,5 +1,4 @@
 'use client';
-/* eslint-disable @next/next/no-img-element */
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -14,9 +13,6 @@ import { Label } from './ui/label';
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from './ui/card';
 import {
   Tabs,
@@ -31,6 +27,8 @@ import {
 import { API_ORIGIN, markSessionChanged } from '@/lib/apiClient';
 import { EmailVerificationResult } from './EmailVerificationResult';
 import { PasswordRecovery } from './PasswordRecovery';
+import { AccountPanel } from './AccountPanel';
+import styles from './account-page.module.css';
 
 type AuthErrorPayload = {
   message?: string;
@@ -204,34 +202,14 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
     if (embedded) return completionStatus;
 
     return (
-      <div className="figma-shell auth-shell min-h-[100dvh] w-full overflow-y-auto px-4 py-8 sm:py-12">
+      <div className="w-full">
         {completionStatus}
       </div>
     );
   }
 
   const content = (
-    <div id="portal-section" className={embedded ? "w-full max-w-[460px]" : "mx-auto w-full max-w-[448px]"}>
-      {!embedded && (
-        <div className="mb-7 text-center">
-          <div className="mb-4 inline-flex h-20 w-20 items-center justify-center">
-            <img
-              src="/emergency-icon.png"
-              alt="Emergency Response"
-              fetchPriority="low"
-              className="h-20 w-20 rounded-full shadow-xl shadow-red-500/20 object-contain"
-            />
-          </div>
-
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
-            Emergency Response
-          </h1>
-
-          <p className="mt-2 text-sm font-medium text-slate-600 sm:text-base">
-            Community-Based Emergency Reporting System
-          </p>
-        </div>
-      )}
+    <div id="portal-section" className={`mx-auto w-full ${visibleTab === 'reset' ? 'max-w-[440px]' : embedded ? 'max-w-[460px]' : 'max-w-[960px]'}`}>
 
       {embedded && (
         <div className="mb-4 flex items-center justify-between border-b border-slate-200/80 pb-3">
@@ -245,47 +223,24 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
         </div>
       )}
 
-      <Tabs value={visibleTab} onValueChange={value => { setActiveTab(value); setError(''); setNotice(''); }} className="w-full">
+      <Tabs value={visibleTab} onValueChange={value => { setActiveTab(value); setError(''); setNotice(''); }} className={`w-full ${styles.tabs}`}>
           <EmailVerificationResult />
 
-          {/* Existing login and account creation remain the only tabs. */}
-            {visibleTab !== 'reset' && <TabsList className="mb-5 grid w-full grid-cols-2 rounded-xl border-border/70 bg-muted p-1 shadow-sm">
-              <TabsTrigger
-                value="login"
-                className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold"
-              >
-                Log In
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="signup"
-                className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold"
-              >
-                Sign In
-              </TabsTrigger>
-            </TabsList>}
-
+          <div className={`${styles.shell} ${visibleTab === 'reset' ? styles.recovery : ''} ${embedded ? styles.compact : ''}`} data-account-layout="split" data-mode={visibleTab}>
+          <div className={styles.formStage}>
           {/* LOGIN TAB */}
           <TabsContent value="login" className="mt-0 focus-visible:outline-none">
-            <Card className="rounded-3xl border border-border bg-white/90 shadow-lg dark:bg-card">
-              <CardHeader className="px-6 pb-4 pt-7 sm:px-7">
-                <CardTitle className="text-2xl font-bold tracking-tight text-slate-950">Welcome Back</CardTitle>
-                <CardDescription className="mt-1 text-sm text-slate-500">
-                  Sign in to access your authorized workspace
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-5 px-6 pb-7 pt-0 sm:px-7">
+            <AccountPanel title="Welcome Back" description="Sign in to access your authorized workspace">
 
                 {/* Google Button */}
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md"
+                  className="theme-inverse-surface theme-inverse-action h-12 w-full gap-3 rounded-lg text-sm font-semibold shadow-none"
                   disabled={isLoading}
                   onClick={handleGoogleAuth}
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
@@ -295,22 +250,17 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                 </Button>
 
                 {/* Divider */}
-                <div className="relative flex items-center justify-center">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-slate-150" />
-                  </div>
-                  <div className="relative flex justify-center text-[10px] font-semibold tracking-wider">
-                    <span className="bg-white px-3 text-slate-400">
-                      OR CONTINUE WITH EMAIL
-                    </span>
-                  </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="flex-1 border-t border-border" aria-hidden="true" />
+                  <span>Or continue with email</span>
+                  <span className="flex-1 border-t border-border" aria-hidden="true" />
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-3.5">
                   <div>
-                    <Label htmlFor="login-email" className="text-slate-600 font-medium text-xs mb-1.5 block">Email</Label>
+                    <Label htmlFor="login-email" className="mb-2 block text-sm font-medium">Email</Label>
                     <Input
-                      className="h-12 w-full rounded-xl border border-slate-200/70 bg-slate-50 px-4 text-sm text-slate-900 transition-all focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-indigo-300"
+                      className="h-12 rounded-lg px-3 text-base"
                       type="email"
                       placeholder="your.email@example.com"
                       value={loginEmail}
@@ -322,14 +272,14 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <Label htmlFor="login-password" className="text-slate-600 font-medium text-xs">Password</Label>
+                      <Label htmlFor="login-password" className="text-sm font-medium">Password</Label>
                       <button type="button" disabled={isLoading} className="min-h-11 text-xs font-medium text-muted-foreground underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-primary" onClick={() => { setError(''); setNotice(''); setActiveTab('reset'); }}>
                         Forgot password?
                       </button>
                     </div>
                     <div className="relative">
                       <Input
-                        className="h-12 w-full rounded-xl border border-slate-200/70 bg-slate-50 pl-4 pr-11 text-sm text-slate-900 transition-all focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-indigo-300"
+                        className="h-12 rounded-lg pl-3 pr-12 text-base"
                         type={showLoginPassword ? 'text' : 'password'}
                         placeholder="••••••••"
                         value={loginPassword}
@@ -340,7 +290,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                       <button
                         type="button"
                         onClick={() => setShowLoginPassword((prev) => !prev)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none p-1 cursor-pointer"
+                        className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                         title={showLoginPassword ? "Hide password" : "Show password"}
                         aria-label={showLoginPassword ? "Hide password" : "Show password"}
                       >
@@ -366,13 +316,12 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                     type="submit"
                     variant="default"
                     disabled={isLoading}
-                    className="mt-1 h-12 w-full rounded-xl border border-primary bg-primary text-sm font-bold text-primary-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:bg-red-700 hover:shadow-md cursor-pointer dark:hover:bg-red-600"
+                    className="mt-1 h-12 w-full rounded-lg text-sm font-semibold"
                   >
                     {isLoading ? 'Logging in...' : 'Log In'}
                   </Button>
                 </form>
-              </CardContent>
-            </Card>
+            </AccountPanel>
           </TabsContent>
 
 
@@ -382,25 +331,17 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
 
           {/* SIGNUP TAB */}
           <TabsContent value="signup" className="mt-0 focus-visible:outline-none">
-            <Card className="rounded-3xl border border-border bg-white/90 shadow-lg dark:bg-card">
-              <CardHeader className="pt-5 px-5 pb-3">
-                <CardTitle className="text-xl font-bold text-black tracking-tight">Create Account</CardTitle>
-                <CardDescription className="text-xs text-slate-400 mt-0.5">
-                  Create a citizen account and log in immediately. No email verification required.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-4 px-5 pb-5 pt-0">
+            <AccountPanel title="Create Account" description="Create a citizen account and log in immediately. No email verification required.">
 
                 {/* Google Button */}
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 shadow-sm hover:border-indigo-200 hover:shadow-md"
+                  className="theme-inverse-surface theme-inverse-action h-12 w-full gap-3 rounded-lg text-sm font-semibold shadow-none"
                   disabled={isLoading}
                   onClick={handleGoogleAuth}
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
@@ -410,22 +351,17 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                 </Button>
 
                 {/* Divider */}
-                <div className="relative flex items-center justify-center">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-slate-150" />
-                  </div>
-                  <div className="relative flex justify-center text-[10px] font-semibold tracking-wider">
-                    <span className="bg-white px-3 text-slate-400">
-                      OR SIGN UP WITH EMAIL
-                    </span>
-                  </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="flex-1 border-t border-border" aria-hidden="true" />
+                  <span>Or sign up with email</span>
+                  <span className="flex-1 border-t border-border" aria-hidden="true" />
                 </div>
 
                 <form onSubmit={handleSignup} className="space-y-3">
                   <div>
-                    <Label htmlFor="signup-name" className="text-slate-600 font-medium text-xs mb-1 block">Full Name</Label>
+                    <Label htmlFor="signup-name" className="mb-2 block text-sm font-medium">Full Name</Label>
                     <Input
-                    className="h-11 w-full rounded-xl border border-slate-200/70 bg-slate-50 px-3 text-xs text-slate-900 transition-all focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-indigo-300"
+                    className="h-12 rounded-lg px-3 text-base"
                       placeholder="John Doe"
                       value={signupName}
                       id="signup-name"
@@ -435,9 +371,9 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                   </div>
 
                   <div>
-                    <Label htmlFor="signup-email" className="text-slate-600 font-medium text-xs mb-1 block">Email</Label>
+                    <Label htmlFor="signup-email" className="mb-2 block text-sm font-medium">Email</Label>
                     <Input
-                    className="h-11 w-full rounded-xl border border-slate-200/70 bg-slate-50 px-3 text-xs text-slate-900 transition-all focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-indigo-300"
+                    className="h-12 rounded-lg px-3 text-base"
                       type="email"
                       placeholder="your.email@example.com"
                       value={signupEmail}
@@ -448,10 +384,10 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                   </div>
 
                   <div>
-                    <Label htmlFor="signup-password" className="text-slate-600 font-medium text-xs mb-1 block">Password</Label>
+                    <Label htmlFor="signup-password" className="mb-2 block text-sm font-medium">Password</Label>
                     <div className="relative">
                       <Input
-                        className="h-11 w-full rounded-xl border border-slate-200/70 bg-slate-50 pl-3 pr-10 text-xs text-slate-900 transition-all focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-indigo-300"
+                        className="h-12 rounded-lg pl-3 pr-12 text-base"
                         type={showSignupPassword ? 'text' : 'password'}
                         placeholder="••••••••"
                         value={signupPassword}
@@ -462,7 +398,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                       <button
                         type="button"
                         onClick={() => setShowSignupPassword((prev) => !prev)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none p-1 cursor-pointer"
+                        className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                         title={showSignupPassword ? "Hide password" : "Show password"}
                         aria-label={showSignupPassword ? "Hide password" : "Show password"}
                       >
@@ -473,7 +409,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                         )}
                       </button>
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1">Min. 8 characters, one uppercase letter, and one number.</p>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">Min. 8 characters, one uppercase letter, and one number.</p>
                   </div>
 
                   {error && (
@@ -487,18 +423,42 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                     type="submit"
                     variant="default"
                     disabled={isLoading}
-                    className="mt-1 h-11 w-full rounded-xl border border-primary bg-primary text-xs font-bold text-primary-foreground shadow-sm hover:bg-red-700 transition-all cursor-pointer dark:hover:bg-red-600"
+                    className="mt-1 h-12 w-full rounded-lg text-sm font-semibold"
                   >
                     {isLoading ? 'Creating Account...' : 'Create Account'}
                   </Button>
                 </form>
-              </CardContent>
-            </Card>
+            </AccountPanel>
           </TabsContent>
+          </div>
+
+          {visibleTab !== 'reset' && <aside className={styles.switchPanel} aria-label="Account options">
+            <div className={styles.switchCopy}>
+              <h2>{visibleTab === 'signup' ? 'Welcome back.' : 'New here?'}</h2>
+              <p>{visibleTab === 'signup'
+                ? 'Already have an account? Log in to access your authorized workspace.'
+                : 'Create a citizen account and log in immediately. No email verification required.'}</p>
+              <TabsList className={styles.switchTabs} aria-label="Choose account action" onKeyDown={event => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+                const current = tabs.indexOf(event.target as HTMLButtonElement);
+                if (current < 0) return;
+                event.preventDefault();
+                const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+                  : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+                tabs[next]?.click();
+                tabs[next]?.focus();
+              }}>
+                <TabsTrigger value="login" className={styles.switchTab}>Log In</TabsTrigger>
+                <TabsTrigger value="signup" className={styles.switchTab}>Sign In</TabsTrigger>
+              </TabsList>
+            </div>
+          </aside>}
+          </div>
         </Tabs>
 
         {/* Footer Terms */}
-        <p className="text-center text-[11px] text-slate-400 font-medium mt-3 leading-relaxed px-6">
+        <p className="mt-5 px-4 text-center text-xs leading-5 text-muted-foreground">
           By continuing, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>
@@ -509,7 +469,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
     }
 
     return (
-      <div className="figma-shell auth-shell min-h-[100dvh] w-full overflow-y-auto px-4 py-8 sm:py-12">
+      <div className="w-full">
         {content}
       </div>
     );

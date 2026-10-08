@@ -10,6 +10,8 @@ import AdminEmergencyMonitor from "@/app/component/admin/AdminEmergencyMonitor";
 import { registerWebPush, unregisterWebPush } from "@/lib/browserPush";
 import { markSessionEnded } from "@/lib/apiClient";
 import type { ResponseService } from "@/lib/services/incidentService";
+import { HeaderFrame } from "../HeaderFrame";
+import { EmergencyLogo } from "../EmergencyLogo";
 
 interface AdminHeaderProps {
   title: string;
@@ -88,15 +90,14 @@ export default function AdminHeader({
 
   return (
     <>
-      <header className="figma-admin-header sticky top-0 z-40 border-b border-white/70 bg-white/90 px-4 py-3 text-slate-900 shadow-sm backdrop-blur-xl sm:px-6">
-        <div className="mx-auto grid w-full max-w-[1600px] min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+      <HeaderFrame pinned wide surfaceClassName="grid w-full min-w-0 gap-3 px-2 py-3 text-foreground sm:px-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         {/* Department Info & Navigation */}
         <div className="flex min-w-0 items-center gap-3.5 xl:pt-1">
           {shouldShowBack && (
             <button
               type="button"
               onClick={handleBack}
-              className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white/80 text-slate-500 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-700 hover:shadow-md dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-700 dark:hover:text-indigo-300"
+              className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white/80 text-slate-500 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-700 hover:shadow-md dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-700 dark:hover:text-indigo-300"
               title="Return to Dashboard"
               aria-label="Back to Dashboard"
             >
@@ -104,14 +105,13 @@ export default function AdminHeader({
             </button>
           )}
 
-          <div
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border-2 shadow-lg shadow-indigo-500/10 ${badgeBorderClass} ${iconBgClass}`}
-          >
-            {departmentIcon}
-          </div>
+          <EmergencyLogo />
           <div className="min-w-0">
-            <h1 className="truncate bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-lg font-extrabold tracking-tight text-transparent sm:text-xl">{title}</h1>
-            <p className="truncate text-xs font-medium text-slate-500">{subtitle}</p>
+            <h1 className="truncate text-lg font-bold tracking-tight text-foreground sm:text-xl">{title}</h1>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span aria-hidden="true" className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border [&>svg]:h-3.5 [&>svg]:w-3.5 ${badgeBorderClass} ${iconBgClass}`}>{departmentIcon}</span>
+              <p className="truncate text-xs font-medium text-muted-foreground">{subtitle}</p>
+            </div>
           </div>
         </div>
 
@@ -120,7 +120,7 @@ export default function AdminHeader({
           {/* Real-time Emergency Siren & Incoming Report Monitor */}
           <AdminEmergencyMonitor responseService={monitorService} />
 
-          <nav aria-label="Admin navigation" className="flex min-w-0 max-w-full shrink-0 items-center gap-2 overflow-x-auto pt-1.5 sm:gap-3 [&>button]:min-h-11">
+          <nav aria-label="Admin navigation" className="flex min-w-0 max-w-full shrink-0 flex-wrap items-center gap-2 overflow-x-auto pt-1.5 sm:flex-nowrap sm:gap-3 [&>button]:min-h-11">
 
           {/* Barangay History Quick Drawer */}
           <button
@@ -135,7 +135,7 @@ export default function AdminHeader({
           {/* Dedicated Full Analytics Hub Shortcut */}
           <button
             onClick={() => router.push("/admin/analytics")}
-            className="hidden shrink-0 items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/90 p-2.5 text-xs font-semibold text-indigo-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-indigo-100 hover:shadow-md dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200 dark:hover:bg-indigo-900/70 md:flex"
+            className="flex shrink-0 items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/90 p-2.5 text-xs font-semibold text-indigo-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-indigo-100 hover:shadow-md dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200 dark:hover:bg-indigo-900/70"
             title="Go to Analytics & Intelligence Hub"
           >
             <PieChart size={15} className="text-indigo-400" />
@@ -146,7 +146,7 @@ export default function AdminHeader({
           {isMainAdmin && (
             <button
               onClick={() => router.push("/admin/users")}
-              className="hidden shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white/80 p-2.5 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-700 hover:shadow-md dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-700 dark:hover:text-indigo-300 md:flex"
+              className="flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white/80 p-2.5 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-700 hover:shadow-md dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-700 dark:hover:text-indigo-300"
               title="Go to User & Personnel Management"
             >
               <Users size={15} className="text-purple-400" />
@@ -167,8 +167,7 @@ export default function AdminHeader({
           </button>
           </nav>
         </div>
-        </div>
-      </header>
+      </HeaderFrame>
 
       {/* Slide-over Barangay History Drawer */}
       <BarangayHistoryDrawer

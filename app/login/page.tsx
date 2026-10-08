@@ -1,35 +1,22 @@
 "use client";
 
-import { Suspense } from "react";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { Suspense, useRef } from "react";
 import { AccountEmailEntry } from "../component/EmailVerification";
-import { EmergencyLogo } from "../component/EmergencyLogo";
+import { LandingHeader } from "../component/landing/LandingHeader";
 
 export default function LoginRoute() {
+  const scrollContainer = useRef<HTMLDivElement>(null);
   return (
-    <div className="min-h-[100dvh] w-full bg-slate-50 dark:bg-slate-950">
-      {/* Compact Civic Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-slate-200/80 bg-white/95 backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/95">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link
-            href="/"
-            className="flex items-center gap-2.5 text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-          >
-            <ArrowLeft className="h-4 w-4" strokeWidth={2} />
-            <span className="text-sm font-semibold">Back to Home</span>
-          </Link>
-          <div className="flex items-center gap-2.5">
-            <EmergencyLogo size={32} />
-            <span className="text-sm font-bold tracking-tight text-slate-900 dark:text-white">
-              Cordova Emergency Response
-            </span>
-          </div>
-        </div>
-      </header>
+    <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-background">
+      <LandingHeader accountPage scrollContainer={scrollContainer} />
+
+      {/* Scroll padding helps focused controls clear the floating theme switch
+          without reserving a visible strip outside the page content. */}
+      <div ref={scrollContainer} data-account-scroll className="min-h-0 flex-1 scroll-pb-[max(5rem,calc(env(safe-area-inset-bottom)+4rem))] overflow-y-auto overscroll-contain">
+      <div className="flex min-h-full flex-col">
 
       {/* Auth Content */}
-      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:py-16">
+      <main className="flex flex-1 items-center justify-center px-4 py-8 sm:py-12">
         <Suspense
           fallback={
             <div className="flex min-h-[400px] items-center justify-center text-sm text-slate-400">
@@ -53,6 +40,8 @@ export default function LoginRoute() {
           </p>
         </div>
       </footer>
+      </div>
+      </div>
     </div>
   );
 }

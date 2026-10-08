@@ -9,7 +9,7 @@ export function useModalIsolation(open: boolean, panel: RefObject<HTMLElement | 
     const element = panel.current;
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
-    const root = element.closest('[data-history-modal]');
+    const root = element.closest('[data-modal-root], [data-history-modal]');
     const siblings = Array.from(document.body.children).filter(child => child !== root) as HTMLElement[];
     const inert = siblings.map(child => child.inert);
     siblings.forEach(child => { child.inert = true; });

@@ -87,10 +87,10 @@ export default function ResponderTasksPage() {
   return (
     <main className="figma-shell min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60 p-4 md:p-8">
       <div className="mx-auto max-w-4xl">
-        <header className="mb-8 flex items-center justify-between rounded-3xl border border-white/80 bg-white/85 p-5 shadow-xl shadow-indigo-950/5 backdrop-blur-xl">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20"><ShieldAlert size={25} /></div>
-            <div>
+        <header className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/80 bg-white/85 p-5 shadow-xl shadow-indigo-950/5 backdrop-blur-xl">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20"><ShieldAlert size={25} /></div>
+            <div className="min-w-0">
             <div className="text-xs font-bold uppercase tracking-wider text-indigo-600">Field response</div>
             <h1 className="mt-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-2xl font-extrabold text-transparent">My assigned tasks</h1>
             </div>
@@ -106,7 +106,7 @@ export default function ResponderTasksPage() {
             {tasks.map((task) => (
               <article key={task.taskId} className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-xl shadow-indigo-950/5 backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:shadow-2xl">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold uppercase tracking-wide text-rose-600">{task.priority} · {task.incident.severityLevel}</p>
                     <h2 className="mt-1 text-lg font-bold text-slate-950">{task.taskName}</h2>
                     <p className="text-sm font-medium text-slate-600">{task.incident.title}</p>

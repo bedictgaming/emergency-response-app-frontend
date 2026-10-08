@@ -237,7 +237,7 @@ export default function DrrmoAdminDashboard() {
                 <div className="space-y-4">
                     {currentTabIncidents.map((item) => (
                         <div key={item.id} className="motion-list-item bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-                            <div className="flex justify-between items-start mb-4">
+                            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                                 <div className="flex flex-col gap-2.5">
                                     <div className="flex items-center gap-2">
                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded text-white bg-amber-600">
@@ -256,7 +256,7 @@ export default function DrrmoAdminDashboard() {
                                     <button
                                         type="button"
                                         onClick={() => window.open(`https://www.google.com/maps?q=${item.latitude},${item.longitude}`, '_blank')}
-                                        className="border border-gray-300 rounded-lg px-3.5 py-1.5 text-xs font-medium hover:bg-gray-50 text-gray-700 transition-colors inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap hidden sm:inline-flex"
+                                        className="border border-gray-300 rounded-lg px-3.5 py-1.5 text-xs font-medium hover:bg-gray-50 text-gray-700 transition-colors inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                                     >
                                         <MapPin size={13} className="text-red-500" />
                                         <span>View Map</span>

@@ -4,6 +4,9 @@ import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LandingHeader } from "./component/landing/LandingHeader";
 import { LandingHero } from "./component/landing/LandingHero";
+import { ResponseServicesMarquee } from "./component/landing/ResponseServicesMarquee";
+import { ParticleBackground } from "./component/landing/ParticleBackground";
+import landingStyles from "./component/landing/landing-motion.module.css";
 import { EmergencyHotlinesBar } from "./component/landing/EmergencyHotlinesBar";
 import { ServicesBento } from "./component/landing/ServicesBento";
 import { WorkflowSection } from "./component/landing/WorkflowSection";
@@ -23,13 +26,15 @@ function AccountLinkEntry() {
 
 export default function Home() {
   return (
-    <div className="min-h-[100dvh] w-full bg-slate-50 text-slate-900 selection:bg-red-500/15 selection:text-red-950 dark:bg-slate-950 dark:text-slate-100">
+    <div className={`${landingStyles.landingPage} min-h-[100dvh] w-full text-slate-900 selection:bg-red-500/15 selection:text-red-950 dark:text-slate-100`}>
+      <ParticleBackground />
       <LandingHeader />
       <main>
         <div className="mx-auto max-w-3xl px-4">
           <Suspense fallback={null}><AccountLinkEntry /></Suspense>
         </div>
         <LandingHero />
+        <ResponseServicesMarquee />
         <EmergencyHotlinesBar />
         <ServicesBento />
         <WorkflowSection />

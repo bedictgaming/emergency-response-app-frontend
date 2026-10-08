@@ -1,0 +1,183 @@
+.tabs [role='tab'][data-state='active'] {
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+}
+
+/* The shared Input also carries text-sm; the account surface needs 16px
+   controls so iOS does not zoom the page when a field receives focus. */
+.tabs input {
+  font-size: 1rem;
+}
+
+.tabs [role='tablist'],
+.tabs [role='tab'] {
+  box-shadow: none !important;
+}
+
+.shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--card);
+  color: var(--card-foreground);
+}
+
+.formStage {
+  width: 100%;
+}
+
+.formStage > [role='tabpanel'] {
+  animation: none;
+}
+
+.shell:not(.recovery) [data-auth-panel] {
+  border: 0;
+  border-radius: 0;
+  padding: 28px 20px;
+  background: transparent;
+}
+
+.shell:not(.recovery) input {
+  background: var(--muted);
+}
+
+.switchPanel {
+  order: -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px;
+  background: #cf0000;
+  color: #fff;
+  text-align: center;
+}
+
+.switchCopy {
+  width: 100%;
+  max-width: 340px;
+}
+
+.switchCopy h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.switchCopy p {
+  margin: 12px 0 20px;
+  font-size: 14px;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.switchTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.switchTabs [role='tab'] {
+  min-height: 44px;
+  border: 1px solid #fff;
+  background: transparent;
+  color: #fff;
+}
+
+.switchTabs [role='tab'][data-state='active'] {
+  background: #fff !important;
+  color: #b90000 !important;
+}
+
+.switchTab:hover {
+  background: rgb(255 255 255 / 12%);
+}
+
+.switchTab:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+  box-shadow: none !important;
+}
+
+.recovery {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* The theme switch floats over the page. Keep primary actions out of its
+   corner on smaller viewports without an opaque bottom bar or off-center form. */
+@media (max-width: 1023px) {
+  .shell button[type='submit'] {
+    display: flex;
+    width: calc(100% - 64px);
+    margin-inline: auto;
+  }
+}
+
+@media (min-width: 768px) {
+  .shell:not(.recovery):not(.compact) {
+    display: block;
+    min-height: 640px;
+  }
+
+  .shell:not(.recovery):not(.compact) .formStage {
+    width: 50%;
+    transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .shell:not(.recovery) [data-auth-panel] {
+    padding: 40px 32px;
+  }
+
+  .shell:not(.compact)[data-mode='signup'] .formStage {
+    transform: translateX(100%);
+  }
+
+  .switchPanel {
+    position: absolute;
+    inset: 0 0 0 50%;
+    padding: 40px 32px;
+    border-radius: 20px;
+    transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .shell:not(.compact)[data-mode='signup'] .switchPanel {
+    transform: translateX(-100%);
+  }
+
+  .switchCopy h2 {
+    font-size: 36px;
+  }
+
+  .switchCopy p {
+    margin: 20px 0 28px;
+    font-size: 16px;
+  }
+
+  .compact .switchPanel {
+    position: static;
+    transform: none;
+    border-radius: 0;
+  }
+
+  .compact .formStage {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell .formStage,
+  .shell .switchPanel {
+    transition: none;
+  }
+}
