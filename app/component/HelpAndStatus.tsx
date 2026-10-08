@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { ShieldCheck, FileText, Phone } from 'lucide-react';
 import type { EmergencyReport } from '../types';
 
@@ -93,7 +95,7 @@ export function HelpAndStatus({
             </div>
           )}
           {!reportsLoaded && !reportsLoadError ? (
-            <p className="text-sm text-slate-600 dark:text-slate-300">Loading your latest report…</p>
+            <LoadingPlaceholder label="Loading your latest report…" rows={1} className="px-0" />
           ) : !reportsLoaded ? (
             <p className="text-sm text-slate-600 dark:text-slate-300">Your latest report is unavailable. Retry reports to check its status.</p>
           ) : latestReport ? (

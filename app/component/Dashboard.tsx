@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { useRouter } from 'next/navigation';
 import { Button } from './ui/button';
 import { Shield, LogOut, Flame, Heart, AlertTriangle, MapPin, Layers3 } from 'lucide-react';
@@ -594,10 +595,7 @@ export function Dashboard() {
                         {reportsLoadError ? (
                             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Report history is unavailable. Use Retry reports above to check again.</p>
                         ) : (
-                            <div role="status" aria-label="Loading reports" className="mt-4 space-y-3">
-                                <div className="h-5 w-3/4 animate-pulse rounded bg-slate-200 motion-reduce:animate-none dark:bg-slate-800" />
-                                <div className="h-5 w-1/2 animate-pulse rounded bg-slate-200 motion-reduce:animate-none dark:bg-slate-800" />
-                            </div>
+                            <LoadingPlaceholder label="Loading reports" rows={2} className="mt-4 px-0" />
                         )}
                     </section>
                 ) : (
@@ -645,7 +643,6 @@ export function Dashboard() {
                             </div>
                         </div>
                     )}
-
                     {isSubmittingReport && (
                         <div role="status" className="mb-5 flex items-center justify-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
                             <svg className="h-5 w-5 animate-spin text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">

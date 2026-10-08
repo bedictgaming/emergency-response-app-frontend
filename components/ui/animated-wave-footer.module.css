@@ -1,0 +1,6 @@
+.footer { position: relative; isolation: isolate; overflow: hidden; }
+.waves { position: absolute; z-index: -1; inset: 0; overflow: hidden; pointer-events: none; }
+.wave { position: absolute; bottom: 0; width: 200%; height: 280px; animation: wave 24s linear infinite; animation-play-state: paused; }
+.running { animation-play-state: running; }
+@keyframes wave { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .wave { animation: none; } }

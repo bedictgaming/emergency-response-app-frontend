@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   Flame, BarChart2, AlertTriangle, ShieldCheck, 
@@ -386,7 +388,7 @@ export default function FireAdminDashboard() {
 
                     {currentTabIncidents.length === 0 && (
                         <div className="text-center text-gray-500 py-10 bg-white rounded-xl shadow-sm border border-gray-200">
-                            {isLoading ? "Loading live fire emergencies..." : `No ${activeTab.toLowerCase()} fire emergencies at the moment.`}
+                            {isLoading ? <LoadingPlaceholder label="Loading live fire emergencies..." layout="panel" /> : `No ${activeTab.toLowerCase()} fire emergencies at the moment.`}
                         </div>
                     )}
                 </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import React, { useState, useEffect, useRef, useId } from "react";
 import { createPortal } from "react-dom";
 import { useModalIsolation } from "@/app/hooks/useModalIsolation";
@@ -228,10 +230,7 @@ export default function DispatchUnitModal({
 
             {/* Units Selection List */}
             {isLoading ? (
-              <div className="py-8 flex flex-col items-center justify-center text-gray-400 gap-2">
-                <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
-                <span className="text-xs">Loading response units...</span>
-              </div>
+              <LoadingPlaceholder label="Loading response units..." layout="panel" />
             ) : filteredUnits.length === 0 ? (
               <div className="py-6 text-center text-xs text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
                 No units match this filter.

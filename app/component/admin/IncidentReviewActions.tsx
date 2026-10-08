@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useId, useState } from "react";
 import { Flag, ShieldCheck, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
@@ -94,7 +96,7 @@ export default function IncidentReviewActions({ incident, mainAdmin = false, onC
         <h3 className="break-words text-base font-semibold">{incident.title}</h3>
         {error && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
         {notice && <p role="status" className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
-        {!current && <p role="status" className="mt-4 text-sm text-gray-600">{busy ? "Loading the latest report…" : "Close this dialog and reopen it to retry."}</p>}
+        {!current && (busy ? <LoadingPlaceholder label="Loading the latest report…" /> : <p role="status" className="mt-4 text-sm text-gray-600">Close this dialog and reopen it to retry.</p>)}
         {current && <>
           <p className="mt-2 text-sm text-gray-600">Current status: <strong>{current.status}</strong> · Services: {current.requestedServices?.join(", ") || current.type?.typeName}</p>
           {!deleteMode && <>

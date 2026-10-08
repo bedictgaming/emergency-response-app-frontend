@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useState, useEffect, useCallback, useId } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -580,10 +582,7 @@ export default function BarangayHistoryPage() {
 
           {history.error && <div role="alert" className="p-4 text-sm">{history.error} <button onClick={history.refresh} className="min-h-11 underline">Retry history</button></div>}
           {history.loading && filteredIncidents.length === 0 ? (
-            <div className="py-20 text-center text-gray-400 text-xs flex flex-col items-center gap-2">
-              <RefreshCw size={26} className="animate-spin text-purple-600" />
-              Loading Barangay incident records...
-            </div>
+            <LoadingPlaceholder label="Loading Barangay incident records..." rows={4} />
           ) : history.error && filteredIncidents.length === 0 ? null : filteredIncidents.length === 0 ? (
             <div className="py-16 text-center">
               <MapPin size={40} className="text-gray-300 mx-auto mb-2" />

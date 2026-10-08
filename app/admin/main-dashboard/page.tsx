@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
     Shield, BarChart2, AlertTriangle, ShieldCheck,
@@ -434,7 +436,7 @@ export default function MainDashboard() {
 
                     {filteredEmergencies.length === 0 && (
                         <div className="text-center text-gray-500 py-10 bg-white rounded-xl shadow-sm border border-gray-200">
-                            {isLoading ? "Loading live emergency reports..." : `No ${activeTab === "All" ? "" : activeTab.toLowerCase()} emergencies at the moment.`}
+                            {isLoading ? <LoadingPlaceholder label="Loading live emergency reports..." layout="panel" /> : `No ${activeTab === "All" ? "" : activeTab.toLowerCase()} emergencies at the moment.`}
                         </div>
                     )}
                 </div>

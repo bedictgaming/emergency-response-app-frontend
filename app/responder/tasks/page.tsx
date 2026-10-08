@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Clock3, LogOut, ShieldAlert } from 'lucide-react';
@@ -99,7 +101,7 @@ export default function ResponderTasksPage() {
         </header>
 
         {error && <p role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
-        {loading ? <p className="text-sm text-slate-500">Loading assignments…</p> : tasks.length === 0 ? (
+        {loading ? <LoadingPlaceholder label="Loading assignments…" layout="panel" /> : tasks.length === 0 ? (
           <section className="rounded-3xl border border-white/80 bg-white/90 p-12 text-center text-slate-500 shadow-xl shadow-indigo-950/5 backdrop-blur-xl">No tasks are currently assigned to you.</section>
         ) : (
           <div className="grid gap-4">

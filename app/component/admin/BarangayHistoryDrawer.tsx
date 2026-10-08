@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useState, useEffect, useCallback, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useIncidentHistory } from "@/app/hooks/useIncidentHistory";
@@ -317,10 +319,7 @@ export default function BarangayHistoryDrawer({
             <p className="text-sm text-muted-foreground">History includes all authorized report records. Rankings and monthly totals count verified reports only.</p>
             {history.error && <div role="alert" className="rounded-lg border border-border bg-card p-4 text-sm">{history.error} <button onClick={history.refresh} className="min-h-11 underline">Retry history</button></div>}
             {history.loading && incidents.length === 0 ? (
-              <div className="text-center py-16 text-gray-400 text-xs flex flex-col items-center gap-2">
-                <RefreshCw size={22} className="animate-spin text-purple-600" />
-                Loading Barangay incident history...
-              </div>
+              <LoadingPlaceholder label="Loading Barangay incident history..." />
             ) : history.error && incidents.length === 0 ? null : filteredIncidents.length === 0 ? (
               <div className="bg-white rounded-2xl p-10 border border-gray-200 text-center shadow-xs">
                 <MapPin size={36} className="text-gray-300 mx-auto mb-2" />

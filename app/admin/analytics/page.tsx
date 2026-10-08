@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useState, useEffect } from "react";
 import {
   BarChart3,
@@ -12,7 +14,6 @@ import {
   CheckCircle2,
   Activity,
   RefreshCw,
-  Loader2,
   Calendar,
 } from "lucide-react";
 import AdminHeader from "@/app/component/admin/AdminHeader";
@@ -162,10 +163,7 @@ export default function AnalyticsDashboard() {
         </div>
 
         {isLoading ? (
-          <div className="py-32 flex flex-col items-center justify-center gap-4 text-gray-400">
-            <Loader2 size={32} className="animate-spin text-indigo-500" />
-            <p className="text-sm">Loading analytics data...</p>
-          </div>
+          <LoadingPlaceholder label="Loading analytics data..." rows={4} layout="panel" className="py-8" />
         ) : !analytics ? (
           <div className="py-24 text-center text-gray-400 text-sm">
             Could not load analytics. Please refresh.

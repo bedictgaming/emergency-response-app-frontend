@@ -1,0 +1,8 @@
+.preview { width: 100%; }
+.stage { width: min(100%, 800px); margin: 2rem auto 0; height: calc(600px * var(--device-scale, 1)); position: relative; }
+.device { position: absolute; top: 0; left: 50%; width: 512px; transform: translateX(-50%) scale(var(--device-scale, 1)); transform-origin: top center; }
+.base { position: relative; height: 270px; width: 512px; overflow: hidden; border-radius: 0 0 16px 16px; background: #b8b8bf; transform: perspective(1000px) rotateX(45deg); transform-origin: top; box-shadow: 0 16px 24px -20px #0008; }
+@media (min-width: 768px) { .stage { --device-scale: 1.25; } }
+@media (max-width: 767px) { .stage { --device-scale: .85; } }
+@media (max-width: 500px) { .stage { --device-scale: .63; } }
+@media (max-width: 375px) { .stage { --device-scale: .48; } }

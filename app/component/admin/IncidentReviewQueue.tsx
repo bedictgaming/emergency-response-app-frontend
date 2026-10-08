@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getIncidentReviewQueue } from "@/lib/services/incidentService";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
@@ -28,7 +30,7 @@ export default function IncidentReviewQueue({ revision, onChanged }: { revision:
     <h2 id="report-review-queue" className="text-lg font-bold text-gray-900">Report review queue</h2>
     <p className="mt-1 text-sm text-gray-600">Review suspected false reports. Confirming a flag leaves the incident and its response status in place.</p>
     {error && <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 text-sm text-red-800">The review queue could not be loaded.<button type="button" onClick={() => void load()} className="min-h-11 rounded-lg border border-red-200 px-3 py-2 font-semibold">Retry review queue</button></div>}
-    {!error && !queue && <p role="status" className="mt-4 text-sm text-gray-600">Loading review requests…</p>}
+    {!error && !queue && <LoadingPlaceholder label="Loading review requests…" />}
     {!error && queue?.flags.length === 0 && <p className="mt-4 text-sm text-gray-600">No pending or confirmed review flags.</p>}
     <div className="mt-4 space-y-4">{queue?.flags.map(flag => <div key={flag.reviewFlagId} className="rounded-lg border border-gray-200 p-4">
       <p className="text-xs font-semibold text-amber-800">{flag.department} · {flag.status === "PENDING" ? "Awaiting review" : "Confirmed false report"}</p>

@@ -1,5 +1,7 @@
 "use client";
 
+import { LoaderSkeleton } from "@/components/ui/loaders-skeleton";
+
 import { useEffect, useId, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { getResolvedSummary } from "@/lib/services/analyticsService";
@@ -73,7 +75,7 @@ export default function MonthlyResolutionCard({ summary, compact = false }: {
         }} />
       <div aria-live="polite" className="mt-3">
         <div className={`${compact ? "text-2xl font-extrabold" : "text-4xl font-black"} text-emerald-800`}>
-          {monthly?.resolved ?? "—"}
+          {isLoading ? <LoaderSkeleton width={72} height={32} /> : monthly?.resolved ?? "—"}
         </div>
         <p className="text-xs text-emerald-800 mt-1 font-medium">
           {isLoading ? `Loading ${monthLabel} records…` : monthly

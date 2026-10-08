@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   Shield, BarChart2, AlertTriangle, ShieldCheck, 
@@ -384,7 +386,7 @@ export default function PoliceAdminDashboard() {
 
                     {currentTabIncidents.length === 0 && (
                         <div className="text-center text-gray-500 py-10 bg-white rounded-xl shadow-sm border border-gray-200">
-                            {isLoading ? "Loading live police emergencies..." : `No ${activeTab.toLowerCase()} police emergencies at the moment.`}
+                            {isLoading ? <LoadingPlaceholder label="Loading live police emergencies..." layout="panel" /> : `No ${activeTab.toLowerCase()} police emergencies at the moment.`}
                         </div>
                     )}
                 </div>

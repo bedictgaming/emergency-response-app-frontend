@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
@@ -25,9 +27,7 @@ const LocationMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div role="status" className="flex h-[260px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-        Loading incident map...
-      </div>
+      <LoadingPlaceholder label="Loading incident map..." layout="map" className="h-[260px]" />
     ),
   },
 );

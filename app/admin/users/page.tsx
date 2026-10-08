@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Users,
@@ -11,7 +13,6 @@ import {
   UserCheck,
   Mail,
   Calendar,
-  Loader2,
   AlertTriangle,
   ChevronDown,
   CheckCircle2,
@@ -249,10 +250,7 @@ export default function AdminUsersPage() {
         {/* User Table */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           {isLoading ? (
-            <div className="py-16 flex items-center justify-center gap-3 text-gray-400">
-              <Loader2 size={20} className="animate-spin" />
-              <span className="text-sm">Loading user accounts...</span>
-            </div>
+            <LoadingPlaceholder label="Loading user accounts..." rows={4} layout="panel" />
           ) : users.length === 0 ? (
             <div className="py-16 text-center text-gray-400 text-sm">
               No users found matching your search.

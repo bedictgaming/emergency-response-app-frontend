@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { getMe, getMeFresh } from "@/lib/services/authService";
@@ -173,7 +175,7 @@ export default function AdminAccessBoundary({ children }: { children: ReactNode 
             <p className="mt-1 text-xs text-slate-500">Your session was kept. Reconnect, then retry.</p>
             <button type="button" onClick={() => window.location.reload()} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">Retry</button>
           </div>
-        ) : <p className="text-sm font-medium text-slate-600">Verifying authorized access…</p>}
+        ) : <LoadingPlaceholder label="Verifying authorized access…" rows={2} className="max-w-sm" />}
       </main>
     );
   }

@@ -4,6 +4,7 @@ import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LandingHeader } from "./component/landing/LandingHeader";
 import { LandingHero } from "./component/landing/LandingHero";
+import { CitizenDashboardPreview } from "./component/landing/CitizenDashboardPreview";
 import { ResponseServicesMarquee } from "./component/landing/ResponseServicesMarquee";
 import { ParticleBackground } from "./component/landing/ParticleBackground";
 import landingStyles from "./component/landing/landing-motion.module.css";
@@ -34,6 +35,7 @@ export default function Home() {
           <Suspense fallback={null}><AccountLinkEntry /></Suspense>
         </div>
         <LandingHero />
+        <CitizenDashboardPreview />
         <ResponseServicesMarquee />
         <EmergencyHotlinesBar />
         <ServicesBento />

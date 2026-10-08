@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import apiClient from '@/lib/apiClient';
@@ -136,7 +138,7 @@ export default function OperationsPage() {
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">{error}</p>}
       {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">{notice}</p>}
       <div className="flex gap-3"><input aria-label="Search records" placeholder="Search records" value={search} onChange={event => setSearch(event.target.value)} className={`${inputClass} min-w-0 flex-1`}/><button disabled={busy} onClick={() => void load()} className="shrink-0 whitespace-nowrap rounded-lg border bg-white px-4">Refresh</button></div>
-      {loading && <p role="status">Loading operational records…</p>}
+      {loading && <LoadingPlaceholder label="Loading operational records…" layout="panel" />}
       {sections.map(section => <section key={section.key} aria-label={section.title} className="rounded-xl border bg-white p-5 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold">{section.title}</h2>{canEdit(section.key) && <button disabled={busy} onClick={() => { setEditor({ key: section.key }); setDeleting(null); setError(''); }} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">Add {section.title.toLowerCase()}</button>}</div>
         {!loading && !(records[section.key] || []).length && <p className="text-sm text-slate-500">No records yet.</p>}

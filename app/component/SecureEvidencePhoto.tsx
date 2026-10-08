@@ -1,4 +1,7 @@
 'use client';
+
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 /* eslint-disable @next/next/no-img-element -- private evidence is delivered by a short-lived authorized URL */
 
 import { useEffect, useRef, useState } from 'react';
@@ -171,7 +174,7 @@ function EvidencePhotoViewer({ sourceUrl, alt, title = 'Report photo', descripti
               </button>
             </div>
           ) : (
-            <p role="status" className="p-5 text-sm text-muted-foreground">Loading secure photo…</p>
+            <LoadingPlaceholder label="Loading secure photo…" layout="map" />
           )}
         </div>
         <div className="mt-4 flex justify-end">
@@ -299,9 +302,7 @@ export function EvidencePhotoCard({ sourceUrl, title, location, timestamp }: Evi
             </button>
           </div>
         ) : (
-          <div className="h-24 w-full max-w-sm rounded-xl border border-slate-200 bg-slate-100 animate-pulse flex items-center justify-center text-xs text-slate-500">
-            Loading secure evidence…
-          </div>
+          <LoadingPlaceholder label="Loading secure evidence…" rows={1} className="max-w-sm" />
         )}
       </div>
 

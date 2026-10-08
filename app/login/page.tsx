@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { Suspense, useRef } from "react";
 import { AccountEmailEntry } from "../component/EmailVerification";
 import { LandingHeader } from "../component/landing/LandingHeader";
@@ -19,9 +21,7 @@ export default function LoginRoute() {
       <main className="flex flex-1 items-center justify-center px-4 py-8 sm:py-12">
         <Suspense
           fallback={
-            <div className="flex min-h-[400px] items-center justify-center text-sm text-slate-400">
-              Loading portal...
-            </div>
+            <LoadingPlaceholder label="Loading portal..." layout="panel" className="max-w-lg" />
           }
         >
           <AccountEmailEntry />

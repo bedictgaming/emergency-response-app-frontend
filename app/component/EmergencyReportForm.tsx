@@ -1,3 +1,4 @@
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 /* eslint-disable @next/next/no-img-element -- local proof preview uses an object URL */
 import { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
@@ -12,7 +13,7 @@ import { IncidentCameraCapture } from './IncidentCameraCapture';
 
 const LocationMap = dynamic(() => import('./LocationMap').then(mod => mod.LocationMap), {
   ssr: false,
-  loading: () => <div className="w-full h-[240px] flex items-center justify-center bg-slate-50 text-slate-500 text-xs rounded-lg border border-slate-200">Loading Cordova map...</div>
+  loading: () => <LoadingPlaceholder label="Loading Cordova map..." layout="map" className="h-[240px]" />
 });
 import type { EmergencyCategory, EmergencyCategoryConfig, ResponseService } from '../types';
 const BARANGAYS = ['Alegria', 'Bangbang', 'Buagsong', 'Catarman', 'Cogon', 'Dapitan', 'Day-as', 'Gabi', 'Gilutongan', 'Ibabao', 'Pilipog', 'Poblacion', 'San Miguel'];

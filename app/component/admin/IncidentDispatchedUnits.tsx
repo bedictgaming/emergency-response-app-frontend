@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useState, useEffect, useCallback } from "react";
 import {
   Truck,
@@ -159,10 +161,7 @@ export default function IncidentDispatchedUnits({
       </div>
 
       {isLoading && dispatchedUnits.length === 0 ? (
-        <div className="py-2 flex items-center gap-2 text-xs text-gray-400">
-          <Loader2 size={13} className="animate-spin" />
-          <span>Checking units...</span>
-        </div>
+        <LoadingPlaceholder label="Checking units..." rows={1} />
       ) : dispatchedUnits.length === 0 ? (
         <div className="py-2 text-[11px] text-gray-500 flex items-center justify-between">
           <span>No response units deployed to this incident yet.</span>

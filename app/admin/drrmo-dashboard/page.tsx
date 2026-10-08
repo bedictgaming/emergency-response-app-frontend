@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   AlertTriangle, BarChart2, ShieldCheck, 
@@ -373,7 +375,7 @@ export default function DrrmoAdminDashboard() {
 
                     {currentTabIncidents.length === 0 && (
                         <div className="text-center text-gray-500 py-10 bg-white rounded-xl shadow-sm border border-gray-200">
-                            {isLoading ? "Loading live hazard emergencies..." : `No ${activeTab.toLowerCase()} hazard emergencies at the moment.`}
+                            {isLoading ? <LoadingPlaceholder label="Loading live hazard emergencies..." layout="panel" /> : `No ${activeTab.toLowerCase()} hazard emergencies at the moment.`}
                         </div>
                     )}
                 </div>

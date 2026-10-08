@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+
 import { useState, useEffect } from 'react';
 import { AlertTriangle, ShieldCheck } from 'lucide-react';
 import { getAlerts } from '@/lib/services/alertService';
@@ -48,7 +50,7 @@ export function PublicAlertsSection() {
 
         <div className="mt-6">
           {isLoading ? (
-            <div className="h-20 animate-pulse rounded-2xl bg-slate-200/60 dark:bg-slate-800" />
+            <LoadingPlaceholder label="Loading public alerts…" rows={2} />
           ) : loadError ? (
             <div role="status" className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
