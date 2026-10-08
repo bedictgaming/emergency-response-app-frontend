@@ -161,7 +161,7 @@ export default function AdminAccessBoundary({ children }: { children: ReactNode 
 
   if (!authorized) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50" aria-busy="true">
+      <main className="flex min-h-dvh w-full items-center justify-center bg-slate-50 p-6" aria-busy="true">
         {accountSwitched ? (
           <div className="max-w-sm px-6 text-center">
             <p className="text-sm font-semibold text-slate-900">Another account signed in to this browser.</p>
@@ -175,7 +175,7 @@ export default function AdminAccessBoundary({ children }: { children: ReactNode 
             <p className="mt-1 text-xs text-slate-500">Your session was kept. Reconnect, then retry.</p>
             <button type="button" onClick={() => window.location.reload()} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">Retry</button>
           </div>
-        ) : <LoadingPlaceholder label="Verifying authorized access…" rows={2} className="max-w-sm" />}
+        ) : <LoadingPlaceholder label="Verifying authorized access…" rows={2} className="max-w-sm text-center [&_[data-loader-skeleton]]:mx-auto" />}
       </main>
     );
   }
