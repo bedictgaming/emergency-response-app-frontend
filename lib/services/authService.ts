@@ -57,14 +57,6 @@ export const confirmPasswordReset = async (token: string, password: string, sign
   return response.data.message;
 };
 
-/** Explicit pre-auth capability redemption. No session creation or auto retry. */
-export const verifyEmail = async (token: string, signal: AbortSignal): Promise<void> => {
-  const response = await apiClient.get<{ code: number; status: string }>('/auth/v1/verify-email', {
-    params: { token }, signal, headers: { Accept: 'application/json' },
-  });
-  if (response.data.code !== 200 || response.data.status !== 'success') throw new Error('Verification was not confirmed');
-};
-
 /**
  * POST /api/auth/v1/login
  * Logs in a user. The backend sets an HttpOnly cookie with the refresh token.

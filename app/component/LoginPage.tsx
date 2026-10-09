@@ -25,7 +25,6 @@ import {
   AlertDescription,
 } from './ui/alert';
 import { API_ORIGIN, markSessionChanged } from '@/lib/apiClient';
-import { EmailVerificationResult } from './EmailVerificationResult';
 import { PasswordRecovery } from './PasswordRecovery';
 import { AccountPanel } from './AccountPanel';
 import styles from './account-page.module.css';
@@ -76,7 +75,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
       setError('Google login failed. Please try again.');
     }
     if (oauthStatus === 'oauth_link_required') {
-      setError('Google was not linked to this account. Use your email and password to Log In, or choose “Forgot password?” to recover access.');
+      setError('This account uses email and password. Log In with those details, or choose “Forgot password?” to recover access.');
     }
     if (oauthStatus === 'oauth_email_verification_required') {
       setError('This Google email cannot be used to create an account securely. Register with email, or use a verified Gmail or Google Workspace account.');
@@ -224,7 +223,6 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
       )}
 
       <Tabs value={visibleTab} onValueChange={value => { setActiveTab(value); setError(''); setNotice(''); }} className={`w-full ${styles.tabs}`}>
-          <EmailVerificationResult />
 
           <div className={`${styles.shell} ${visibleTab === 'reset' ? styles.recovery : ''} ${embedded ? styles.compact : ''}`} data-account-layout="split" data-mode={visibleTab}>
           <div className={styles.formStage}>

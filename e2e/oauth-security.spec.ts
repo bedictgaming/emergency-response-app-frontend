@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   for (const [reason, message] of [
-    ['oauth_link_required', 'Google was not linked to this account. Use your email and password to Log In, or choose “Forgot password?” to recover access.'],
+    ['oauth_link_required', 'This account uses email and password. Log In with those details, or choose “Forgot password?” to recover access.'],
     ['oauth_email_verification_required', 'This Google email cannot be used to create an account securely. Register with email, or use a verified Gmail or Google Workspace account.'],
     ['oauth_failed', 'Google login failed. Please try again.'],
   ]) {

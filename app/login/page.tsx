@@ -3,7 +3,7 @@
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 
 import { Suspense, useRef } from "react";
-import { AccountEmailEntry } from "../component/EmailVerification";
+import { LoginPage } from "../component/LoginPage";
 import { LandingHeader } from "../component/landing/LandingHeader";
 
 export default function LoginRoute() {
@@ -24,7 +24,7 @@ export default function LoginRoute() {
             <LoadingPlaceholder label="Loading portal..." layout="panel" className="max-w-lg" />
           }
         >
-          <AccountEmailEntry />
+          <LoginPage />
         </Suspense>
       </main>
 

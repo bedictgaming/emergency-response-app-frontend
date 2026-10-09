@@ -14,15 +14,14 @@ import { WorkflowSection } from "./component/landing/WorkflowSection";
 import { BarangayCoverageSection } from "./component/landing/BarangayCoverageSection";
 import { PublicAlertsSection } from "./component/landing/PublicAlertsSection";
 import { LandingFooter } from "./component/landing/LandingFooter";
-import { EmailVerificationResult } from "./component/EmailVerificationResult";
 
-function AccountLinkEntry() {
+function PasswordResetEntry() {
   const params = useSearchParams();
   const router = useRouter();
   useEffect(() => {
     if (params.has('resetToken')) router.replace('/login?' + params.toString());
   }, [params, router]);
-  return <EmailVerificationResult showLoginLink />;
+  return null;
 }
 
 export default function Home() {
@@ -32,7 +31,7 @@ export default function Home() {
       <LandingHeader />
       <main>
         <div className="mx-auto max-w-3xl px-4">
-          <Suspense fallback={null}><AccountLinkEntry /></Suspense>
+          <Suspense fallback={null}><PasswordResetEntry /></Suspense>
         </div>
         <LandingHero />
         <CitizenDashboardPreview />

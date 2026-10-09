@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+// The root not-found boundary is available on every route. Load its small,
+// scoped stylesheet here rather than leaving Next's fallback-only preload unused.
+// Keep server-rendered recovery usable even when JavaScript is unavailable.
+import "@/components/ui/page-not-found.module.css";
 import ServiceWorkerRegistration from "./component/ServiceWorkerRegistration";
 import PwaInstallPrompt from "./component/PwaInstallPrompt";
 import NetworkStatusBanner from "./component/NetworkStatusBanner";
