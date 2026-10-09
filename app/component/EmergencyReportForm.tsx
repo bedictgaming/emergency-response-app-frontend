@@ -158,7 +158,7 @@ export function EmergencyReportForm({
     const geocodeCacheRef = useRef(new Map<string, { address: string; barangay?: string }>());
     const addressEditedRef = useRef(false);
     const barangayEditedRef = useRef(false);
-    const { fix: gpsFix, loading: gpsLoading, error: gpsError, refresh: refreshGps } = useReportGps();
+    const { fix: gpsFix, loading: gpsLoading, error: gpsError, preliminary, refresh: refreshGps } = useReportGps();
     const currentLatitude = gpsFix?.latitude ?? null;
     const currentLongitude = gpsFix?.longitude ?? null;
     const isGpsInCordova = gpsFix !== null && isWithinCordovaMapBounds(gpsFix.latitude, gpsFix.longitude);
@@ -636,7 +636,7 @@ export function EmergencyReportForm({
                         Report only an emergency at your current location. You cannot move this pin. If GPS is wrong or the emergency is elsewhere, <a href="tel:911" className="font-semibold underline underline-offset-4">call 911</a>.
                     </p>
                     <div role="status" className="text-base sm:text-sm text-foreground">
-                        {gpsLoading ? 'Getting a fresh GPS location…' : gpsError ? gpsError : !isGpsInCordova
+                        {gpsLoading ? preliminary ? 'A preliminary estimate is available. Waiting for a fresh GPS fix before confirmation…' : 'Getting a fresh GPS location…' : gpsError ? gpsError : !isGpsInCordova
                             ? 'Your GPS location is outside the Cordova map area. Retry GPS or call 911.'
                             : `Device estimate: accurate to about ${Math.max(1, Math.round(gpsFix?.accuracy ?? 0))} m. Check the pin before confirming.`}
                         {locationConfirmed && <p className="mt-1 font-semibold text-green-700">Location confirmed</p>}

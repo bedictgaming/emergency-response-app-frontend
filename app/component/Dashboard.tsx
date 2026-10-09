@@ -78,7 +78,7 @@ export function Dashboard() {
     const submitErrorRef = useRef<HTMLDivElement>(null);
     const [reportsLoadError, setReportsLoadError] = useState(false);
     const reportsRequestInFlight = useRef(false);
-    const { latitude, longitude, accuracy, error: locationError, loading: locationLoading, refreshLocation } = useGeolocation();
+    const { latitude, longitude, accuracy, error: locationError, loading: locationLoading, preliminary, refreshLocation } = useGeolocation();
 
     useEffect(() => {
         if (submitError) submitErrorRef.current?.focus();
@@ -437,7 +437,7 @@ export function Dashboard() {
                             <div data-testid="gps-icon-tile" className="theme-inverse-surface flex h-11 w-11 shrink-0 items-center justify-center rounded-xl">
                                 <MapPin className="h-5 w-5 text-current" aria-hidden="true" />
                             </div>
-                            <div className="flex-1">
+                            <div className="min-w-0 flex-1" role="status">
                                 <p className="text-sm font-bold text-slate-950 sm:text-base dark:text-white">Device location estimate</p>
                                 {latitude !== null && longitude !== null ? (
                                     <>
@@ -451,7 +451,8 @@ export function Dashboard() {
                                             <Button variant="outline" size="sm" onClick={refreshLocation} className="h-6 border-red-200 px-2 py-0 text-xs text-red-600 hover:bg-red-50 dark:border-slate-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-slate-800">Retry</Button>
                                         </div>
                                     )}
-                                    {locationLoading && !locationError && <p className="text-xs text-amber-700 dark:text-amber-300">Refreshing GPS estimate; the report form requires a fresh GPS fix and your confirmation.</p>}
+                                    {preliminary && !locationError && <p className="text-xs text-amber-700 dark:text-amber-300">Preliminary estimate only. Improving GPS accuracy; not ready for report confirmation.</p>}
+                                    {locationLoading && !preliminary && !locationError && <p className="text-xs text-amber-700 dark:text-amber-300">Refreshing GPS estimate; the report form requires a fresh GPS fix and your confirmation.</p>}
                                     </>
                                 ) : locationError ? (
                                     <div className="flex items-center gap-2">

@@ -12,14 +12,14 @@ async function checkScrollStaysPut(page: Page) {
         },
         watchPosition(success: (position: unknown) => void) {
           update = success;
-          setTimeout(() => success({ coords: { latitude: 10.252191, longitude: 123.949475, accuracy: 25 } }), 0);
+          setTimeout(() => success({ coords: { latitude: 10.252191, longitude: 123.949475, accuracy: 25 }, timestamp: Date.now() }), 0);
           return 1;
         },
         clearWatch() {},
       },
     });
     (window as typeof window & { emitTestLocation?: () => void }).emitTestLocation = () => {
-      update?.({ coords: { latitude: 10.2525, longitude: 123.95, accuracy: 20 } });
+      update?.({ coords: { latitude: 10.2525, longitude: 123.95, accuracy: 20 }, timestamp: Date.now() });
     };
   });
   await page.route('**/api/**', route => {

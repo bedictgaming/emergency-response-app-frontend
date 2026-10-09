@@ -17,7 +17,7 @@ async function fixture(page: Page, path: string) {
     Object.assign(window, { EventSource: Stream });
     Object.defineProperty(navigator, 'geolocation', { configurable: true, value: {
       getCurrentPosition(success: (position: unknown) => void) { success({ coords: { latitude: 10.252191, longitude: 123.949475, accuracy: 25 }, timestamp: Date.now() }); },
-      watchPosition() { return 1; }, clearWatch() {},
+      watchPosition(success: (position: unknown) => void) { setTimeout(() => success({ coords: { latitude: 10.252191, longitude: 123.949475, accuracy: 25 }, timestamp: Date.now() }), 0); return 1; }, clearWatch() {},
     } });
   }, user);
   await page.route('**/api/**', route => {

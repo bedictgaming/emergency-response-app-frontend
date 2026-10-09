@@ -2,6 +2,9 @@ import { devices, expect, test, type Page } from '@playwright/test';
 import { isPointInCordova, isWithinCordovaMapBounds } from '../app/lib/cordovaBoundary';
 
 async function citizenSession(page: Page) {
+  await page.addInitScript(() => Object.defineProperty(navigator.geolocation, 'getCurrentPosition', {
+    configurable: true, value: () => {}, // Preliminary estimate is optional, never report authority.
+  }));
   await page.addInitScript(() => localStorage.setItem('user', JSON.stringify({ id: 'citizen', name: 'Citizen', role: 'USER' })));
   await page.route('**/api/**', route => {
     const section = new URL(route.request().url()).pathname.split('/')[2];
@@ -23,11 +26,12 @@ async function gpsProvider(page: Page) {
   await page.context().setGeolocation({ latitude: 10.255, longitude: 123.967, accuracy: 35 });
   await page.addInitScript(() => {
     let coords = { latitude: 10.255, longitude: 123.967, accuracy: 35 };
-    Object.defineProperty(navigator.geolocation, 'getCurrentPosition', {
+    Object.defineProperty(navigator.geolocation, 'watchPosition', {
       configurable: true,
       value: (success: PositionCallback, _failure: PositionErrorCallback, options: PositionOptions) => {
         if (!options.enableHighAccuracy || options.maximumAge !== 0 || options.timeout !== 20_000) throw new Error('GPS request must be fresh and bounded');
         setTimeout(() => success({ coords: { ...coords }, timestamp: Date.now() } as GeolocationPosition), 0);
+        return 1;
       },
     });
     Object.assign(window, { setTestGps: (latitude: number, longitude: number, accuracy: number) => { coords = { latitude, longitude, accuracy }; } });
@@ -106,18 +110,19 @@ for (const scenario of ['denied', 'unavailable', 'timeout', 'old', 'invalid', 'o
   test(`${scenario} GPS cannot confirm, upload or submit; retry is available`, async ({ page }) => {
     await citizenSession(page);
     await page.addInitScript(scenario => {
-      Object.defineProperty(navigator.geolocation, 'getCurrentPosition', {
+      Object.defineProperty(navigator.geolocation, 'watchPosition', {
         configurable: true,
         value: (success: PositionCallback, failure: PositionErrorCallback) => {
-          if (scenario === 'timeout') return;
+          if (scenario === 'timeout') return 1;
           if (scenario === 'denied' || scenario === 'unavailable') {
             setTimeout(() => failure({ code: scenario === 'denied' ? 1 : 2 } as GeolocationPositionError), 0);
-            return;
+            return 1;
           }
           setTimeout(() => success({
             coords: { latitude: scenario === 'outside' ? 11 : scenario === 'invalid' ? NaN : 10.255, longitude: 123.967, accuracy: 25 },
             timestamp: Date.now() - (scenario === 'old' ? 600_000 : 0),
           } as GeolocationPosition), 0);
+          return 1;
         },
       });
     }, scenario);
@@ -153,9 +158,9 @@ test('late callbacks from replaced requests cannot restore the previous GPS fix'
   await citizenSession(page);
   await page.addInitScript(() => {
     const callbacks: PositionCallback[] = [];
-    Object.defineProperty(navigator.geolocation, 'getCurrentPosition', {
+    Object.defineProperty(navigator.geolocation, 'watchPosition', {
       configurable: true,
-      value: (success: PositionCallback) => { callbacks.push(success); },
+      value: (success: PositionCallback) => { callbacks.push(success); return callbacks.length; },
     });
     Object.assign(window, { emitGps: (index: number, latitude: number) => callbacks[index]?.({
       coords: { latitude, longitude: 123.967, accuracy: 25 }, timestamp: Date.now(),
