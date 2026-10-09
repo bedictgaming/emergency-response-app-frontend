@@ -619,6 +619,8 @@ test('protected evidence is resolved through an authorized short-lived URL', asy
 
   await page.goto('/admin/main-dashboard');
   const evidence = page.getByAltText('Incident Photo Evidence');
+  // Reporter details can move lazy-loaded evidence below the initial viewport.
+  await page.getByText(/^(Photo attached|Photo image unavailable)$/).scrollIntoViewIfNeeded();
   await expect(evidence).toBeVisible();
   await expect(evidence).toHaveAttribute('src', pixel);
   expect(accessRequests).toBe(1);
@@ -669,6 +671,7 @@ test('missing stored evidence shows an honest retry state instead of a broken ph
   await page.route('https://res.cloudinary.com/test/image/authenticated/missing.png', route => route.fulfill({ status: 404, body: 'Resource not found' }));
 
   await page.goto('/admin/main-dashboard');
+  await page.getByText(/^(Photo attached|Photo image unavailable)$/).scrollIntoViewIfNeeded();
   await expect(page.getByText('Photo image unavailable')).toBeVisible();
   await expect(page.getByText('The image could not be loaded. Report details remain available.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'View photo →' })).toHaveCount(0);
