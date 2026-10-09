@@ -65,7 +65,10 @@ for (const size of sizes) for (const path of routes) {
   test(`${path} fits ${size.width}x${size.height}`, async ({ page }, info) => {
     await page.setViewportSize(size);
     await fixture(page, path);
-    await page.goto(path);
+    // Public layout checks intentionally bypass restoration of the synthetic
+    // saved account; otherwise they would measure the citizen dashboard twice.
+    await page.goto(['/', '/login'].includes(path) ? path + '?session=manual' : path);
+    expect(new URL(page.url()).pathname).toBe(path);
     await expect(page.locator('h1').first()).toBeVisible();
     await expect(page.getByText(/Loading (operational records|assignments|analytics data|users|incidents)/)).toHaveCount(0);
     await page.evaluate(() => document.fonts.ready);
