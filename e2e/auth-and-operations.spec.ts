@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('login and signup use an equal-width segmented control', async ({ page }) => {
   await page.goto('/login');
   const loginTab = page.getByRole('tab', { name: 'Log In', exact: true });
-  const signupTab = page.getByRole('tab', { name: 'Sign In', exact: true });
+  const signupTab = page.getByRole('tab', { name: 'Sign Up', exact: true });
   const [loginBox, signupBox] = await Promise.all([loginTab.boundingBox(), signupTab.boundingBox()]);
 
   expect(loginBox).not.toBeNull();

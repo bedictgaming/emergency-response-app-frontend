@@ -54,7 +54,7 @@ for (const width of [320, 375, 768, 1440]) for (const theme of ['light', 'dark']
       await expect.poll(async () => Math.round((await page.locator('header').boundingBox())!.y)).toBe(0);
       await page.screenshot({ path: `.impeccable/review/sign-in-${width}-${theme}.png`, fullPage: true, animations: 'disabled' });
     }
-    await page.getByRole('tab', { name: 'Sign In', exact: true }).click();
+    await page.getByRole('tab', { name: 'Sign Up', exact: true }).click();
     await expect(panel.getByRole('heading', { name: 'Create Account', exact: true })).toBeVisible();
     await expect(page.getByLabel('Full Name')).toBeVisible();
     const signupBox = (await shell.boundingBox())!;

@@ -14,7 +14,7 @@ async function expectBrandLogo(logo: Locator, size: number) {
 
 for (const width of [390, 1280]) {
   for (const theme of ['light', 'dark']) {
-    test(`shared emergency branding and corrected Log In / Sign In tabs at ${width}px in ${theme}`, async ({ page }, testInfo) => {
+    test(`shared emergency branding and corrected Log In / Sign Up tabs at ${width}px in ${theme}`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 844 });
       await page.addInitScript((preference) => localStorage.setItem('emergency-response-theme', preference), theme);
       await page.route('**/api/alerts/v1/**', route => route.fulfill({ json: { data: { alerts: [] } } }));
@@ -29,8 +29,9 @@ for (const width of [390, 1280]) {
       await expectBrandLogo(page.locator('header img[src="/emergency-icon.png"]'), 40);
       await expectBrandLogo(page.locator('main img[src="/emergency-icon.png"]'), 40);
       await expect(page.getByRole('tab', { name: 'Log In', exact: true })).toBeVisible();
-      await expect(page.getByRole('tab', { name: 'Sign Up', exact: true })).toHaveCount(0);
-      await page.getByRole('tab', { name: 'Sign In', exact: true }).click();
+      await expect(page.getByRole('tab', { name: 'Sign Up', exact: true })).toBeVisible();
+      await expect(page.getByRole('tab', { name: 'Sign In', exact: true })).toHaveCount(0);
+      await page.getByRole('tab', { name: 'Sign Up', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'Create Account', exact: true })).toBeVisible();
       await expect(page.getByLabel('Full Name')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Create Account', exact: true })).toBeVisible();

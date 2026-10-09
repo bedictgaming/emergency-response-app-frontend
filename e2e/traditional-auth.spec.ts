@@ -19,7 +19,9 @@ for (const width of [375, 1280]) {
       await page.getByRole('button', { name: 'Log In', exact: true }).click();
       await expect(page.getByRole('tabpanel', { name: 'Log In', exact: true }).getByRole('alert')).toContainText('Invalid email or password');
       await page.screenshot({ path: testInfo.outputPath('login.png'), fullPage: true });
-      await page.getByRole('tab', { name: 'Sign In', exact: true }).click();
+      await page.getByRole('tab', { name: 'Sign Up', exact: true }).click();
+      await expect(page.getByRole('tab', { name: 'Sign In', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('tabpanel', { name: 'Sign Up', exact: true })).toBeVisible();
       await expect(page.getByRole('heading', { name: 'Create Account', exact: true })).toBeVisible();
       await page.getByLabel('Full Name', { exact: true }).fill('Synthetic Citizen');
       await page.getByLabel('Email', { exact: true }).fill('synthetic@example.test');

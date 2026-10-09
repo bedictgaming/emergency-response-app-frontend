@@ -22,7 +22,7 @@ for (const width of [390, 1440]) for (const theme of ['light', 'dark']) {
     await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /^(?!.*\bdark\b)/);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(await page.getByLabel('Email', { exact: true }).evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
-    await page.getByRole('tab', { name: 'Sign In', exact: true }).click();
+    await page.getByRole('tab', { name: 'Sign Up', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Create Account', exact: true })).toBeVisible();
     await expect(page.getByText('Create a citizen account and log in immediately. No email verification required.').first()).toBeVisible();
     await expect(page.getByRole('button', { name: /Verify email|Resend verification|Connect Google|Disconnect Google/i })).toHaveCount(0);

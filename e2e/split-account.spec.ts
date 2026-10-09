@@ -22,7 +22,7 @@ for (const width of [320, 375, 768, 1440]) for (const theme of ['light', 'dark']
     await expect(options).toHaveCSS('background-color', 'rgb(207, 0, 0)');
     await expect(options).toHaveCSS('color', 'rgb(255, 255, 255)');
     await page.getByLabel('Email', { exact: true }).fill('synthetic-layout@example.test');
-    await options.getByRole('tab', { name: 'Sign In', exact: true }).click();
+    await options.getByRole('tab', { name: 'Sign Up', exact: true }).click();
     await expect(shell).toHaveAttribute('data-mode', 'signup');
     await expect(panel).toHaveCount(1);
     await expect(page.getByRole('heading', { name: 'Create Account', exact: true })).toBeVisible();
@@ -34,7 +34,7 @@ for (const width of [320, 375, 768, 1440]) for (const theme of ['light', 'dark']
     await page.getByLabel('Full Name').fill('Synthetic Layout Citizen');
     await options.getByRole('tab', { name: 'Log In', exact: true }).click();
     await expect(page.getByLabel('Email', { exact: true })).toHaveValue('synthetic-layout@example.test');
-    await options.getByRole('tab', { name: 'Sign In', exact: true }).click();
+    await options.getByRole('tab', { name: 'Sign Up', exact: true }).click();
     await expect(page.getByLabel('Full Name')).toHaveValue('Synthetic Layout Citizen');
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
     await expect(page.getByRole('button', { name: /Facebook|Github|LinkedIn|Skip|Resend verification/i })).toHaveCount(0);
@@ -51,7 +51,7 @@ for (const width of [375, 1440]) {
     expect(await options.evaluate(el => parseFloat(getComputedStyle(el).transitionDuration))).toBeLessThanOrEqual(0.00001);
     await options.getByRole('tab', { name: 'Log In', exact: true }).focus();
     await page.keyboard.press('ArrowRight');
-    await expect(options.getByRole('tab', { name: 'Sign In', exact: true })).toBeFocused();
+    await expect(options.getByRole('tab', { name: 'Sign Up', exact: true })).toBeFocused();
     await expect(page.getByRole('heading', { name: 'Create Account', exact: true })).toBeVisible();
     await options.getByRole('tab', { name: 'Log In', exact: true }).click();
     await page.getByRole('button', { name: 'Forgot password?' }).click();

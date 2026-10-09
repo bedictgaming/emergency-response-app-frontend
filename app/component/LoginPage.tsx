@@ -448,7 +448,7 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
                 tabs[next]?.focus();
               }}>
                 <TabsTrigger value="login" className={styles.switchTab}>Log In</TabsTrigger>
-                <TabsTrigger value="signup" className={styles.switchTab}>Sign In</TabsTrigger>
+                <TabsTrigger value="signup" className={styles.switchTab}>Sign Up</TabsTrigger>
               </TabsList>
             </div>
           </aside>}

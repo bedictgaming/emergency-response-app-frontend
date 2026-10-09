@@ -35,7 +35,7 @@ for (const width of [320, 375, 768, 1440]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Forgot password?' })).toBeVisible();
-      await page.getByRole('tab', { name: 'Sign In', exact: true }).click();
+      await page.getByRole('tab', { name: 'Sign Up', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'Create Account', exact: true })).toBeVisible();
       await expect(header.getByRole('link', { name: 'Back to Home' })).toBeVisible();
       await page.getByRole('tab', { name: 'Log In', exact: true }).click();
