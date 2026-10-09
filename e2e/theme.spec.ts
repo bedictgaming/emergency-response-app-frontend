@@ -80,7 +80,8 @@ test('admin pages stay light without changing the citizen theme preference', asy
   await expect(page.getByRole('button', { name: /Switch to (dark|light) mode/ })).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('emergency-response-theme'))).toBe('dark');
 
-  await page.goto('/');
+  // Intentionally inspect the public theme instead of restoring the admin.
+  await page.goto('/?session=manual');
   await expect(page.locator('html')).toHaveClass(/dark/);
   await expect(page.getByRole('button', { name: 'Switch to light mode' })).toBeVisible();
 });

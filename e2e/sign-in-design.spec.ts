@@ -105,7 +105,8 @@ test('Google start retains account-switch cleanup and the authorized backend end
     localStorage.setItem('refreshToken', 'synthetic-legacy-refresh');
   });
   await page.route('**/api/auth/v1/google', route => route.fulfill({ contentType: 'text/html', body: '<h1>Synthetic OAuth handoff</h1>' }));
-  await page.goto('/login');
+  // This is an intentional account switch, not an automatic session restore.
+  await page.goto('/login?session=manual');
   await page.getByRole('button', { name: 'Continue with Google', exact: true }).click();
   await expect(page).toHaveURL(/\/api\/auth\/v1\/google$/);
   expect(await page.evaluate(() => ['user', 'accessToken', 'refreshToken'].map(key => localStorage.getItem(key)))).toEqual([null, null, null]);
