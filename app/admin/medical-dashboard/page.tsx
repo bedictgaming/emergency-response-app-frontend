@@ -5,9 +5,10 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   Heart, BarChart2, AlertTriangle, ShieldCheck, 
-  MapPin, Phone, User, ExternalLink, RefreshCw, Copy, Check 
+  MapPin, Phone, ExternalLink, RefreshCw, Copy, Check
 } from "lucide-react";
 import AdminHeader from "@/app/component/admin/AdminHeader";
+import ReporterIdentity from "@/app/component/admin/ReporterIdentity";
 import {
     getIncidentPage,
     updateIncidentServiceResponse,
@@ -283,10 +284,7 @@ export default function MedicalAdminDashboard() {
                             )}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-3 gap-x-8 mb-4">
-                                <div className="flex items-center gap-2.5 text-gray-600 text-sm">
-                                    <User size={14} className="text-gray-400" />
-                                    <span>Reporter: <strong>{item.reporter}</strong></span>
-                                </div>
+                                <ReporterIdentity name={item.reporter} email={item.raw.reporter?.email} />
                                 <div className="flex items-center justify-between gap-2 text-gray-600 text-sm flex-wrap">
                                     <div className="flex items-center gap-2.5">
                                         <Phone size={14} className="text-gray-400 shrink-0" />

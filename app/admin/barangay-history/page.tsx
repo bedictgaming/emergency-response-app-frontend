@@ -22,7 +22,6 @@ import {
   PieChart,
   Download,
   Building2,
-  User,
   Truck,
 } from "lucide-react";
 import {
@@ -34,6 +33,7 @@ import { getBarangays } from "@/lib/services/barangayService";
 import { getDashboardAnalytics } from "@/lib/services/analyticsService";
 import { useIncidentHistory } from "@/app/hooks/useIncidentHistory";
 import HistoryPagination from "@/app/component/admin/HistoryPagination";
+import ReporterIdentity from "@/app/component/admin/ReporterIdentity";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 import { useAdminGuard } from "@/app/hooks/useAdminGuard";
 import MonthlyResolutionCard from "@/app/component/admin/MonthlyResolutionCard";
@@ -592,10 +592,20 @@ export default function BarangayHistoryPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-red-600" role="region" aria-label="Incident history table" tabIndex={0}>
+              <table className="w-full min-w-[1440px] table-fixed text-left border-collapse">
+                <colgroup>
+                  <col className="w-[160px]" />
+                  <col className="w-[180px]" />
+                  <col className="w-[320px]" />
+                  <col className="w-[176px]" />
+                  <col className="w-[92px]" />
+                  <col className="w-[112px]" />
+                  <col className="w-[176px]" />
+                  <col className="w-[224px]" />
+                </colgroup>
                 <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50/80 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                  <tr className="border-b border-gray-200 bg-gray-50/80 text-[11px] font-bold text-gray-500 uppercase tracking-wide [&>th]:whitespace-nowrap">
                     <th className="py-3.5 px-5">Date / Time</th>
                     <th className="py-3.5 px-5">Barangay</th>
                     <th className="py-3.5 px-5">Incident Title & Details</th>
@@ -634,8 +644,8 @@ export default function BarangayHistoryPage() {
                       </td>
 
                       {/* Title & Description */}
-                      <td className="py-4 px-5 max-w-xs">
-                        <p className="font-bold text-gray-900">{inc.title}</p>
+                      <td className="py-4 px-5 align-top">
+                        <p className="font-bold leading-relaxed text-gray-900 [overflow-wrap:anywhere]" data-history-title>{inc.title}</p>
                         {inc.verificationStatus && inc.verificationStatus !== "VERIFIED" && <p className="text-xs text-amber-800">Excluded from verified analytics · {inc.verificationStatus.toLowerCase()}</p>}
                         {inc.description && (
                           <p className="text-[11px] text-gray-500 line-clamp-1 mt-0.5">
@@ -662,8 +672,8 @@ export default function BarangayHistoryPage() {
                       {/* Dispatched Units */}
                       <td className="py-4 px-5">
                         {inc.incidentUnits && inc.incidentUnits.length > 0 ? (
-                          <div className="flex items-center gap-1 text-[11px] text-gray-700 font-semibold">
-                            <Truck size={13} className="text-blue-600" />
+                          <div className="flex items-start gap-1 text-[11px] text-gray-700 font-semibold [overflow-wrap:anywhere]">
+                            <Truck size={13} className="shrink-0 text-blue-600" />
                             <span>{inc.incidentUnits.map((u) => u.unit.unitName).join(", ")}</span>
                           </div>
                         ) : (
@@ -672,13 +682,8 @@ export default function BarangayHistoryPage() {
                       </td>
 
                       {/* Reporter */}
-                      <td className="py-4 px-5 whitespace-nowrap text-gray-600">
-                        <div className="flex items-center gap-1.5">
-                          <User size={13} className="text-gray-400" />
-                          <span className="font-medium text-gray-800">
-                            {inc.reporter?.name || inc.reporter?.email || "Citizen"}
-                          </span>
-                        </div>
+                      <td className="py-4 px-5 align-top">
+                        <ReporterIdentity name={inc.reporter?.name} email={inc.reporter?.email} />
                       </td>
                     </tr>
                   ))}
