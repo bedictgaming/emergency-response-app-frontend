@@ -5,6 +5,8 @@ not callback hints or browser storage, controls connection state. Passwords are
 cleared on submission/collapse/account switch. Google-only users establish a
 system-password fallback through existing recovery before unlinking.
 
+Native summary activation clears password and cancels requests synchronously
+when closing, even if rapid close/reopen coalesces browser toggle events.
 Link/unlink requests use existing session renewal and are not automatically
 replayed. Late account/session responses are discarded. Unlink signs out and
 clears cached identity. Header, incident, emergency, recovery and staff flows

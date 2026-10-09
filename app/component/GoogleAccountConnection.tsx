@@ -110,7 +110,14 @@ export function GoogleAccountConnection({ userId, email }: { userId: string; ema
 
   return <details ref={details} className="mt-8 rounded-xl border border-border bg-card text-card-foreground"
     onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary className="min-h-11 cursor-pointer rounded-xl px-5 py-4 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Account sign-in</summary>
+    <summary className="min-h-11 cursor-pointer rounded-xl px-5 py-4 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onClick={() => {
+        // Native toggle events can coalesce a rapid close/reopen. Clear the
+        // password at the activation itself, including keyboard-generated clicks.
+        const opening = !details.current?.open;
+        if (!opening) { request.current?.abort(); setPassword(''); setStatus(null); setBusy(false); }
+        setOpen(opening);
+      }}>Account sign-in</summary>
     {open && <div className="space-y-4 border-t border-border p-5">
       <h2 className="text-lg font-semibold">Google connection</h2>
       <p className="max-w-prose break-words text-sm text-muted-foreground">Keep your existing account and reports. Connecting Google is optional and never required to report an emergency.</p>
