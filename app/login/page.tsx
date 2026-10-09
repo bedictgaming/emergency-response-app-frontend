@@ -5,6 +5,7 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Suspense, useRef } from "react";
 import { LoginPage } from "../component/LoginPage";
 import { LandingHeader } from "../component/landing/LandingHeader";
+import { SessionRestoreBoundary } from "../component/SessionRestoreBoundary";
 
 export default function LoginRoute() {
   const scrollContainer = useRef<HTMLDivElement>(null);
@@ -24,7 +25,7 @@ export default function LoginRoute() {
             <LoadingPlaceholder label="Loading portal..." layout="panel" className="max-w-lg" />
           }
         >
-          <LoginPage />
+          <SessionRestoreBoundary><LoginPage /></SessionRestoreBoundary>
         </Suspense>
       </main>
 

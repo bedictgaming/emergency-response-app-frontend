@@ -85,11 +85,11 @@ export const logout = async (): Promise<void> => {
  * Returns the currently authenticated user's profile.
  * Useful to verify if the session is still valid on page load.
  */
-const fetchMe = (): Promise<AuthUser> => apiClient
-  .get<{ data: { user: AuthUser } }>('/auth/v1/me')
+const fetchMe = (signal?: AbortSignal): Promise<AuthUser> => apiClient
+  .get<{ data: { user: AuthUser } }>('/auth/v1/me', { signal })
   .then(response => response.data.data.user);
 
-export const getMeFresh = (): Promise<AuthUser> => fetchMe();
+export const getMeFresh = (signal?: AbortSignal): Promise<AuthUser> => fetchMe(signal);
 
 export const getMe = (): Promise<AuthUser> => {
   // React development mode can run mount effects twice. Share the in-flight

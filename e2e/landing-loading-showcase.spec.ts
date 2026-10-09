@@ -36,7 +36,8 @@ for (const width of [320, 390, 768, 1024, 1440]) for (const theme of ['light', '
    await page.setViewportSize({ width, height: width < 768 ? 844 : 900 });
    await page.addInitScript(theme => localStorage.setItem('emergency-response-theme', theme), theme);
    await mock(page);
-   await page.goto('/');
+   // Inspect the public showcase without auto-restoring the synthetic account.
+   await page.goto('/?session=manual');
    const preview = page.getByRole('region', { name: 'Your emergency report, in one place.' });
    const image = preview.getByRole('img');
    await expect(image).toHaveAttribute('src', '/images/citizen-dashboard-preview.png');
@@ -88,11 +89,11 @@ for (const width of [320, 390, 768, 1024, 1440]) for (const theme of ['light', '
 test('wave footer stays landing-only and reduced motion is static', async ({ page }) => {
  await page.emulateMedia({ reducedMotion: 'reduce' });
  await mock(page);
- await page.goto('/');
+ await page.goto('/?session=manual');
  const footer = page.locator('[data-wave-footer]');
  await footer.scrollIntoViewIfNeeded();
  expect(await footer.locator('svg[viewBox="0 0 3600 500"]').evaluate(element => getComputedStyle(element).animationName)).toBe('none');
- await page.goto('/login');
+ await page.goto('/login?session=manual');
  await expect(page.locator('[data-wave-footer]')).toHaveCount(0);
  await expect(page.getByRole('button', { name: 'Log In', exact: true }).last()).toBeVisible();
 });
@@ -101,7 +102,7 @@ for (const path of ['/', '/dashboard', '/admin/main-dashboard', '/admin/fire-das
    await page.setViewportSize({ width: 390, height: 844 });
    await page.emulateMedia({ reducedMotion: 'reduce' });
    const release = await mock(page, path, true);
-   await page.goto(path);
+   await page.goto(path === '/' ? '/?session=manual' : path);
    await expect(page.locator('[data-loader-skeleton]').first()).toBeVisible();
    await expect(page.locator('[data-skeleton-shimmer]')).toHaveCount(0);
    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -116,7 +117,7 @@ for (const path of ['/', '/dashboard', '/admin/main-dashboard', '/admin/fire-das
 }
 test('shimmer and wave move only while visible and motion is allowed', async ({ page }) => {
  const release = await mock(page, '/', true);
- await page.goto('/');
+ await page.goto('/?session=manual');
  const footer = page.locator('[data-wave-footer]');
  expect(await footer.locator('svg[viewBox="0 0 3600 500"]').evaluate(element => getComputedStyle(element).animationPlayState)).toBe('paused');
  await page.getByRole('heading', { name: 'Public safety advisories' }).scrollIntoViewIfNeeded();

@@ -14,6 +14,7 @@ import { WorkflowSection } from "./component/landing/WorkflowSection";
 import { BarangayCoverageSection } from "./component/landing/BarangayCoverageSection";
 import { PublicAlertsSection } from "./component/landing/PublicAlertsSection";
 import { LandingFooter } from "./component/landing/LandingFooter";
+import { SessionRestoreBoundary } from "./component/SessionRestoreBoundary";
 
 function PasswordResetEntry() {
   const params = useSearchParams();
@@ -25,6 +26,14 @@ function PasswordResetEntry() {
 }
 
 export default function Home() {
+  return (
+    <Suspense fallback={<LandingPage />}>
+      <SessionRestoreBoundary fullPage><LandingPage /></SessionRestoreBoundary>
+    </Suspense>
+  );
+}
+
+function LandingPage() {
   return (
     <div className={`${landingStyles.landingPage} min-h-[100dvh] w-full text-slate-900 selection:bg-red-500/15 selection:text-red-950 dark:text-slate-100`}>
       <ParticleBackground />

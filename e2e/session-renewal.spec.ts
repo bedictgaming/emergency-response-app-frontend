@@ -161,6 +161,9 @@ test('logout during proactive renewal cannot publish a new session generation or
   await page.goto('/admin/main-dashboard');
   await seen;
   await page.evaluate(() => {
+    // Mirror the complete local logout contract, including the scheduling hint.
+    localStorage.removeItem('user');
+    document.cookie = 'sessionRenewAt=; Max-Age=0; Path=/';
     localStorage.removeItem('emergency-session-generation');
     const epoch = crypto.randomUUID();
     localStorage.setItem('emergency-logout-epoch', epoch);
@@ -184,7 +187,9 @@ test('public advisory reads do not renew a session merely because a hint is pres
     advisories += 1;
     return route.fulfill({ json: { data: { alerts: [] } } });
   });
-  await page.goto('/');
+  // An intentional public visit opts out of the new entry-session check.
+  // Public advisory GETs themselves must still never rotate cookies.
+  await page.goto('/?session=manual');
   await expect.poll(() => advisories).toBeGreaterThan(0);
   expect(refreshes).toBe(0);
 });

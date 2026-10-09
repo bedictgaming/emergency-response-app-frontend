@@ -974,7 +974,8 @@ test('new department login waits for an in-flight refresh in another tab', async
   await refreshSeen;
 
   const otherTab = await context.newPage();
-  await otherTab.goto('/login');
+  // Deliberately switch accounts instead of restoring the existing session.
+  await otherTab.goto('/login?session=manual');
   await otherTab.getByLabel('Email').first().fill('hazard@example.test');
   await otherTab.getByLabel('Password', { exact: true }).first().fill('test-password');
   await otherTab.getByRole('button', { name: 'Log In', exact: true }).click();
@@ -1014,6 +1015,10 @@ test('citizen polling stops when its session is removed', async ({ page }) => {
 
   await page.evaluate(() => {
     const epoch = crypto.randomUUID();
+    // Real logout clears the cached profile and generation before publishing
+    // its epoch; an epoch alone does not model removal of a valid session.
+    localStorage.removeItem('user');
+    localStorage.removeItem('emergency-session-generation');
     localStorage.setItem('emergency-logout-epoch', epoch);
     window.dispatchEvent(new StorageEvent('storage', { key: 'emergency-logout-epoch', newValue: epoch }));
   });
@@ -1052,6 +1057,8 @@ test('admin data polling stops when its session is removed', async ({ page }) =>
 
   await page.evaluate(() => {
     const epoch = crypto.randomUUID();
+    localStorage.removeItem('user');
+    localStorage.removeItem('emergency-session-generation');
     localStorage.setItem('emergency-logout-epoch', epoch);
     window.dispatchEvent(new StorageEvent('storage', { key: 'emergency-logout-epoch', newValue: epoch }));
   });
