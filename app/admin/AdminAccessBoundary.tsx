@@ -25,6 +25,10 @@ export default function AdminAccessBoundary({ children }: { children: ReactNode 
 
   useEffect(() => {
     let active = true;
+    let verification: Promise<void> | null = null;
+    let resumeTimer: number | null = null;
+    let suspended = false;
+    let lifecycle = 0;
 
     const pauseForAccountChange = () => {
       accountSwitchedRef.current = true;
@@ -98,11 +102,25 @@ export default function AdminAccessBoundary({ children }: { children: ReactNode 
       }
     };
 
-    void verifyAccess(!hasVerifiedAdmin.current);
-    const revalidateWhenVisible = () => {
-      if (document.visibilityState === "visible") void verifyAccess(false);
+    const requestVerification = () => {
+      if (!active || suspended || verification || accountSwitchedRef.current
+        || !navigator.onLine || document.visibilityState !== 'visible') return;
+      const started = lifecycle;
+      verification = verifyAccess(!hasVerifiedAdmin.current).finally(() => {
+        verification = null;
+        if (started !== lifecycle) requestVerification();
+      });
     };
-    const revalidateOnFocus = () => void verifyAccess(false);
+    requestVerification();
+    const revalidateWhenVisible = () => {
+      if (!active || suspended || !navigator.onLine || document.visibilityState !== 'visible') return;
+      if (resumeTimer !== null) window.clearTimeout(resumeTimer);
+      resumeTimer = window.setTimeout(() => { resumeTimer = null; requestVerification(); }, 0);
+    };
+    const pause = () => { lifecycle += 1; suspended = true; };
+    const offline = () => { lifecycle += 1; };
+    const resume = () => { suspended = false; revalidateWhenVisible(); };
+    const revalidateOnFocus = revalidateWhenVisible;
     const handleSessionChange = (event: StorageEvent) => {
       if (event.key === 'emergency-logout-epoch' && event.newValue) {
         hasVerifiedAdmin.current = false;
@@ -119,18 +137,31 @@ export default function AdminAccessBoundary({ children }: { children: ReactNode 
           pauseForAccountChange();
         }
       } else if (event.key === 'emergency-session-generation' && !accountSwitchedRef.current) {
-        void verifyAccess(false);
+        revalidateWhenVisible();
       }
     };
     window.addEventListener("focus", revalidateOnFocus);
     window.addEventListener("storage", handleSessionChange);
     document.addEventListener("visibilitychange", revalidateWhenVisible);
+    window.addEventListener('online', resume);
+    window.addEventListener('offline', offline);
+    window.addEventListener('pagehide', pause);
+    window.addEventListener('pageshow', resume);
+    document.addEventListener('freeze', pause);
+    document.addEventListener('resume', resume);
 
     return () => {
       active = false;
+      if (resumeTimer !== null) window.clearTimeout(resumeTimer);
       window.removeEventListener("focus", revalidateOnFocus);
       window.removeEventListener("storage", handleSessionChange);
       document.removeEventListener("visibilitychange", revalidateWhenVisible);
+      window.removeEventListener('online', resume);
+      window.removeEventListener('offline', offline);
+      window.removeEventListener('pagehide', pause);
+      window.removeEventListener('pageshow', resume);
+      document.removeEventListener('freeze', pause);
+      document.removeEventListener('resume', resume);
     };
   }, [router]);
 

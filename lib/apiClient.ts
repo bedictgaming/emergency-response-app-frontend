@@ -143,7 +143,10 @@ apiClient.interceptors.response.use(
     const retryableStatus = (!status && !timedOut) || [408, 502, 503, 504].includes(status);
     // This legacy GET consumes a capability; it is not a safe read to replay.
     const isVerificationAction = requestUrl.split('?')[0].endsWith('/auth/v1/verify-email');
-    if (config && !isVerificationAction && ['GET', 'HEAD', 'OPTIONS'].includes(method ?? '') && retryableStatus && !config.safeRetryCount) {
+    // Resume handlers refresh safe reads once the tab can use the network again.
+    const canRetry = typeof window === 'undefined'
+      || (navigator.onLine && document.visibilityState === 'visible');
+    if (canRetry && !axios.isCancel(error) && config && !isVerificationAction && ['GET', 'HEAD', 'OPTIONS'].includes(method ?? '') && retryableStatus && !config.safeRetryCount) {
       config.safeRetryCount = 1;
       return apiClient.request(config);
     }
