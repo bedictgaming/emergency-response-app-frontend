@@ -96,7 +96,7 @@ test('wave footer stays landing-only and reduced motion is static', async ({ pag
  await expect(page.locator('[data-wave-footer]')).toHaveCount(0);
  await expect(page.getByRole('button', { name: 'Log In', exact: true }).last()).toBeVisible();
 });
-for (const path of ['/', '/dashboard', '/admin/main-dashboard', '/admin/fire-dashboard', '/admin/medical-dashboard', '/admin/police-dashboard', '/admin/drrmo-dashboard', '/admin/users', '/admin/analytics', '/admin/barangay-history', '/admin/operations', '/responder/tasks']) {
+for (const path of ['/', '/dashboard', '/admin/main-dashboard', '/admin/fire-dashboard', '/admin/medical-dashboard', '/admin/police-dashboard', '/admin/drrmo-dashboard', '/admin/users', '/admin/analytics', '/admin/barangay-history', '/admin/operations']) {
  test(`real loading skeleton resolves on ${path}`, async ({ page }, info) => {
    await page.setViewportSize({ width: 390, height: 844 });
    await page.emulateMedia({ reducedMotion: 'reduce' });

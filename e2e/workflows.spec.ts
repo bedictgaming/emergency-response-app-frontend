@@ -112,44 +112,13 @@ test('camera permission failure leaves photo picker available', async ({ page })
   await expect(page.getByRole('button', { name: 'Use camera' })).toBeVisible();
 });
 
-test('responder primary task action is visible and submits only one update', async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem('user', JSON.stringify({ id: 'responder', name: 'Field Responder', role: 'RESPONDER' }));
-  });
-  const task = {
-    taskId: 'task-1',
-    taskName: 'Assess scene',
-    description: 'Confirm the area is safe.',
-    priority: 'HIGH',
-    status: 'PENDING',
-    incident: { incidentId: 'incident-1', title: 'Fire response', severityLevel: 'HIGH', status: 'RESPONDING' },
-  };
-  let taskUpdates = 0;
-  await page.route('**/api/auth/v1/me', route => route.fulfill({
-    json: { data: { user: { id: 'responder', name: 'Field Responder', email: 'responder@example.test', role: 'RESPONDER' } } },
-  }));
-  await page.route('**/api/tasks/v1/**', async route => {
-    if (route.request().method() === 'PUT') {
-      taskUpdates += 1;
-      await new Promise(resolve => setTimeout(resolve, 150));
-      return route.fulfill({ json: { data: { task: { ...task, status: 'IN_PROGRESS' } } } });
-    }
-    return route.fulfill({ json: { data: { tasks: [task] } } });
-  });
-  await page.route('**/api/events/v1/stream', route => route.fulfill({
-    status: 200,
-    contentType: 'text/event-stream',
-    body: 'event: connected\ndata: {"ok":true}\n\n',
-  }));
-
-  await page.goto('/responder/tasks');
-  const startTask = page.getByRole('button', { name: 'Start task' });
-  await expect(startTask).toBeVisible();
-  expect(await startTask.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
-  await startTask.dblclick();
-
-  await expect(page.getByRole('button', { name: 'Mark done' })).toBeVisible();
-  expect(taskUpdates).toBe(1);
+test('retired responder page offers missing-page recovery without task requests', async ({ page }) => {
+  let requests = 0;
+  await page.route('**/api/tasks/**', route => { requests++; return route.abort(); });
+  const response = await page.goto('/responder/tasks');
+  expect(response?.status()).toBe(404);
+  await expect(page.getByRole('heading', { name: 'Page Not Found' })).toBeVisible();
+  expect(requests).toBe(0);
 });
 
 test('unit management creates, edits and confirms deletion', async ({ page }) => {

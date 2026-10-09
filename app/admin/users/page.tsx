@@ -85,7 +85,7 @@ export default function AdminUsersPage() {
   const handleRoleChange = async (user: SystemUser, newRole: UserRole) => {
     setActionLoading(user.id);
     try {
-      await updateUserRole(user.id, newRole, ['ADMIN', 'DISPATCHER'].includes(newRole) ? (user.department || 'MAIN') : null, newRole === 'ADMIN' && Boolean(user.isMainAdmin));
+      await updateUserRole(user.id, newRole, ['ADMIN', 'DISPATCHER'].includes(newRole) ? (user.department && user.department !== 'MAIN' ? user.department : 'FIRE') : null, newRole === 'ADMIN' && Boolean(user.isMainAdmin));
       showToast(`${user.name || user.email} is now ${newRole}.`);
       await loadUsers();
     } catch (err) {
@@ -233,7 +233,7 @@ export default function AdminUsersPage() {
               <option value="">All Roles</option>
               <option value="USER">Citizen</option>
               <option value="DISPATCHER">Dispatcher</option>
-              <option value="RESPONDER">Responder</option>
+              <option value="RESPONDER">Responder (retired)</option>
               <option value="ADMIN">Admin</option>
             </select>
             <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -373,13 +373,14 @@ export default function AdminUsersPage() {
                               name={`admin-user-role-${user.id}`}
                               value={user.role}
                               onChange={(event) => handleRoleChange(user, event.target.value as UserRole)}
-                              disabled={isActing}
+                              disabled={isActing || user.role === 'RESPONDER'}
+                              title={user.role === 'RESPONDER' ? 'Access retired; historical records are retained.' : undefined}
                               aria-label={`Role for ${user.name || user.email}`}
                               className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold border border-gray-200 bg-white disabled:opacity-50"
                             >
                               <option value="USER">Citizen</option>
                               <option value="DISPATCHER">Dispatcher</option>
-                              <option value="RESPONDER">Responder</option>
+                              {user.role === 'RESPONDER' && <option value="RESPONDER">Responder (retired)</option>}
                               <option value="ADMIN">Admin</option>
                             </select>
                             {['ADMIN', 'DISPATCHER'].includes(user.role) && (

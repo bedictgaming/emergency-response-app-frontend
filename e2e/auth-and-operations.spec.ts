@@ -52,7 +52,7 @@ test('admin can reach the operations management surface', async ({ page }) => {
   await page.goto('/admin/operations');
   await expect(page.getByRole('heading', { name: 'Operations management' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Responders' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Responders' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Incident tasks' })).toBeVisible();
 });
 

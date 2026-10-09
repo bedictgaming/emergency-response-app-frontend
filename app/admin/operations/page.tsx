@@ -36,7 +36,7 @@ export default function OperationsPage() {
     if (!authorized) return;
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     setRole(user.role);
-    const keys = ['units', 'resources', 'responders', 'tasks', 'incidents', ...(user.role === 'ADMIN' ? ['users'] : [])];
+    const keys = ['units', 'resources', 'tasks', 'incidents'];
     try {
       const rows = await Promise.all(keys.map(async key => {
         const response = await apiClient.get<{ data: Record<string, Row[]> }>(`/${key}/v1/`);
@@ -50,9 +50,7 @@ export default function OperationsPage() {
   useEffect(() => { void load(); }, [load]);
 
   const unitOptions = (records.units || []).map(row => ({ value: text(row, 'unitId'), label: text(row, 'unitName') }));
-  const responderOptions = (records.responders || []).map(row => ({ value: text(row, 'responderId'), label: text(nested(row, 'user'), 'name') || text(nested(row, 'user'), 'email') }));
   const incidentOptions = (records.incidents || []).filter(row => row.verificationStatus === 'VERIFIED' && !['CLOSED', 'RESOLVED'].includes(text(row, 'status'))).map(row => ({ value: text(row, 'incidentId'), label: text(row, 'title') }));
-  const userOptions = (records.users || []).filter(row => row.role === 'RESPONDER' && row.status === 'ACTIVE' && !row.responder).map(row => ({ value: text(row, 'id'), label: text(row, 'name') || text(row, 'email') }));
   const sections: Section[] = [
     { key: 'units', title: 'Units', id: 'unitId', label: 'unitName', fields: [
       { name: 'unitName', label: 'Unit name', required: true }, { name: 'unitType', label: 'Unit type', required: true },
@@ -63,16 +61,9 @@ export default function OperationsPage() {
       { name: 'quantity', label: 'Quantity', type: 'number', required: true }, { name: 'unitId', label: 'Unit', options: unitOptions, required: true },
       { name: 'status', label: 'Status', options: choices(['AVAILABLE', 'IN_USE', 'MAINTENANCE', 'DEPLETED']), required: true },
     ] },
-    { key: 'responders', title: 'Responders', id: 'responderId', label: 'rank', fields: [
-      { name: 'userId', label: 'Responder account', options: userOptions, required: true, createOnly: true },
-      { name: 'unitId', label: 'Unit', options: unitOptions, required: true },
-      { name: 'rank', label: 'Rank' }, { name: 'certifications', label: 'Certifications' },
-      { name: 'status', label: 'Status', options: choices(['AVAILABLE', 'DEPLOYED', 'OFF_DUTY']), required: true },
-    ] },
     { key: 'tasks', title: 'Incident tasks', id: 'taskId', label: 'taskName', fields: [
       { name: 'incidentId', label: 'Verified incident', options: incidentOptions, required: true, createOnly: true },
       { name: 'taskName', label: 'Task name', required: true }, { name: 'description', label: 'Description', type: 'textarea' },
-      { name: 'assignedTo', label: 'Assigned responder', options: responderOptions },
       { name: 'priority', label: 'Priority', options: choices(['LOW', 'MEDIUM', 'HIGH']), required: true },
       { name: 'dueAt', label: 'Due date and time', type: 'datetime-local' },
     ] },
@@ -80,7 +71,7 @@ export default function OperationsPage() {
   const active = sections.find(section => section.key === editor?.key);
   const canEdit = (key: string) => role === 'ADMIN' || key === 'tasks' || key === 'units';
   const canDelete = (key: string) => role === 'ADMIN' || key === 'tasks';
-  const rowLabel = (section: Section, row: Row) => section.key === 'responders' ? text(nested(row, 'user'), 'name') || text(nested(row, 'user'), 'email') : text(row, section.label);
+  const rowLabel = (section: Section, row: Row) => text(row, section.label);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -94,8 +85,6 @@ export default function OperationsPage() {
       else if (field.type === 'datetime-local') {
         if (value) payload[field.name] = new Date(value).toISOString();
         else if (editor.row) payload[field.name] = null;
-      } else if (field.name === 'assignedTo' && !value) {
-        if (editor.row) payload[field.name] = null;
       } else if (value || !field.options) payload[field.name] = value;
     }
     setBusy(true); setError(''); setNotice('');
@@ -132,7 +121,7 @@ export default function OperationsPage() {
   return <main className="figma-shell min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60 px-4 py-8 text-slate-900">
     <div className="mx-auto max-w-6xl space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
-        <div><p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Emergency response</p><h1 className="text-2xl font-bold">Operations management</h1><p className="text-sm text-slate-600">Maintain teams and equipment, then assign tasks to verified incidents.</p></div>
+        <div><p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Emergency response</p><h1 className="text-2xl font-bold">Operations management</h1><p className="text-sm text-slate-600">Maintain units and equipment, and manage tasks for verified incidents.</p></div>
         <Link href="/admin/main-dashboard" className="inline-flex min-h-11 items-center rounded-lg border bg-white px-4 py-2 text-sm">Back to dashboard</Link>
       </header>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">{error}</p>}

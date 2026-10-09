@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 test.use({ serviceWorkers: 'block' });
 const longReference = 'SyntheticReference'.repeat(6);
-const routes = ['/', '/login', '/dashboard', ...['main', 'fire', 'medical', 'police', 'drrmo'].map(role => `/admin/${role}-dashboard`), '/admin/users', '/admin/analytics', '/admin/barangay-history', '/admin/operations', '/responder/tasks'];
+const routes = ['/', '/login', '/dashboard', ...['main', 'fire', 'medical', 'police', 'drrmo'].map(role => `/admin/${role}-dashboard`), '/admin/users', '/admin/analytics', '/admin/barangay-history', '/admin/operations'];
 const sizes = [{ width: 320, height: 667 }, { width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 844, height: 390 }, { width: 1440, height: 900 }];
 
 async function fixture(page: Page, path: string) {

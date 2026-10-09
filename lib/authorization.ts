@@ -26,8 +26,7 @@ export function accountHome(user: AuthUser): string {
     const department = getAdminDepartment(user.department);
     return department ? getDepartmentDashboardUrl(department) : '/';
   }
-  if (user.role === 'RESPONDER') return '/responder/tasks';
-  return '/dashboard';
+  return user.role === 'USER' ? '/dashboard' : '/login';
 }
 
 export function hasPermission(user: AuthUser | null | undefined, permission: string): boolean {

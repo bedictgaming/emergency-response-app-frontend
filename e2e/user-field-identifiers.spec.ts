@@ -99,8 +99,9 @@ for (const width of [1280, 375]) {
     await filter.selectOption('USER');
     const role = page.getByRole('combobox', { name: 'Role for Citizen one', exact: true });
     await expect(role).toBeVisible();
-    await role.selectOption('RESPONDER');
-    await expect.poll(() => mock.mutations[2]).toEqual({ id: 'test-one', payload: { role: 'RESPONDER', department: null, isMainAdmin: false } });
+    await expect(role.locator('option[value="RESPONDER"]')).toHaveCount(0);
+    await role.selectOption('DISPATCHER');
+    await expect.poll(() => mock.mutations[2]).toEqual({ id: 'test-one', payload: { role: 'DISPATCHER', department: 'FIRE', isMainAdmin: false } });
     await expect(page.getByRole('combobox', { name: 'Role for Citizen one', exact: true })).toHaveCount(0);
     await expectIdentifiedControls(page);
   });

@@ -151,8 +151,8 @@ export function Dashboard() {
                     router.replace(dept ? getDepartmentDashboardUrl(dept) : '/');
                     return;
                 }
-                if (parsed?.role === 'RESPONDER') {
-                    router.replace('/responder/tasks');
+                if (parsed?.role !== 'USER') {
+                    router.replace('/login');
                     return;
                 }
             }
@@ -168,8 +168,8 @@ export function Dashboard() {
                     router.replace(dept ? getDepartmentDashboardUrl(dept) : '/');
                     return;
                 }
-                if (backendUser.role === 'RESPONDER') {
-                    router.replace('/responder/tasks');
+                if (backendUser.role !== 'USER') {
+                    router.replace('/login');
                     return;
                 }
                 const user = {
@@ -193,7 +193,7 @@ export function Dashboard() {
                 // Preserve the last verified session during temporary network/database outages.
                 try {
                     const cached = JSON.parse(localStorage.getItem('user') || 'null') as User | null;
-                    if (cached && !['ADMIN', 'DISPATCHER', 'RESPONDER'].includes(cached.role)) {
+                    if (cached?.role === 'USER') {
                         setUser(cached);
                         void fetchUserReports(cached.id);
                     }

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test.use({ serviceWorkers: 'block' });
 
-const paths = ['/missing-page', '/dashboard/missing-page', '/admin/missing-page', '/responder/missing-page'];
+const paths = ['/responder/tasks', '/missing-page', '/dashboard/missing-page', '/admin/missing-page', '/responder/missing-page'];
 for (const width of [320, 390, 768, 1365]) for (const theme of ['light', 'dark']) {
   test(`shared missing-page recovery fits ${width}px in ${theme}`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: width < 768 ? 844 : 900 });
