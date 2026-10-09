@@ -149,9 +149,35 @@ test('an enabled siren automatically sounds for a new report and replaces the te
   // A real alert must not be silenced by the earlier 3.5-second speaker-test timer.
   await page.waitForTimeout(3800);
   await expect(page.getByRole('button', { name: 'MUTE SIREN', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Silence Loud Siren', exact: true }).click();
+  await page.getByRole('button', { name: 'Mute alert', exact: true }).click();
   await expect(page.getByRole('button', { name: 'MUTE SIREN', exact: true })).toHaveCount(0);
   await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.mouse.click(2, 2);
+  await expect(page.getByRole('dialog')).toBeVisible();
+  const starts = await page.evaluate(() => window.audioProbe.starts);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page.getByRole('button', { name: 'Unmute alert', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.audioProbe.starts)).toBe(starts);
+  await page.getByRole('button', { name: 'Unmute alert', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'MUTE SIREN', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.audioProbe.starts)).toBe(starts + 2);
+  await arrive.clear();
+  await expect(page.getByRole('button', { name: 'MUTE SIREN', exact: true })).toHaveCount(0);
+});
+
+test('muting while audio activation is pending cancels playback without dismissing Main alert', async ({ page }) => {
+  const arrive = await setup(page, 'held');
+  await arrive();
+  await page.getByRole('dialog').getByRole('button', { name: 'Enable sound', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.audioProbe.resumes)).toBe(1);
+  await page.getByRole('button', { name: 'Mute alert', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Unmute alert', exact: true })).toBeDisabled();
+  await page.evaluate(() => window.audioProbe.release?.());
+  await expect(page.getByRole('button', { name: 'Unmute alert', exact: true })).toBeEnabled();
+  expect(await page.evaluate(() => window.audioProbe.starts)).toBe(0);
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await arrive.clear();
 });
 
 test('account switch cancels pending audio and unmounts the old alert', async ({ page }) => {

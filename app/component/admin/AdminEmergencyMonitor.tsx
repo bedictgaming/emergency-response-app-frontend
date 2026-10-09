@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   VolumeX,
+  Volume2,
   AlertTriangle,
   Flame,
   Heart,
@@ -27,6 +28,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   const [sirenState, setSirenState] = useState(sirenManager.getState());
   const [enablingSound, setEnablingSound] = useState(false);
   const [soundPreferenceSaved, setSoundPreferenceSaved] = useState(false);
+  const [alertsMuted, setAlertsMuted] = useState(false);
   const isSirenPlaying = sirenState.playing;
   const [queue, setQueue] = useState<IncidentAttention[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -70,11 +72,13 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
         const arrived = page.items.some(item => !knownKeysRef.current.has(attentionKey(item)));
         knownKeysRef.current = keys;
         mutedKeysRef.current = new Set([...mutedKeysRef.current].filter(key => keys.has(key)));
+        setAlertsMuted(page.items.length > 0 && page.items.every(item => mutedKeysRef.current.has(attentionKey(item))));
         queueRef.current = page.items; setQueue(page.items); setHasMore(page.hasMore); setQueueError('');
-        setMainMonitoring(page.acknowledgementMode === 'DEPARTMENT_HANDOFF' || page.scope === 'MAIN' || page.items.some(item => item.scope === 'MAIN'));
+        const monitoring = page.acknowledgementMode === 'DEPARTMENT_HANDOFF' || page.scope === 'MAIN' || page.items.some(item => item.scope === 'MAIN');
+        setMainMonitoring(monitoring);
         if (!page.items.length) { audioActionRef.current++; sirenManager.stopSiren(); setDialogOpen(false); setAckError(''); }
         else {
-          if (arrived) setDialogOpen(true);
+          if (arrived || monitoring) setDialogOpen(true);
           if (page.items.some(item => !mutedKeysRef.current.has(attentionKey(item)))) sirenManager.startSiren();
           else { audioActionRef.current++; sirenManager.stopSiren(); }
         }
@@ -121,6 +125,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
 
   const handleSilenceSiren = () => {
     mutedKeysRef.current = new Set(queueRef.current.map(attentionKey));
+    setAlertsMuted(queueRef.current.length > 0);
     audioActionRef.current += 1;
     sirenManager.stopSiren();
   };
@@ -140,6 +145,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
       queueRevisionRef.current++;
       queueRef.current = queueRef.current.filter(row => attentionKey(row) !== attentionKey(item));
       setQueue(queueRef.current);
+      setAlertsMuted(queueRef.current.length > 0 && queueRef.current.every(row => mutedKeysRef.current.has(attentionKey(row))));
       if (!queueRef.current.length) { audioActionRef.current++; sirenManager.stopSiren(); setDialogOpen(false); }
       void checkIncomingIncidents();
     } catch {
@@ -199,10 +205,23 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   }, [activateSound]);
 
   const handleEnableSound = (playAlert = false) => {
-    if (playAlert && newIncidentAlert && !queueError) mutedKeysRef.current.delete(attentionKey(newIncidentAlert));
+    if (playAlert && newIncidentAlert && !queueError) {
+      mutedKeysRef.current.clear();
+      setAlertsMuted(false);
+    }
     return activateSound(playAlert && !queueError ? 'alert' : 'test');
   };
+  const handleToggleAlertSound = () => {
+    if (!alertsMuted) { handleSilenceSiren(); return; }
+    if (queueError) return;
+    mutedKeysRef.current.clear();
+    setAlertsMuted(false);
+    void activateSound('alert');
+  };
   useModalIsolation(dialogOpen && Boolean(newIncidentAlert), panelRef, () => {
+    // Main monitoring is server-owned: neither Escape nor a local dismissal
+    // may substitute for an assigned department's acknowledgement.
+    if (mainMonitoring) return;
     handleSilenceSiren(); setDialogOpen(false);
   });
 
@@ -302,7 +321,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
               </div>}
               {hasMore && <p className="text-xs text-muted-foreground">{mainMonitoring ? 'More reports remain in the server queue. Each clears here when an assigned department admin acknowledges it.' : 'More reports remain in the server queue. Acknowledge reviewed items to load the next ones; none are cleared together.'}</p>}
               {(queueError || ackError) && <p role="alert" className="rounded-lg bg-warning p-3 text-sm text-warning-foreground">{queueError || ackError}</p>}
-              {!sirenState.audioReady && (
+              {!sirenState.audioReady && !alertsMuted && (
                 <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-warning p-3 text-sm text-warning-foreground">
                   <p className="min-w-0 flex-1">
                     {sirenState.unavailable ? 'Sound could not start. Try again and check your browser’s sound settings.' : soundPreferenceSaved ? 'Your sound preference is saved, but this page is not armed yet. Resume sound to hear this alert.' : 'Sound is not enabled. Enable it to hear this alert.'}
@@ -406,15 +425,17 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
               <div className="pt-2 flex flex-col sm:flex-row gap-3">
                 <button
                   type="button"
-                  onClick={handleSilenceSiren}
-                  className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${
-                    isSirenPlaying
+                  onClick={handleToggleAlertSound}
+                  aria-pressed={alertsMuted}
+                  disabled={alertsMuted && (enablingSound || Boolean(queueError))}
+                  className={`min-h-11 flex-1 py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${
+                    !alertsMuted
                       ? "bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-600/30"
                       : "bg-muted text-muted-foreground"
-                  }`}
+                  } disabled:opacity-60`}
                 >
-                  <VolumeX className="w-4 h-4" />
-                  <span>{isSirenPlaying ? "Silence Loud Siren" : "Sound not playing"}</span>
+                  {alertsMuted ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                  <span>{alertsMuted ? 'Unmute alert' : 'Mute alert'}</span>
                 </button>
 
                 {!mainMonitoring && <button
@@ -427,8 +448,9 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
                   <span>{acknowledging ? 'Saving acknowledgement…' : 'Acknowledge this report'}</span>
                 </button>}
               </div>
+              <p role="status" className="text-xs text-muted-foreground">{alertsMuted ? 'Alert sound is muted. The report remains outstanding; new reports can still sound.' : enablingSound ? 'Enabling alert sound…' : isSirenPlaying ? 'Alert sound is playing.' : 'Alert sound is not playing. Check your browser’s sound settings if needed.'}</p>
               <p className="text-xs text-muted-foreground">{mainMonitoring ? 'Only an assigned Fire, Medical, Police or DRRMO Admin’s acknowledgement clears this Main Admin alert. It does not resolve the incident.' : 'Acknowledgement does not dispatch units or resolve the incident. An assigned department admin’s acknowledgement also clears the Main Admin alert; other departments keep theirs.'}</p>
-              <button type="button" onClick={() => { handleSilenceSiren(); setDialogOpen(false); }} className="min-h-11 w-full rounded-lg border border-border px-3 text-sm">Review later — keep in queue</button>
+              {mainMonitoring ? <button type="button" onClick={() => { void checkIncomingIncidents(); }} className="min-h-11 w-full rounded-lg border border-border px-3 text-sm">Check department acknowledgement</button> : <button type="button" onClick={() => { handleSilenceSiren(); setDialogOpen(false); }} className="min-h-11 w-full rounded-lg border border-border px-3 text-sm">Review later — keep in queue</button>}
             </div>
           </div>
         </div>,
