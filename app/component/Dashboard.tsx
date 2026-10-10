@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from './ui/button';
-import { Shield, LogOut, Flame, Heart, AlertTriangle, MapPin, Layers3 } from 'lucide-react';
+import { Shield, LogOut, Flame, Heart, AlertTriangle, MapPin, Layers3, Settings } from 'lucide-react';
 import { EmergencyReportForm } from './EmergencyReportForm';
 import { EmergencyReportsList } from './EmergencyReportList';
 import { HelpAndStatus } from './HelpAndStatus';
@@ -408,11 +409,12 @@ export function Dashboard() {
                             </div>
                         </div>
 
-                        <div className="flex shrink-0 items-center gap-3">
+                        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                             <div className="hidden max-w-40 text-right sm:block lg:max-w-64">
                                 <p className="truncate text-sm font-medium text-foreground">{user?.name}</p>
                                 <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
                             </div>
+                            <Link href="/settings" aria-label="Account Settings" className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-card hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><Settings className="h-4 w-4" aria-hidden="true" /></Link>
                             <Button onClick={handleLogout} variant="outline" size="sm" className="theme-inverse-surface theme-inverse-action h-11 rounded-lg px-4 font-semibold shadow-none">
                                 <LogOut className="w-4 h-4 mr-2" />
                                 Logout

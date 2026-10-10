@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test';
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   for (const [reason, message] of [
-    ['oauth_link_required', 'This account uses email and password. Log In with those details, or choose “Forgot password?” to recover access.'],
+    ['oauth_link_required', 'Please log in with your password first, then connect Google in Settings. If you forgot your password, use “Forgot password?” to recover access.'],
+    ['oauth_link_password_required', 'Please log in with your password first, then connect Google in Settings. If you forgot your password, use “Forgot password?” to recover access.'],
     ['oauth_email_verification_required', 'This Google email cannot be used to create an account securely. Register with email, or use a verified Gmail or Google Workspace account.'],
     ['oauth_failed', 'Google login failed. Please try again.'],
   ]) {
@@ -21,7 +22,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       await expect(page.getByRole('tab', { name: 'Log In', exact: true })).toHaveAttribute('aria-selected', 'true');
       expect(profileRequests).toBe(0);
-      if (reason === 'oauth_link_required') {
+      if (reason === 'oauth_link_required' || reason === 'oauth_link_password_required') {
         await page.screenshot({ path: testInfo.outputPath('oauth-recovery.png'), fullPage: true });
         await page.getByRole('button', { name: 'Forgot password?' }).click();
         await expect(page.getByLabel('Account email')).toBeVisible();

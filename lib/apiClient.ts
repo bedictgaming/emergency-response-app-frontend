@@ -14,6 +14,7 @@ const LOGOUT_EPOCH_KEY = 'emergency-logout-epoch';
 let refreshing: Promise<void> | undefined;
 let lastRenewedHint: string | undefined;
 const SESSION_LOCK_NAME = 'emergency-token-refresh';
+const sessionAuthPaths = ['/auth/v1/me', '/auth/v1/login-methods', '/auth/v1/google/link', '/auth/v1/google/unlink'];
 
 // Login and refresh both replace the shared HttpOnly cookies. Keep their
 // responses ordered across tabs so an older refresh cannot overwrite a newer
@@ -27,7 +28,7 @@ function isProtectedRequest(url = '', method = 'get'): boolean {
   if (url.includes('/notifications/v1/web-push-key')) return false;
   if (method.toUpperCase() === 'GET' && url.includes('/alerts/v1/')) return false;
   if (!url.includes('/auth/v1/')) return true;
-  return url.includes('/auth/v1/me');
+  return sessionAuthPaths.some(path => url.split('?')[0].endsWith(path));
 }
 
 export function isDefinitiveAuthFailure(error: unknown): boolean {
@@ -133,7 +134,7 @@ apiClient.interceptors.response.use(
   async (error) => {
     const status = error.response?.status;
     const requestUrl = error.config?.url || '';
-    const isSessionCheck = requestUrl.includes('/auth/v1/me');
+    const isSessionCheck = sessionAuthPaths.some(path => requestUrl.split('?')[0].endsWith(path));
     const isAuthEndpoint = requestUrl.includes('/auth/v1/') && !isSessionCheck;
     const protectedRequest = isProtectedRequest(requestUrl, error.config?.method);
     const config = error.config as (InternalAxiosRequestConfig & { retried?: boolean; safeRetryCount?: number; authGeneration?: string | null }) | undefined;

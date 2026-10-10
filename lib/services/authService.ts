@@ -33,6 +33,30 @@ export interface AuthResponse {
 
 let pendingGetMe: Promise<AuthUser> | undefined;
 
+export interface LoginMethods {
+  accountId: string;
+  password: boolean;
+  google: { connected: boolean; email: string | null };
+  canUnlinkGoogle: boolean;
+}
+
+export const getLoginMethods = async (signal?: AbortSignal): Promise<LoginMethods> => {
+  const response = await apiClient.get<{ data: LoginMethods }>('/auth/v1/login-methods', { signal });
+  return response.data.data;
+};
+
+export const beginGoogleLink = async (accountId: string, password: string, signal?: AbortSignal): Promise<string> => {
+  const response = await apiClient.post<{ data: { authorizationUrl: string } }>('/auth/v1/google/link', { accountId, password }, { signal });
+  const url = new URL(response.data.data.authorizationUrl);
+  // No arbitrary navigation from an API response. State is not a login token.
+  if (url.origin !== 'https://accounts.google.com' || url.pathname !== '/o/oauth2/v2/auth' || url.username || url.password) throw new Error('Invalid Google authorization destination');
+  return url.toString();
+};
+
+export const unlinkGoogle = async (accountId: string, password: string, signal?: AbortSignal): Promise<void> => {
+  await apiClient.post('/auth/v1/google/unlink', { accountId, password }, { signal });
+};
+
 // --- Service Functions ---
 
 /**

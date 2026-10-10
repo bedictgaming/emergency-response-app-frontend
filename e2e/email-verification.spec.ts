@@ -33,6 +33,7 @@ for (const width of [390, 1440]) for (const theme of ['light', 'dark']) {
   });
 }
 test('old verification flags and malformed links do not redeem, authenticate or display results', async ({ page }) => {
+  test.slow(); // Eighteen explicit navigations; retain each safety assertion.
   let retiredRequests = 0;
   await page.route('**/api/**', route => {
     if (/verify-email|resend-email-verification|google\/(?:link|unlink)/.test(route.request().url())) retiredRequests++;
@@ -52,7 +53,7 @@ test('old verification flags and malformed links do not redeem, authenticate or 
 });
 test('unconnected password accounts retain a clear password recovery path, not email-match linking', async ({ page }) => {
   await page.goto('/login?oauth=oauth_link_required');
-  await expect(page.getByRole('alert').filter({ hasText: 'This account uses email and password.' })).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: 'Please log in with your password first' })).toBeVisible();
   await page.getByRole('button', { name: 'Forgot password?' }).click();
   await expect(page.getByRole('button', { name: 'Send reset link' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Connect Google/i })).toHaveCount(0);

@@ -96,10 +96,22 @@ for (const width of [1366, 1280, 1024, 768, 375, 320]) {
       }
       if (width < 1280) {
         const logout = page.getByRole('button', { name: 'Logout', exact: true });
-        await logout.focus();
-        const box = await logout.boundingBox();
-        expect(box!.x).toBeGreaterThanOrEqual(0);
-        expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+        // Exercise native keyboard traversal, not only programmatic focus.
+        const pageY = await page.evaluate(() => scrollY);
+        await page.getByRole('link', { name: 'Settings', exact: true }).focus();
+        await page.keyboard.press('Tab');
+        await expect(logout).toBeFocused();
+        // Focus scrolls the bounded navigation asynchronously; check its settled
+        // geometry rather than a fractional frame of that browser scroll.
+        await expect.poll(async () => (await logout.boundingBox())!.x).toBeGreaterThanOrEqual(0);
+        await expect.poll(async () => { const box = (await logout.boundingBox())!; return box.x + box.width; }).toBeLessThanOrEqual(width);
+        await page.keyboard.press('Shift+Tab');
+        const settings = page.getByRole('link', { name: 'Settings', exact: true });
+        await expect(settings).toBeFocused();
+        const settingsBox = (await settings.boundingBox())!;
+        expect(settingsBox.x).toBeGreaterThanOrEqual(0);
+        expect(settingsBox.x + settingsBox.width).toBeLessThanOrEqual(width);
+        expect(await page.evaluate(() => scrollY)).toBe(pageY);
         await page.getByRole('button', { name: 'Outstanding alerts: 0', exact: true }).focus();
       }
       expect((await geometry(page)).pageOverflow).toBe(false);
@@ -107,7 +119,7 @@ for (const width of [1366, 1280, 1024, 768, 375, 320]) {
       await expect(page.locator('header')).toHaveAttribute('data-hidden', 'false');
       expect((await page.locator('header').boundingBox())!.y).toBeGreaterThanOrEqual(0);
       await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
-      if (process.env.DASHBOARD_HEADER_CAPTURE === 'true' && [1366, 375].includes(width)) {
+      if (process.env.DASHBOARD_HEADER_CAPTURE === 'true' && [1366, 1024, 375].includes(width)) {
         await page.locator('header').screenshot({ path: `.impeccable/review/dashboard-header-${route}-${width}.png` });
       }
       if ((route === 'main' && (width === 1366 || width === 375)) || (route === 'fire' && width === 320)) {

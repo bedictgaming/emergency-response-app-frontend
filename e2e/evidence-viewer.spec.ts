@@ -36,7 +36,8 @@ async function fixture(page: Page, department?: string) {
     ? route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"unavailable"}' })
     : route.fulfill({ contentType: 'image/svg+xml', body: image }));
   const pathname = department ? `/admin/${department === 'MAIN' ? 'main' : department.toLowerCase()}-dashboard` : '/dashboard';
-  await page.goto('/');
+  // This is deliberately a public history entry, not an automatic session restore.
+  await page.goto('/?session=manual');
   await page.goto(pathname);
   if (department && department !== 'MAIN') await page.getByRole('button', { name: 'Resolved (1)' }).click();
   // Photos are deliberately lazy: scroll the card into view on narrow phones.
@@ -74,7 +75,7 @@ test('citizen photo opens in-app, closes repeatedly and browser Back closes only
   expect(state.requests).toBe(4);
   expect(await page.evaluate(() => history.length)).toBe(initialHistory + 1); // Forward entry is reused, not stacked.
   await page.goBack();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/\?session=manual$/);
 });
 
 for (const department of ['MAIN', 'FIRE', 'MEDICAL', 'POLICE', 'DRRMO']) {

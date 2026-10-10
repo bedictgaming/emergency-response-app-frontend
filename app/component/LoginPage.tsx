@@ -74,8 +74,8 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
     if (oauthStatus === 'oauth_failed') {
       setError('Google login failed. Please try again.');
     }
-    if (oauthStatus === 'oauth_link_required') {
-      setError('This account uses email and password. Log In with those details, or choose “Forgot password?” to recover access.');
+    if (oauthStatus === 'oauth_link_required' || oauthStatus === 'oauth_link_password_required') {
+      setError('Please log in with your password first, then connect Google in Settings. If you forgot your password, use “Forgot password?” to recover access.');
     }
     if (oauthStatus === 'oauth_email_verification_required') {
       setError('This Google email cannot be used to create an account securely. Register with email, or use a verified Gmail or Google Workspace account.');

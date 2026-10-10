@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { LogOut, MapPin, Users, PieChart, ArrowLeft } from "lucide-react";
+import { LogOut, MapPin, Users, PieChart, ArrowLeft, Settings } from "lucide-react";
+import Link from "next/link";
 import { logout } from "@/lib/services/authService";
 import { getAdminDepartment, getDepartmentDashboardUrl } from "@/app/hooks/useAdminGuard";
 import BarangayHistoryDrawer from "@/app/component/admin/BarangayHistoryDrawer";
@@ -120,7 +121,17 @@ export default function AdminHeader({
           {/* Real-time Emergency Siren & Incoming Report Monitor */}
           <AdminEmergencyMonitor responseService={monitorService} />
 
-          <nav aria-label="Admin navigation" className="flex min-w-0 max-w-full shrink-0 flex-wrap items-center gap-2 overflow-x-auto pt-1.5 sm:flex-nowrap sm:gap-3 [&>button]:min-h-11">
+          <nav aria-label="Admin navigation" onFocusCapture={event => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            const control = target.getBoundingClientRect();
+            const viewport = event.currentTarget.getBoundingClientRect();
+            // Native focus can leave a partially visible control clipped. Reveal
+            // only that control; keep the pinned alert monitor and page in place.
+            if (control.left < viewport.left || control.right > viewport.right) {
+              target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+            }
+          }} className="flex min-w-0 max-w-full flex-wrap items-center gap-2 overflow-x-auto pt-1.5 sm:flex-1 sm:flex-nowrap sm:gap-3 [&>button]:min-h-11">
 
           {/* Barangay History Quick Drawer */}
           <button
@@ -155,6 +166,7 @@ export default function AdminHeader({
           )}
 
           {/* Logout */}
+          <Link href="/settings" className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><Settings size={15} aria-hidden="true" />Settings</Link>
           <button
             type="button"
             onClick={handleLogout}
