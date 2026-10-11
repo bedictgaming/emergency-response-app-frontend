@@ -1,4 +1,5 @@
-export const FIRST_PARTY_ORIGIN = 'https://cordova-emergency-response.vercel.app';
+import { PUBLIC_ORIGINS } from '../lib/public-origins.mjs';
+export const FIRST_PARTY_ORIGIN = PUBLIC_ORIGINS[0];
 
 export function stagingGatewayOrigin(env) {
   if (env.EMERGENCY_STAGING_GATEWAY !== 'true' || env.VERCEL !== '1' || env.VERCEL_ENV !== 'preview'
@@ -34,7 +35,7 @@ export function deploymentFailures(env, { allowStaging = false } = {}) {
   const expectedOrigin = stagingMode ? (gatewayStaging ? stagingGatewayOrigin(env) : 'https://api-staging-staging-86d9.up.railway.app') : FIRST_PARTY_ORIGIN;
   try {
     const url = new URL(env.NEXT_PUBLIC_API_URL || '');
-    if (url.origin !== expectedOrigin || url.pathname !== '/' || url.search || url.hash || url.username || url.password) {
+    if ((stagingMode ? url.origin !== expectedOrigin : !PUBLIC_ORIGINS.includes(url.origin)) || url.pathname !== '/' || url.search || url.hash || url.username || url.password) {
       failures.push(stagingMode ? 'Staging requires the exact synthetic-only staging API origin.' : 'Live deployments require the exact first-party Cordova API origin.');
     }
   } catch { failures.push('Deployment API origin is missing or invalid.'); }

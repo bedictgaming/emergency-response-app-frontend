@@ -6,7 +6,8 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 
 import { useEffect, useRef, useState } from 'react';
 import { ImageIcon, Maximize2, RotateCcw, ShieldCheck } from 'lucide-react';
-import apiClient from '@/lib/apiClient';
+import apiClient, { API_ORIGIN } from '@/lib/apiClient';
+import { evidenceAccessPath } from '@/lib/public-origins.mjs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 
 type EvidenceAccessResponse = {
@@ -17,7 +18,7 @@ type EvidenceAccessResponse = {
 };
 
 function accessUrlFor(sourceUrl: string) {
-  return sourceUrl.replace(/\/content(?:\?.*)?$/, '/access-url');
+  return evidenceAccessPath(sourceUrl, API_ORIGIN);
 }
 
 function isProtectedEvidenceUrl(sourceUrl: string) {
@@ -42,7 +43,7 @@ function resolveEvidenceUrl(sourceUrl: string): Promise<string> {
   const existing = pendingEvidenceAccess.get(key);
   if (existing) return existing;
 
-  const request = apiClient.get<EvidenceAccessResponse>(accessUrlFor(sourceUrl))
+  const request = Promise.resolve().then(() => apiClient.get<EvidenceAccessResponse>(accessUrlFor(sourceUrl)))
     .then(response => {
       // A late response must not render another account's private evidence.
       if (evidenceAccountSnapshot() !== account) {

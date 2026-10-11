@@ -14,11 +14,12 @@ test('canonical signature preserves raw API query, credentials and origin; repla
     headers: { cookie: 'synthetic-session', origin: 'https://example.invalid', 'x-er-gateway-signature': 'forged', 'x-er-gateway-extra': 'forged' },
   });
   const signed = signGatewayRequest(request, { secret, audience, ip: '192.0.2.10', now, nonce });
-  const payload = JSON.stringify(['er-api-gateway-v1', audience, String(now), nonce, 'GET',
-    '/api/incidents/v1/?limit=5&x=a%2Fb', '192.0.2.10', 'synthetic-session', '', 'https://example.invalid', '', '']);
+  const payload = JSON.stringify(['er-api-gateway-v2', audience, String(now), nonce, 'GET',
+    '/api/incidents/v1/?limit=5&x=a%2Fb', '192.0.2.10', 'synthetic-session', '', 'https://example.invalid', '', '', 'https://example.invalid']);
   assert.equal(signed.get('x-er-gateway-signature'), createHmac('sha256', secret).update(payload).digest('hex'));
   assert.equal(signed.has('x-er-gateway-extra'), false);
   assert.equal(signed.get('cookie'), 'synthetic-session');
+  assert.equal(signed.get('x-er-gateway-origin'), 'https://example.invalid');
   assert.equal(request.headers.get('x-er-gateway-signature'), 'forged');
 });
 test('refuses invalid client IPs, weak configuration and non-API paths', () => {

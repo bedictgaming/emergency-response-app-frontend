@@ -1,6 +1,12 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios';
+import { resolveApiOrigin } from './public-origins.mjs';
 
-export const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+export const API_ORIGIN = resolveApiOrigin(
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+  typeof window === 'undefined' ? undefined : window.location.origin,
+  process.env.NEXT_PUBLIC_PUBLIC_LAUNCH === 'true' || process.env.NEXT_PUBLIC_PRODUCTION_VALIDATION === 'true',
+  process.env.NEXT_PUBLIC_STAGING_TEST === 'true',
+);
 
 const apiClient = axios.create({
   baseURL: `${API_ORIGIN}/api`,

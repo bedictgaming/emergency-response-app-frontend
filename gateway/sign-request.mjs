@@ -12,12 +12,13 @@ export function signGatewayRequest(request, { secret, audience, ip, now = Date.n
   const headers = new Headers(request.headers);
   for (const name of [...headers.keys()]) if (name.startsWith('x-er-gateway-')) headers.delete(name);
   const time = String(now);
-  const payload = JSON.stringify(['er-api-gateway-v1', audience, time, nonce, request.method,
+  const payload = JSON.stringify(['er-api-gateway-v2', audience, time, nonce, request.method,
     url.pathname + url.search, ip, headers.get('cookie') || '', headers.get('authorization') || '',
-    headers.get('origin') || '', headers.get('referer') || '', headers.get('sec-fetch-site') || '']);
+    headers.get('origin') || '', headers.get('referer') || '', headers.get('sec-fetch-site') || '', url.origin]);
   headers.set('x-er-gateway-ip', ip);
   headers.set('x-er-gateway-time', time);
   headers.set('x-er-gateway-nonce', nonce);
+  headers.set('x-er-gateway-origin', url.origin);
   headers.set('x-er-gateway-signature', createHmac('sha256', secret).update(payload).digest('hex'));
   return headers;
 }
