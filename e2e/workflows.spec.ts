@@ -1,7 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
+import { captureIncidentPhoto, installFakeIncidentCamera } from './helpers/incident-camera';
 
 async function session(page: Page, role = 'ADMIN') {
   if (role === 'USER') {
+    await installFakeIncidentCamera(page);
     await page.context().grantPermissions(['geolocation']);
     await page.context().setGeolocation({ latitude: 10.252191, longitude: 123.949475, accuracy: 25 });
     await page.addInitScript(() => {
@@ -49,7 +51,8 @@ test('citizen emergency choices, evidence, and GPS confirmation are keyboard rea
   await page.keyboard.press('Enter');
 
   await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Choose photo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Choose photo' })).toHaveCount(0);
+  await expect(page.locator('input[type="file"]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Use camera' })).toBeVisible();
   const confirm = page.getByRole('button', { name: 'Confirm GPS location' });
   await expect(confirm).toBeEnabled();
@@ -82,7 +85,7 @@ test('citizen can capture evidence in the form and camera stops after capture', 
   expect(await page.evaluate(() => sessionStorage.getItem('cameraStarts'))).toBeNull();
   await page.getByRole('button', { name: 'Use camera' }).click();
   await expect(page.getByRole('group', { name: 'Camera preview' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Choose photo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Choose photo' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Close camera' }).click();
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('cameraStops'))).toBe('1');
   await page.getByRole('button', { name: 'Use camera' }).click();
@@ -95,7 +98,7 @@ test('citizen can capture evidence in the form and camera stops after capture', 
   await expect(page.getByRole('button', { name: 'Use camera' })).toBeVisible();
 });
 
-test('camera permission failure leaves photo picker available', async ({ page }) => {
+test('camera permission failure offers retry and emergency help without a photo picker', async ({ page }) => {
   await session(page, 'USER');
   await page.addInitScript(() => {
     Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
@@ -107,7 +110,9 @@ test('camera permission failure leaves photo picker available', async ({ page })
   await page.getByRole('button', { name: 'Report a fire emergency' }).click();
   await page.getByRole('button', { name: 'Use camera' }).click();
   await expect(page.getByText(/Camera access was denied/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Choose photo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Choose photo' })).toHaveCount(0);
+  await expect(page.locator('input[type="file"]')).toHaveCount(0);
+  await expect(page.getByRole('alert').getByRole('link', { name: 'call 911', exact: true })).toHaveAttribute('href', 'tel:911');
   await page.getByRole('button', { name: 'Close camera' }).click();
   await expect(page.getByRole('button', { name: 'Use camera' })).toBeVisible();
 });
@@ -211,7 +216,7 @@ test('citizen proof upload precedes submission and failed uploads retain the dra
     }
     if (route.request().method() === 'POST') {
       order.push('incident');
-      expect(route.request().postDataJSON().proofAttachment).toEqual({ publicId: 'evidence/test-user/photo', fileName: 'proof.png' });
+      expect(route.request().postDataJSON().proofAttachment).toEqual({ publicId: 'evidence/test-user/photo', fileName: expect.stringMatching(/^incident-camera-\d+\.jpg$/) });
       expect(route.request().postDataJSON().barangayName).toBe('Poblacion');
       expect(route.request().postDataJSON()).toMatchObject({ latitude: 10.252191, longitude: 123.949475 });
     }
@@ -228,7 +233,7 @@ test('citizen proof upload precedes submission and failed uploads retain the dra
   await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
   await expect(page.getByText('A current proof photo is required to submit a citizen report', { exact: true })).toBeVisible();
   expect(order).toEqual([]);
-  await page.locator('input[type="file"]').setInputFiles({ name: 'proof.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGNkAAAAASUVORK5CYII=', 'base64') });
+  await captureIncidentPhoto(page);
   await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
   await expect(page.getByText('Photo upload failed: Secure image upload failed', { exact: false })).toBeVisible();
   await expect(page.getByLabel('Description of Incident')).toHaveValue('Smoke coming from a building');
@@ -252,10 +257,10 @@ test('citizen photo upload falls back securely when the browser blocks Cloudinar
   await page.route('**/api/upload/v1/image', route => {
     fallbackUploads += 1;
     const body = route.request().postDataJSON();
-    expect(body.fileName).toBe('proof.png');
-    expect(body.imageData).toMatch(/^data:image\/png;base64,/);
+    expect(body.fileName).toMatch(/^incident-camera-\d+\.jpg$/);
+    expect(body.imageData).toMatch(/^data:image\/jpeg;base64,/);
     return route.fulfill({
-      json: { data: { url: 'https://example.test/fallback.png', publicId: 'emergency-incidents/test-user/fallback', format: 'png', bytes: 68, width: 1, height: 1, fileName: 'proof.png' } },
+      json: { data: { url: 'https://example.test/fallback.jpg', publicId: 'emergency-incidents/test-user/fallback', format: 'jpg', bytes: 68, width: 1, height: 1, fileName: body.fileName } },
     });
   });
   await page.route('**/api/incidents/v1/**', route => {
@@ -267,7 +272,7 @@ test('citizen photo upload falls back securely when the browser blocks Cloudinar
       incidentCreated = true;
       expect(request.postDataJSON().proofAttachment).toEqual({
         publicId: 'emergency-incidents/test-user/fallback',
-        fileName: 'proof.png',
+        fileName: expect.stringMatching(/^incident-camera-\d+\.jpg$/),
       });
       return route.fulfill({ json: { data: { incident: { incidentId: 'fallback-incident' } } } });
     }
@@ -280,11 +285,7 @@ test('citizen photo upload falls back securely when the browser blocks Cloudinar
   await page.getByLabel('Contact Number').fill('09171234567');
   await page.getByLabel('Incident barangay').selectOption('Poblacion');
   await confirmEmergencyMapPin(page);
-  await page.locator('input[type="file"]').setInputFiles({
-    name: 'proof.png',
-    mimeType: 'image/png',
-    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGNkAAAAASUVORK5CYII=', 'base64'),
-  });
+  await captureIncidentPhoto(page);
   await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
 
   await expect(page.getByRole('heading', { name: 'Report Emergency', exact: true })).toHaveCount(0);
@@ -313,11 +314,9 @@ test('blocked direct upload of a large photo preserves the draft without sending
   await page.getByLabel('Contact Number').fill('09171234567');
   await page.getByLabel('Incident barangay').selectOption('Poblacion');
   await confirmEmergencyMapPin(page);
-  const photo = Buffer.alloc(4 * 1024 * 1024);
-  Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGNkAAAAASUVORK5CYII=', 'base64').copy(photo);
-  await page.locator('input[type="file"]').setInputFiles({ name: 'large-proof.png', mimeType: 'image/png', buffer: photo });
+  await captureIncidentPhoto(page, 4 * 1024 * 1024);
   await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
-  await expect(page.getByText('choose a photo under 2.5 MB', { exact: false })).toBeVisible();
+  await expect(page.getByText('retake a photo under 2.5 MB', { exact: false })).toBeVisible();
   await expect(page.getByLabel('Description of Incident')).toHaveValue('Clearly labeled synthetic upload-boundary test');
   await expect(page.getByRole('button', { name: 'Submit Report', exact: true })).toBeEnabled();
   expect(fallbacks).toBe(0);
@@ -359,11 +358,7 @@ test('citizen short-term rate-limit response preserves the draft without a devel
   await page.getByLabel('Contact Number').fill('09171234567');
   await page.getByLabel('Incident barangay').selectOption('Poblacion');
   await confirmEmergencyMapPin(page);
-  await page.locator('input[type="file"]').setInputFiles({
-    name: 'proof.png',
-    mimeType: 'image/png',
-    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGNkAAAAASUVORK5CYII=', 'base64'),
-  });
+  await captureIncidentPhoto(page);
   await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
 
   await expect(page.getByText('Too many requests. Please try again shortly.', { exact: false })).toBeVisible({ timeout: 15_000 });
@@ -396,11 +391,7 @@ test('nearby active incident is detected before uploading evidence', async ({ pa
   await page.getByLabel('Contact Number').fill('09171234567');
   await page.getByLabel('Incident barangay').selectOption('Poblacion');
   await confirmEmergencyMapPin(page);
-  await page.locator('input[type="file"]').setInputFiles({
-    name: 'proof.png',
-    mimeType: 'image/png',
-    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGNkAAAAASUVORK5CYII=', 'base64'),
-  });
+  await captureIncidentPhoto(page);
   await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
 
   await expect(page.getByRole('dialog', { name: 'Report Emergency' }).getByRole('alert')).toContainText('A similar active emergency has already been reported nearby.');
@@ -445,11 +436,7 @@ test('create-time duplicate race retains the form and gives a safe warning', asy
   await page.getByLabel('Contact Number').fill('09171234567');
   await page.getByLabel('Incident barangay').selectOption('Poblacion');
   await confirmEmergencyMapPin(page);
-  await page.locator('input[type="file"]').setInputFiles({
-    name: 'proof.png',
-    mimeType: 'image/png',
-    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGNkAAAAASUVORK5CYII=', 'base64'),
-  });
+  await captureIncidentPhoto(page);
   await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
 
   await expect(page.getByRole('dialog', { name: 'Report Emergency' }).getByRole('alert')).toContainText('Your report was not submitted.');
@@ -493,11 +480,7 @@ test('Other emergency can request Medical and Hazard in one report', async ({ pa
   await page.getByLabel('Contact Number').fill('09171234567');
   await page.getByLabel('Incident barangay').selectOption('Poblacion');
   await confirmEmergencyMapPin(page);
-  await page.locator('input[type="file"]').setInputFiles({
-    name: 'storm.png',
-    mimeType: 'image/png',
-    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGNkAAAAASUVORK5CYII=', 'base64'),
-  });
+  await captureIncidentPhoto(page);
   await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
   await expect(page.getByText('Select at least two response services needed for this emergency')).toBeVisible();
 
@@ -771,10 +754,7 @@ test('one citizen submission becomes visible to main admin without a list-reques
   await page.getByLabel('Contact Number').fill('09171234567');
   await page.getByLabel('Incident barangay').selectOption('Poblacion');
   await confirmEmergencyMapPin(page);
-  await page.locator('input[type="file"]').setInputFiles({
-    name: 'proof.png', mimeType: 'image/png',
-    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGNkAAAAASUVORK5CYII=', 'base64'),
-  });
+  await captureIncidentPhoto(page);
   await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Report Emergency', exact: true })).toHaveCount(0);
   expect(submissions).toBe(1);

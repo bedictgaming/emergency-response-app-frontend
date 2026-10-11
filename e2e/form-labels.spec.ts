@@ -1,6 +1,8 @@
 import { devices, expect, test, type Page } from '@playwright/test';
+import { captureIncidentPhoto, installFakeIncidentCamera } from './helpers/incident-camera';
 
 async function openReport(page: Page) {
+  await installFakeIncidentCamera(page);
   await page.addInitScript(() => {
     localStorage.setItem('user', JSON.stringify({ id: 'label-citizen', name: 'Label Test', role: 'USER' }));
   });
@@ -19,7 +21,8 @@ async function expectAssociatedLabels(page: Page) {
     labels.filter(label => !(label as HTMLLabelElement).control).map(label => label.textContent?.trim()),
   );
   expect(unassociated).toEqual([]);
-  await expect(page.getByLabel(/Photo Evidence\s*\(Required\)/)).toHaveAttribute('type', 'file');
+  await expect(page.getByRole('group', { name: /Photo Evidence\s*\(Required\)/ })).toBeVisible();
+  await expect(page.locator('input[type="file"]')).toHaveCount(0);
 }
 
 for (const viewport of ['desktop', 'mobile'] as const) {
@@ -36,6 +39,46 @@ for (const viewport of ['desktop', 'mobile'] as const) {
       await page.getByRole('dialog').locator('label[for="contactNumber"]').click();
       await expect(page.getByLabel('Contact Number *')).toBeFocused();
       await page.screenshot({ path: test.info().outputPath('incident-form-labels.png'), fullPage: true });
+    });
+
+    test('all categories offer only camera evidence in light and dark layouts', async ({ page }) => {
+      await openReport(page);
+      const dialog = page.getByRole('dialog');
+      for (const category of ['Fire', 'Medical', 'Police', 'Hazard', 'Other']) {
+        await dialog.getByRole('button', { name: category, exact: true }).click();
+        await expect(page.getByRole('button', { name: 'Choose photo' })).toHaveCount(0);
+        await expect(page.locator('input[type="file"]')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Use camera', exact: true })).toBeVisible();
+      }
+      const photoGroup = page.getByRole('group', { name: /Photo Evidence\s*\(Required\)/ });
+      await photoGroup.scrollIntoViewIfNeeded();
+      const camera = page.getByRole('button', { name: 'Use camera', exact: true });
+      expect((await camera.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+      for (const theme of ['light', 'dark']) {
+        await page.evaluate(dark => document.documentElement.classList.toggle('dark', dark), theme === 'dark');
+        await page.screenshot({ path: test.info().outputPath(`camera-only-${theme}.png`) });
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      }
+      await camera.focus();
+      await page.keyboard.press('Enter');
+      await expect(page.getByRole('group', { name: 'Camera preview', exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect.poll(() => page.evaluate(() => sessionStorage.getItem('cameraStops'))).toBe('1');
+    });
+
+    test('unsupported camera offers immediate help and leaves the draft intact', async ({ page }) => {
+      await openReport(page);
+      await page.evaluate(() => Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: undefined }));
+      await page.getByLabel('Description of Incident').fill('Synthetic camera-unavailable check');
+      await page.getByRole('button', { name: 'Use camera', exact: true }).click();
+      const cameraError = page.getByRole('group', { name: 'Camera preview', exact: true }).getByRole('alert');
+      await expect(cameraError).toContainText('Camera access is not available');
+      await expect(cameraError.getByRole('link', { name: 'call 911' })).toHaveAttribute('href', 'tel:911');
+      await page.getByRole('button', { name: 'Close camera', exact: true }).click();
+      await expect(page.getByLabel('Description of Incident')).toHaveValue('Synthetic camera-unavailable check');
+      await expect(page.getByRole('button', { name: 'Use camera', exact: true })).toBeVisible();
+      await expect(page.locator('input[type="file"]')).toHaveCount(0);
     });
 
     test('multi-service heading names the checkbox group without an orphan label', async ({ page }) => {
@@ -98,13 +141,9 @@ for (const viewport of ['desktop', 'mobile'] as const) {
       expect(await contact.evaluate(node => (node as HTMLInputElement).validity.patternMismatch)).toBe(false);
     });
 
-    test('photo label stays associated after selecting and removing evidence', async ({ page }) => {
+    test('photo group stays named after capturing and removing evidence', async ({ page }) => {
       await openReport(page);
-      await page.getByLabel(/Photo Evidence\s*\(Required\)/).setInputFiles({
-        name: 'label-test.png',
-        mimeType: 'image/png',
-        buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64'),
-      });
+      await captureIncidentPhoto(page);
       await expect(page.getByAltText('Incident evidence preview')).toBeVisible();
       await expectAssociatedLabels(page);
       await page.getByRole('button', { name: 'Remove selected photo' }).click();

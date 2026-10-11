@@ -23,7 +23,7 @@ export function IncidentCameraCapture({ onCapture, onClose }: IncidentCameraCapt
         const video = videoRef.current;
         const openCamera = async () => {
             if (!navigator.mediaDevices?.getUserMedia) {
-                setError('Camera access is not available in this browser. Choose a photo instead.');
+                setError('Camera access is not available in this browser. Open the app in Safari or Chrome over HTTPS and try again.');
                 return;
             }
 
@@ -44,8 +44,8 @@ export function IncidentCameraCapture({ onCapture, onClose }: IncidentCameraCapt
                 streamRef.current = null;
                 const name = cameraError instanceof Error ? cameraError.name : '';
                 setError(name === 'NotAllowedError' || name === 'PermissionDeniedError'
-                    ? 'Camera access was denied. Allow camera access in your browser, or choose a photo instead.'
-                    : 'The camera could not start. Check that another app is not using it, or choose a photo instead.');
+                    ? 'Camera access was denied. Allow camera access in your browser settings, then close and reopen the camera.'
+                    : 'The camera could not start. Close other apps using it, then close and reopen the camera.');
             }
         };
 
@@ -68,7 +68,7 @@ export function IncidentCameraCapture({ onCapture, onClose }: IncidentCameraCapt
         canvas.height = Math.round(video.videoHeight * scale);
         const context = canvas.getContext('2d');
         if (!context) {
-            setError('Could not capture the image. Please choose a photo instead.');
+            setError('Could not capture the image. Close and reopen the camera to try again.');
             return;
         }
 
@@ -79,22 +79,22 @@ export function IncidentCameraCapture({ onCapture, onClose }: IncidentCameraCapt
                 if (!activeRef.current) return;
                 setCapturing(false);
                 if (!blob) {
-                    setError('Could not capture the image. Please try again or choose a photo.');
+                    setError('Could not capture the image. Close and reopen the camera to try again.');
                     return;
                 }
                 if (blob.type !== 'image/jpeg') {
-                    setError('This browser could not create a JPEG photo. Please choose a photo instead.');
+                    setError('This browser could not create a JPEG photo. Open the app in Safari or Chrome and try again.');
                     return;
                 }
                 if (blob.size > MAX_CAPTURE_BYTES) {
-                    setError('The captured photo is over 5 MB. Please try again or choose a smaller photo.');
+                    setError('The captured photo is over 5 MB. Close and reopen the camera to retake it.');
                     return;
                 }
                 onCapture(new File([blob], `incident-camera-${Date.now()}.jpg`, { type: 'image/jpeg' }));
             }, 'image/jpeg', 0.85);
         } catch {
             setCapturing(false);
-            setError('Could not capture the image. Please try again or choose a photo.');
+            setError('Could not capture the image. Close and reopen the camera to try again.');
         }
     };
 
@@ -118,7 +118,10 @@ export function IncidentCameraCapture({ onCapture, onClose }: IncidentCameraCapt
                 />
             )}
             {error ? (
-                <p className="text-sm text-destructive" role="alert">{error}</p>
+                <div className="space-y-2" role="alert">
+                    <p className="text-sm text-destructive">{error}</p>
+                    <p className="text-sm text-foreground">If you need immediate help, <a href="tel:911" className="font-semibold underline underline-offset-4">call 911</a>.</p>
+                </div>
             ) : (
                 <p className="text-xs text-muted-foreground" aria-live="polite">
                     {ready ? 'Frame the incident, then take the picture.' : 'Starting camera…'}

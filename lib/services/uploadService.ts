@@ -28,7 +28,7 @@ const MAX_SIZE_BYTES = 5 * 1024 * 1024;
 // Base64 adds roughly one third. Stay below the gateway's 4 MB request cap.
 const MAX_FALLBACK_SIZE_BYTES = 2.5 * 1024 * 1024;
 const MAX_FALLBACK_PAYLOAD_BYTES = 3.5 * 1024 * 1024;
-const FALLBACK_SIZE_MESSAGE = 'Direct photo upload was blocked. Allow access to the photo service, or choose a photo under 2.5 MB for the secure fallback. Your report has not been submitted.';
+const FALLBACK_SIZE_MESSAGE = 'Direct photo upload was blocked. Allow access to the photo service, or retake a photo under 2.5 MB for the secure fallback. Your report has not been submitted.';
 
 const fileToDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
   const reader = new FileReader();

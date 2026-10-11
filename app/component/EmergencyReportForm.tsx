@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
-import { Flame, Heart, Shield, AlertTriangle, HelpCircle, MapPin, Locate, Camera, X, ImageIcon, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Flame, Heart, Shield, AlertTriangle, HelpCircle, MapPin, Locate, Camera, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { isWithinCordovaMapBounds } from '../lib/cordovaBoundary';
 import { isReportGpsFresh, useReportGps } from '../hooks/useReportGps';
@@ -279,9 +279,7 @@ export function EmergencyReportForm({
     const [photoFile, setPhotoFile] = useState<File | null>(null);
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const [photoError, setPhotoError] = useState<string>('');
-    const [isDragging, setIsDragging] = useState(false);
     const [cameraOpen, setCameraOpen] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     const MAX_SIZE_MB = 5;
@@ -304,18 +302,10 @@ export function EmergencyReportForm({
         reader.readAsDataURL(file);
     };
 
-    const handlePhotoDrop = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        setIsDragging(false);
-        const file = e.dataTransfer.files?.[0];
-        if (file) handlePhotoSelect(file);
-    };
-
     const handlePhotoRemove = () => {
         setPhotoFile(null);
         setPhotoPreview(null);
         setPhotoError('');
-        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const updateContactNumber = (value: string) => {
@@ -661,13 +651,13 @@ export function EmergencyReportForm({
                 </div>
             </div>
 
-            {/* Photo Evidence Upload */}
-            <div className="space-y-2">
-                <Label htmlFor="incident-photo" className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+            {/* Camera-only photo evidence; server verification remains authoritative. */}
+            <div className="space-y-2" role="group" aria-labelledby="incident-photo-label">
+                <span id="incident-photo-label" className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                     <Camera className="h-4 w-4 text-red-600" />
                     Photo Evidence
                     <span className="text-xs font-normal text-slate-500">(Required)</span>
-                </Label>
+                </span>
 
                 <div className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                     <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-700" />
@@ -677,22 +667,13 @@ export function EmergencyReportForm({
                 </div>
 
                 {!photoPreview && !cameraOpen && (
-                    <div
-                        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                        onDragLeave={() => setIsDragging(false)}
-                        onDrop={handlePhotoDrop}
-                        className={`relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed py-5 px-4 transition-all duration-200
-                            ${ isDragging
-                                ? 'border-red-500 bg-red-50'
-                                : 'border-slate-300 bg-slate-50 hover:border-slate-500'
-                            }`}
-                    >
+                    <div className="relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 py-5 px-4">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900">
-                            <ImageIcon className="h-5 w-5 text-white" />
+                            <Camera className="h-5 w-5 text-white" aria-hidden="true" />
                         </div>
                         <div className="text-center">
-                            <p className="text-xs font-semibold text-slate-700">Add a current photo of the incident</p>
-                            <p className="text-[11px] text-slate-500 mt-0.5">JPEG, PNG, WEBP · Max 5MB</p>
+                            <p className="text-xs font-semibold text-slate-700">Take a current photo of the incident</p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">Camera capture · JPEG · Max 5MB</p>
                         </div>
                     </div>
                 )}
@@ -702,46 +683,19 @@ export function EmergencyReportForm({
                         onClose={() => setCameraOpen(false)}
                     />
                 )}
-                {!photoPreview && (
-                    <div className="flex flex-wrap gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => fileInputRef.current?.click()}
-                            aria-describedby={photoError ? 'incident-photo-error' : 'incident-photo-help'}
-                            className="min-h-11 flex-1 rounded-xl"
-                        >
-                            <ImageIcon className="h-4 w-4" aria-hidden="true" />
-                            Choose photo
-                        </Button>
-                        {!cameraOpen && (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => { setPhotoError(''); setCameraOpen(true); }}
-                                className="min-h-11 flex-1 rounded-xl"
-                            >
-                                <Camera className="h-4 w-4" aria-hidden="true" />
-                                Use camera
-                            </Button>
-                        )}
-                    </div>
+                {!photoPreview && !cameraOpen && (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => { setPhotoError(''); setCameraOpen(true); }}
+                        aria-describedby={photoError ? 'incident-photo-error' : 'incident-photo-help'}
+                        className="min-h-11 w-full rounded-xl"
+                    >
+                        <Camera className="h-4 w-4" aria-hidden="true" />
+                        Use camera
+                    </Button>
                 )}
-                <span id="incident-photo-help" className="sr-only">A current JPEG, PNG, or WEBP photo up to 5 megabytes is required.</span>
-                <input
-                    ref={fileInputRef}
-                    id="incident-photo"
-                    type="file"
-                    accept="image/jpeg,image/jpg,image/png,image/webp"
-                    className="sr-only"
-                    tabIndex={-1}
-                    aria-required="true"
-                    aria-describedby={photoError ? 'incident-photo-error' : 'incident-photo-help'}
-                    onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handlePhotoSelect(file);
-                    }}
-                />
+                <span id="incident-photo-help" className="sr-only">Use your camera to take a current JPEG photo up to 5 megabytes. Photo evidence is required.</span>
                 {photoPreview && (
                     <div className="relative rounded-xl overflow-hidden border border-slate-200 shadow-sm">
                         <img
