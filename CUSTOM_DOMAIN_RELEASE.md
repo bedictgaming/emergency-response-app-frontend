@@ -15,8 +15,10 @@ before this frontend is promoted. Google callbacks/destinations are selected onl
 authenticated metadata and the exact backend allowlist, with state/S256/RBAC unchanged.
 Register the new callback in the existing Google production client and retain the old.
 
-Private evidence authorization converts only approved attachment-content endpoints
-to the current API client's relative access-url route. It does not reuse another host's
+Private evidence authorization ignores the metadata host and converts only validated
+attachment-content paths to the current API client's relative access-url route. This
+supports historical/local source URLs without sending credentials to their hosts.
+It does not reuse another host's
 session or alter private Cloudinary access, account-generation checks or evidence RBAC.
 
 Publish from the exact-source archive after CI passes, verify both production aliases,
