@@ -359,7 +359,7 @@ test('main report cards explain verification independently of response status', 
       incidents: ['VERIFIED', 'PENDING', 'REJECTED', undefined].map((verificationStatus, index) => ({
         incidentId: `state-${index}`, title: `Synthetic verification record ${index}`, status: 'RESOLVED',
         verificationStatus, reportedAt: '2026-09-20T12:00:00Z', updatedAt: '2026-09-20T12:00:00Z',
-        type: { typeId: 'fire', typeName: 'Fire Outbreak' }, attachments: [], serviceResponses: [],
+        type: { typeId: 'fire', typeName: 'Fire Outbreak' }, attachments: [], serviceResponses: [], reviewFlags: [],
       })),
       pagination: { page: 1, limit: 5, total: 4, pages: 1 },
       summary: { total: 4, active: 0, responding: 0, resolved: 4 },
@@ -424,7 +424,7 @@ test('analytics labels distinguish verified lifetime totals from Manila monthly 
   await expect(page.getByText('Total verified reports', { exact: true }).locator('..').getByText('13', { exact: true })).toBeVisible();
   await expect(page.getByText('Verified resolved / closed · all time', { exact: true }).locator('..').getByText('13', { exact: true })).toBeVisible();
   await expect(page.getByText('Verified reports resolved · submitted this month', { exact: true }).locator('..').getByText('3', { exact: true })).toBeVisible();
-  await expect(page.getByText('Verified reports only.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Verified reports excluding confirmed-false reports.', { exact: false })).toBeVisible();
   for (const width of [1366, 390]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
