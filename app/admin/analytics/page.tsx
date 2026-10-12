@@ -150,7 +150,7 @@ export default function AnalyticsDashboard() {
               {lastUpdated ? `Last updated: ${lastUpdated.toLocaleTimeString()}` : "Loading..."}
             </p>
             <p className="mt-2 text-sm text-gray-700">
-              Verified reports only. Monthly totals use the report submission month in Asia/Manila and its current response status.
+              Verified reports excluding confirmed-false reports. Monthly totals use the report submission month in Asia/Manila and its current response status.
             </p>
           </div>
           <button

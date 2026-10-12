@@ -165,7 +165,7 @@ export default function MainDashboard() {
             <main className="max-w-6xl mx-auto px-6 mt-8">
                 {/* Top Summary Cards */}
                 <p className="mb-3 text-sm text-gray-600">
-                    Verified reports · All time. Barangay History shows the selected month.
+                    Verified reports excluding confirmed-false reports · All time. Barangay History shows the selected month.
                 </p>
                 {!isLoading && !verifiedSummary && (
                     <p role="status" className="mb-3 text-sm text-red-800">
@@ -315,7 +315,7 @@ export default function MainDashboard() {
                                 )}
                             </div>
 
-                            <IncidentVerificationLabel status={item.raw.verificationStatus} />
+                            <IncidentVerificationLabel status={item.raw.verificationStatus} reviewFlags={item.raw.reviewFlags} />
 
                             {/* Incident Description */}
                             {item.description && (

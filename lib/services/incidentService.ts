@@ -364,6 +364,10 @@ export const reviewIncidentFlag = async (flag: IncidentReviewFlag, status: 'CONF
   await apiClient.patch(`/incidents/v1/${flag.incidentId}/review-flags/${flag.reviewFlagId}`, { status, reviewNotes, expectedUpdatedAt: flag.updatedAt });
 };
 
+export const correctIncidentFlag = async (flag: IncidentReviewFlag, reviewNotes: string): Promise<void> => {
+  await apiClient.post(`/incidents/v1/${flag.incidentId}/review-flags/${flag.reviewFlagId}/correction`, { reviewNotes, expectedUpdatedAt: flag.updatedAt });
+};
+
 export const getIncidentReviewQueue = async (page = 1): Promise<{
   flags: Array<IncidentReviewFlag & { incident: Pick<Incident, 'incidentId' | 'title' | 'status'> }>;
   pagination: { page: number; limit: number; total: number; pages: number };

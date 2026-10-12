@@ -7,27 +7,40 @@ import { Flag, ShieldCheck, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 import { CompactEvidencePhoto } from "../SecureEvidencePhoto";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
-import { deleteIncident, flagIncident, getIncidentById, Incident, IncidentReviewFlag, reviewIncidentFlag, updateIncident } from "@/lib/services/incidentService";
+import { correctIncidentFlag, deleteIncident, flagIncident, getIncidentById, Incident, IncidentReviewFlag, reviewIncidentFlag, updateIncident } from "@/lib/services/incidentService";
 
 type ReportSummary = Pick<Incident, "incidentId" | "title" | "status"> & Partial<Incident>;
 const buttonClass = "min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:cursor-not-allowed disabled:opacity-50";
-const fieldClass = "mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-2 focus:outline-offset-2 focus:outline-red-600";
+const fieldClass = "mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 focus:outline-2 focus:outline-offset-2 focus:outline-red-600";
 const errorMessage = (error: unknown) => (error as { response?: { data?: { message?: string } } }).response?.data?.message || "The action could not be completed. Refresh the report and try again.";
 
-function FlagDecision({ flag, busy, onReview }: { flag: IncidentReviewFlag; busy: boolean; onReview: (flag: IncidentReviewFlag, decision: "CONFIRMED" | "DISMISSED", notes: string) => void }) {
+function FlagDecision({ flag, busy, onReview, onCorrect }: { flag: IncidentReviewFlag; busy: boolean; onReview: (flag: IncidentReviewFlag, decision: "CONFIRMED" | "DISMISSED", notes: string) => void; onCorrect: (flag: IncidentReviewFlag, notes: string) => void }) {
   const inputId = useId();
   const [notes, setNotes] = useState("");
+  const [correcting, setCorrecting] = useState(false);
   return <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-    <p className="text-sm font-semibold text-gray-900">{flag.department} · {flag.status === "PENDING" ? "Awaiting review" : "Confirmed false report"}</p>
+    <p className="text-sm font-semibold text-gray-900">{flag.department} · {flag.status === "PENDING" ? "Awaiting review" : flag.status === 'CONFIRMED' ? "Confirmed false report" : 'Suspicion dismissed'}</p>
     <p className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-700">{flag.reason}</p>
     {flag.status === "PENDING" ? <>
       <label htmlFor={inputId} className="mt-4 block text-sm font-medium text-gray-900">Review explanation (required)</label>
       <textarea id={inputId} value={notes} onChange={event => setNotes(event.target.value)} maxLength={500} rows={3} disabled={busy} className={fieldClass} />
+      <p className="mt-2 text-sm text-gray-700">Record what was checked, such as contact with the reporter or an on-site check. A wrong category, an unclear photo or an uncertain GPS estimate alone does not prove a false report.</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" disabled={busy || notes.trim().length < 10} onClick={() => onReview(flag, "DISMISSED", notes)} className={`${buttonClass} border-gray-300 bg-white text-gray-800`}>Dismiss suspicion</button>
         <button type="button" disabled={busy || notes.trim().length < 10} onClick={() => onReview(flag, "CONFIRMED", notes)} className={`${buttonClass} border-amber-300 bg-amber-100 text-amber-900`}>Confirm false report</button>
       </div>
-    </> : <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700">Review: {flag.reviewNotes}</p>}
+    </> : <>
+      <p className="mt-3 whitespace-pre-wrap break-words text-sm text-gray-700">Review: {flag.reviewNotes}</p>
+      {flag.status === 'CONFIRMED' && (correcting ? <form className="mt-4" onSubmit={event => { event.preventDefault(); if (!busy && notes.trim().length >= 10) onCorrect(flag, notes); }}>
+        <label htmlFor={inputId} className="block text-sm font-medium text-gray-900">Why was the false-report decision incorrect?</label>
+        <textarea id={inputId} required minLength={10} maxLength={500} rows={3} value={notes} onChange={event => setNotes(event.target.value)} disabled={busy} className={fieldClass} aria-describedby={`${inputId}-correction-help`} />
+        <p id={`${inputId}-correction-help`} className="mt-2 text-sm text-gray-700">This dismisses this flag. The original decision and your correction remain in the audit log. Response status, dispatches and evidence stay unchanged. Analytics include the report again only when no other confirmed-false flag remains.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" disabled={busy} onClick={() => { setCorrecting(false); setNotes(''); }} className={`${buttonClass} border-gray-300 bg-white text-gray-800`}>Cancel correction</button>
+          <button type="submit" disabled={busy || notes.trim().length < 10} className={`${buttonClass} border-gray-300 bg-white text-gray-800`}>{busy ? 'Saving…' : 'Save correction and dismiss flag'}</button>
+        </div>
+      </form> : <button type="button" disabled={busy} onClick={() => { setNotes(''); setCorrecting(true); }} className={`${buttonClass} mt-3 border-gray-300 bg-white text-gray-800`}>Correct mistaken confirmation</button>)}
+    </>}
   </div>;
 }
 
@@ -105,7 +118,10 @@ export default function IncidentReviewActions({ incident, mainAdmin = false, onC
             {current.attachments?.[0]?.fileUrl && <CompactEvidencePhoto sourceUrl={current.attachments[0].fileUrl} alt="Report evidence for review" />}
           </>}
           {mainAdmin && !deleteMode ? <>
-            <div className="mt-4 space-y-3">{flags.map(flag => <FlagDecision key={`${flag.reviewFlagId}:${flag.updatedAt}`} flag={flag} busy={busy} onReview={(target, decision, notes) => void act(() => reviewIncidentFlag(target, decision, notes), decision === "CONFIRMED" ? "False report confirmed. Assigned departments must resolve their responses before this report can be closed." : "Suspicion dismissed. The report remains available.")} />)}</div>
+            <div className="mt-4 space-y-3">{flags.map(flag => <FlagDecision key={`${flag.reviewFlagId}:${flag.updatedAt}`} flag={flag} busy={busy}
+              onReview={(target, decision, notes) => void act(() => reviewIncidentFlag(target, decision, notes), decision === "CONFIRMED" ? "False report confirmed and excluded from verified analytics. Assigned departments must resolve their responses before this report can be closed." : "Suspicion dismissed. The report remains available.")}
+              onCorrect={(target, notes) => void act(() => correctIncidentFlag(target, notes), "Correction saved in the audit log. The false-report flag was dismissed; response status is unchanged.")}
+            />)}</div>
             {flags.length === 0 && <p className="mt-4 text-sm text-gray-600">No active review flags for this report.</p>}
             <div className="mt-5 border-t border-gray-200 pt-4">
               {current.status === "RESOLVED" && <button type="button" disabled={busy} onClick={() => void act(() => updateIncident(current.incidentId, { status: "CLOSED" }), "Report closed. Permanent deletion is now available after confirmation.")} className={`${buttonClass} border-gray-300 bg-white text-gray-800`}>Close resolved report</button>}

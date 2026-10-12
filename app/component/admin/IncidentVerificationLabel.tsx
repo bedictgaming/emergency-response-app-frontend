@@ -1,9 +1,12 @@
-import type { VerificationStatus } from "@/lib/services/incidentService";
+import type { IncidentReviewFlag, VerificationStatus } from "@/lib/services/incidentService";
 
-export default function IncidentVerificationLabel({ status }: { status?: VerificationStatus }) {
+export default function IncidentVerificationLabel({ status, reviewFlags }: { status?: VerificationStatus; reviewFlags?: IncidentReviewFlag[] }) {
+  if (reviewFlags?.some(flag => flag.status === 'CONFIRMED')) return <p className="mb-4 text-sm leading-relaxed text-amber-900">
+    <span className="font-semibold">Confirmed false report.</span> Excluded from verified analytics; retained for response work and audit history.
+  </p>;
   if (status === "VERIFIED") {
     return <p className="mb-4 text-sm leading-relaxed text-green-800">
-      <span className="font-semibold">Verified report.</span> Included in verified analytics.
+      <span className="font-semibold">Verified report.</span> {reviewFlags ? 'Included in verified analytics.' : 'Confirmed-false reports are excluded from verified analytics.'}
     </p>;
   }
 

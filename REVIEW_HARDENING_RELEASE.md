@@ -1,0 +1,7 @@
+# Fake-report review hardening release
+
+Human authorization: deploy the tested paired frontend/backend changes on 12 October 2026. Frontend base 9ea8ff10627ea1635cb002fe76dfe2b0805a321c. No new dependency, origin, OAuth/Brevo setting or schema migration is needed. Preserve citizen reporting, department-owned response completion and Main-only review/correction/closed-report deletion.
+
+Main Admin gains a required-explanation correction action with cancellation and explicit permission/conflict errors. The previous false-report decision stays audited; correction dismisses the flag without changing operational status/evidence. Confirmed-false records are excluded from verified statistics, not from emergency work/history. Pending reviews sort first. Investigation guidance does not certify truth or impose citizen reporting gates.
+
+Local build/type checks and nine mocked browser workflow cases pass, including desktop/mobile controls and 403/409 handling. Existing hosted full-browser/config/gateway/worker/audit CI must pass on this exact commit before deployment. Publish from a verified LF Git archive using the canonical production origin https://cordova-emergency-response.site, retain the https://cordova-emergency-response.vercel.app alias, and preserve first-party sessions/evidence plus gateway/CSP/no-store protections. Test the unpromoted production candidate with the new successful backend before promoting both aliases. No production report mutations or provider exchange are part of anonymous release checks.

@@ -576,7 +576,7 @@ export default function BarangayHistoryPage() {
               <p className="text-xs text-gray-500">
                 Showing {filteredIncidents.length} of {history.pagination?.total ?? "…"} matching recorded incidents
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">History includes all authorized records; analytics above count verified reports only.</p>
+              <p className="mt-1 text-xs text-muted-foreground">History includes all authorized records; analytics above count verified reports excluding confirmed-false reports.</p>
             </div>
           </div>
 

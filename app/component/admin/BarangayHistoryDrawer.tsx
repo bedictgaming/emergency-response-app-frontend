@@ -316,7 +316,7 @@ export default function BarangayHistoryDrawer({
 
           {/* Incident Feed */}
           <div className="px-6 pb-6 space-y-3">
-            <p className="text-sm text-muted-foreground">History includes all authorized report records. Rankings and monthly totals count verified reports only.</p>
+            <p className="text-sm text-muted-foreground">History includes all authorized report records. Rankings and monthly totals count verified reports excluding confirmed-false reports.</p>
             {history.error && <div role="alert" className="rounded-lg border border-border bg-card p-4 text-sm">{history.error} <button onClick={history.refresh} className="min-h-11 underline">Retry history</button></div>}
             {history.loading && incidents.length === 0 ? (
               <LoadingPlaceholder label="Loading Barangay incident history..." />

@@ -28,7 +28,7 @@ export default function IncidentReviewQueue({ revision, onChanged }: { revision:
   useEffect(() => { if (revision > 0) void load(); }, [load, revision]);
   return <section aria-labelledby="report-review-queue" className="mb-8 rounded-xl border border-amber-200 bg-white p-5">
     <h2 id="report-review-queue" className="text-lg font-bold text-gray-900">Report review queue</h2>
-    <p className="mt-1 text-sm text-gray-600">Review suspected false reports. Confirming a flag leaves the incident and its response status in place.</p>
+    <p className="mt-1 text-sm text-gray-600">Oldest pending requests appear first. Confirmed-false reports are excluded from verified analytics, but remain available for response work and correction.</p>
     {error && <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 text-sm text-red-800">The review queue could not be loaded.<button type="button" onClick={() => void load()} className="min-h-11 rounded-lg border border-red-200 px-3 py-2 font-semibold">Retry review queue</button></div>}
     {!error && !queue && <LoadingPlaceholder label="Loading review requests…" />}
     {!error && queue?.flags.length === 0 && <p className="mt-4 text-sm text-gray-600">No pending or confirmed review flags.</p>}
