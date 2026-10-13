@@ -17,6 +17,9 @@ export interface IncidentReviewFlag {
   updatedAt: string;
 }
 
+// Shared read-only context, without staff identity or review mutation authority.
+export type IncidentReviewNotice = Omit<IncidentReviewFlag, 'incidentId'> & { reviewedAt?: string | null };
+
 export interface IncidentAttachment {
   attachmentId: string;
   incidentId: string;
@@ -82,6 +85,7 @@ export interface Incident {
   incidentUnits?: IncidentUnit[];
   serviceResponses?: Array<{ service: ResponseService; status: ServiceResponseStatus; resolvedAt?: string }>;
   reviewFlags?: IncidentReviewFlag[];
+  reviewNotices?: IncidentReviewNotice[];
 }
 
 export interface CreateIncidentPayload {

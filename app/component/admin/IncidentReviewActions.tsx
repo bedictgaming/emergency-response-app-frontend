@@ -6,6 +6,7 @@ import { useId, useState } from "react";
 import { Flag, ShieldCheck, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 import { CompactEvidencePhoto } from "../SecureEvidencePhoto";
+import IncidentReviewNotice, { mergeReviewNotices } from './IncidentReviewNotice';
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 import { correctIncidentFlag, deleteIncident, flagIncident, getIncidentById, Incident, IncidentReviewFlag, reviewIncidentFlag, updateIncident } from "@/lib/services/incidentService";
 
@@ -91,8 +92,17 @@ export default function IncidentReviewActions({ incident, mainAdmin = false, onC
   };
 
   const flags = current?.reviewFlags ?? [];
-  const ownFlag = flags.find(flag => flag.status !== "DISMISSED");
+  const sharedNotices = mergeReviewNotices(current?.reviewNotices, incident.reviewNotices);
+  // A fresher shared decision may retire an already authorized own-department
+  // request while this dialog is open. Never turn a foreign notice into an
+  // actionable flag; the server still authorizes every submitted request.
+  const ownFlag = flags.map(flag => {
+    const latest = sharedNotices?.find(item => item.reviewFlagId === flag.reviewFlagId);
+    return latest && Date.parse(latest.updatedAt) > Date.parse(flag.updatedAt)
+      ? { ...flag, status: latest.status } : flag;
+  }).find(flag => flag.status !== "DISMISSED");
   return <div className="mt-4 border-t border-gray-200 pt-3">
+    {!mainAdmin && <IncidentReviewNotice notices={incident.reviewNotices} />}
     <div className="flex flex-wrap items-center gap-3">
       <button type="button" onClick={() => void openReport()} disabled={busy} className={`${buttonClass} inline-flex items-center gap-2 border-gray-300 bg-white text-gray-700 hover:bg-gray-50`}>
         {mainAdmin ? <ShieldCheck size={16} aria-hidden="true" /> : <Flag size={16} aria-hidden="true" />}
@@ -116,6 +126,7 @@ export default function IncidentReviewActions({ incident, mainAdmin = false, onC
             <p className="my-4 whitespace-pre-wrap break-words text-sm text-gray-700">{current.description}</p>
             <p className="mb-4 text-sm text-gray-700">Location: {current.location?.address || current.location?.locationName || "See report pin"}</p>
             {current.attachments?.[0]?.fileUrl && <CompactEvidencePhoto sourceUrl={current.attachments[0].fileUrl} alt="Report evidence for review" />}
+            {!mainAdmin && <IncidentReviewNotice notices={sharedNotices} />}
           </>}
           {mainAdmin && !deleteMode ? <>
             <div className="mt-4 space-y-3">{flags.map(flag => <FlagDecision key={`${flag.reviewFlagId}:${flag.updatedAt}`} flag={flag} busy={busy}
