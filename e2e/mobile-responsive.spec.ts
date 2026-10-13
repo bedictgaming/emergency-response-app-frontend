@@ -6,6 +6,8 @@ const routes = ['/', '/login', '/dashboard', ...['main', 'fire', 'medical', 'pol
 const sizes = [{ width: 320, height: 667 }, { width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 844, height: 390 }, { width: 1440, height: 900 }];
 
 async function fixture(page: Page, path: string) {
+  const unitRequests: string[] = [];
+  page.on('request', request => { if (/\/api\/(units|resources|incident-units)\/|\/incidents\/v1\/[^/]+\/units/.test(new URL(request.url()).pathname)) unitRequests.push(request.url()); });
   const department = path.includes('-dashboard') ? path.split('/')[2].split('-')[0].toUpperCase() : 'MAIN';
   const user = { id: 'responsive-synthetic', name: 'Synthetic mobile layout citizen', email: 'synthetic@example.test', role: path.startsWith('/admin') ? 'ADMIN' : path.startsWith('/responder') ? 'RESPONDER' : 'USER', status: 'ACTIVE', department, isMainAdmin: department === 'MAIN' };
   const incident = { incidentId: 'responsive-incident', title: 'Synthetic fire report beside a community building', description: `Synthetic layout details ${longReference}`, severityLevel: 'HIGH', status: 'ACTIVE', verificationStatus: 'VERIFIED', reportedAt: '2026-10-07T04:00:00Z', reportedBy: user.id, requestedServices: ['FIRE', 'MEDICAL', 'POLICE', 'HAZARD'], latitude: 10.252191, longitude: 123.949475, type: { typeId: 'fire', typeName: 'Fire Outbreak' }, barangay: { barangayId: 'synthetic-area', name: 'Poblacion', status: 'ACTIVE' }, location: { locationName: 'Synthetic community building', address: 'Synthetic street', latitude: 10.252191, longitude: 123.949475 }, reporter: { ...user, phone: '09123456789' }, attachments: [], incidentUnits: [], serviceResponses: [], reviewFlags: [] };
@@ -25,6 +27,7 @@ async function fixture(page: Page, path: string) {
     // Every API call is intercepted. No hosted/local database, email, dispatch or notification is contacted.
     if (!['GET', 'HEAD'].includes(route.request().method())) return route.fulfill({ status: 403, json: { message: 'Layout fixture forbids mutations' } });
     if (path.endsWith('/auth/v1/me')) return route.fulfill({ json: { data: { user } } });
+    if (path.endsWith('/incidents/v1/responsive-incident')) return route.fulfill({ json: { data: { incident } } });
     if (path.endsWith('/analytics/v1/dashboard')) return route.fulfill({ json: { data: {
       incidentsByBarangay: { totalIncidents: 1, topArea: null, rankings: [] }, incidentsByType: { totalIncidents: 1, topType: null, distribution: [] },
       resolvedSummary: { month: 10, year: 2026, totalReportedThisMonth: 1, resolvedThisMonth: 0, activeThisMonth: 1, resolutionRate: 0, totalHistorical: 1, totalResolvedAllTime: 0 },
@@ -34,6 +37,7 @@ async function fixture(page: Page, path: string) {
     } } });
   });
   await page.route('https://**', route => route.abort());
+  return { unitRequests };
 }
 
 async function check(page: Page, label: string) {
@@ -64,7 +68,7 @@ async function check(page: Page, label: string) {
 for (const size of sizes) for (const path of routes) {
   test(`${path} fits ${size.width}x${size.height}`, async ({ page }, info) => {
     await page.setViewportSize(size);
-    await fixture(page, path);
+    const { unitRequests } = await fixture(page, path);
     // Public layout checks intentionally bypass restoration of the synthetic
     // saved account; otherwise they would measure the citizen dashboard twice.
     await page.goto(['/', '/login'].includes(path) ? path + '?session=manual' : path);
@@ -78,8 +82,13 @@ for (const size of sizes) for (const path of routes) {
       await expect(page.getByRole('button', { name: 'Analytics', exact: true })).toBeVisible();
     }
     if (path === '/admin/operations') {
-      await page.getByRole('button', { name: 'Add resources', exact: true }).click();
-      await check(page, 'Operations editor');
+      await expect(page.getByRole('heading', { name: 'Incident tasks', exact: true, level: 1 })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Add resources', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Add units', exact: true })).toHaveCount(0);
+      await page.getByRole('button', { name: 'Add incident tasks', exact: true }).click();
+      await expect(page.getByLabel('Task name', { exact: true })).toBeVisible();
+      await check(page, 'Incident task editor');
+      expect(unitRequests).toEqual([]);
     }
     if (path === '/admin/users' && size.width < 768) {
       const table = page.getByRole('region', { name: 'User accounts table — scroll horizontally for all controls', exact: true });
@@ -116,25 +125,28 @@ for (const size of sizes) {
 }
 
 for (const size of sizes) {
-  test(`dispatch dialog fits ${size.width}x${size.height}`, async ({ page }, info) => {
+  test(`department report review dialog fits ${size.width}x${size.height} without unit dispatch`, async ({ page }, info) => {
     await page.setViewportSize(size);
-    await fixture(page, '/admin/fire-dashboard');
+    const { unitRequests } = await fixture(page, '/admin/fire-dashboard');
     await page.goto('/admin/fire-dashboard');
-    await page.getByRole('button', { name: 'Dispatch Unit', exact: true }).click();
-    const panel = page.locator('[data-responsive-controls]');
-    await expect(panel.getByText('Dispatch Emergency Unit', { exact: true })).toBeVisible();
-    await expect(panel.getByRole('dialog', { name: 'Dispatch Emergency Unit', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Dispatch Unit', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Mark as Responding', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Flag suspected false report', exact: true }).click();
+    const panel = page.getByRole('dialog', { name: 'Flag a suspected false report', exact: true });
+    await expect(panel.getByLabel('Why do you suspect this report is false?', { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden');
     await page.keyboard.press('Shift+Tab');
     expect(await panel.evaluate(element => element.contains(document.activeElement))).toBe(true);
-    await check(page, 'Dispatch dialog');
-    const form = panel.locator('form');
-    await form.evaluate(element => { element.scrollTop = element.scrollHeight; });
-    await expect(panel.getByRole('button', { name: 'Confirm & Dispatch Unit', exact: true })).toBeInViewport();
-    if (process.env.RESPONSIVE_CAPTURE === 'true') await page.screenshot({ path: info.outputPath('dispatch-dialog.png') });
-    await panel.getByRole('button', { name: 'Close dispatch unit', exact: true }).click();
+    await check(page, 'Department report review dialog');
+    const area = panel.locator('.dialog-scroll-area');
+    await area.evaluate(element => { element.scrollTop = element.scrollHeight; });
+    await expect(panel.getByRole('button', { name: 'Send review request', exact: true })).toBeInViewport();
+    await expect(panel.getByRole('button', { name: 'Send review request', exact: true })).toBeDisabled();
+    if (process.env.RESPONSIVE_CAPTURE === 'true') await page.screenshot({ path: info.outputPath('department-review-dialog.png') });
+    await panel.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(panel).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Dispatch Unit', exact: true })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Flag suspected false report', exact: true })).toBeFocused();
     expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
+    expect(unitRequests).toEqual([]);
   });
 }
