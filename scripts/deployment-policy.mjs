@@ -1,4 +1,4 @@
-import { PUBLIC_ORIGINS } from '../lib/public-origins.mjs';
+import { PUBLIC_ORIGINS } from '../src/lib/public-origins.mjs';
 export const FIRST_PARTY_ORIGIN = PUBLIC_ORIGINS[0];
 
 export function stagingGatewayOrigin(env) {

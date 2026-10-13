@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PUBLIC_ORIGINS, resolveApiOrigin, evidenceAccessPath } from '../lib/public-origins.mjs';
+import { PUBLIC_ORIGINS, resolveApiOrigin, evidenceAccessPath } from '../src/lib/public-origins.mjs';
 import { deploymentFailures } from './deployment-policy.mjs';
 const mode = { NEXT_PUBLIC_PUBLIC_LAUNCH: 'true', NEXT_PUBLIC_PRODUCTION_VALIDATION: 'false', NEXT_PUBLIC_PREVIEW_ONLY: 'false', NEXT_PUBLIC_STAGING_TEST: 'false' };
 test('the single approved public site uses its own API and retains strict deployment gates', () => {

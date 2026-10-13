@@ -1,5 +1,5 @@
 import nextEnv from '@next/env';
-import { PUBLIC_ORIGINS } from '../lib/public-origins.mjs';
+import { PUBLIC_ORIGINS } from '../src/lib/public-origins.mjs';
 nextEnv.loadEnvConfig(process.cwd(), false, { info() {}, error() {} });
 const failures = [];
 try {

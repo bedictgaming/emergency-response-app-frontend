@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:architecture": "node --test scripts/architecture.test.mjs",
     "release:check": "node scripts/release-preflight.mjs",
     "deploy:check": "node scripts/deployment-preflight.mjs",
     "deploy:build": "node scripts/deploy-build.mjs",

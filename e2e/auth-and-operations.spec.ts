@@ -1031,6 +1031,26 @@ test('citizen polling stops when its session is removed', async ({ page }) => {
 
 test('admin data polling stops when its session is removed', async ({ page }) => {
   await page.addInitScript(() => {
+    // Count actual browser sends, not delayed Node route-handler callbacks.
+    // Sampling and logout must share one JS action so a pre-logout catch-up
+    // read cannot arrive between the baseline sample and the logout command.
+    const tracked = new WeakSet<XMLHttpRequest>();
+    const browserState = window as unknown as Window & { __adminIncidentSends: number };
+    browserState.__adminIncidentSends = 0;
+    XMLHttpRequest.prototype.open = new Proxy(XMLHttpRequest.prototype.open, {
+      apply(target, request, args) {
+        const path = new URL(String(args[1]), location.href).pathname;
+        if (path.startsWith('/api/incidents/v1/')) tracked.add(request);
+        else tracked.delete(request);
+        return Reflect.apply(target, request, args);
+      },
+    });
+    XMLHttpRequest.prototype.send = new Proxy(XMLHttpRequest.prototype.send, {
+      apply(target, request, args) {
+        if (tracked.has(request)) browserState.__adminIncidentSends += 1;
+        return Reflect.apply(target, request, args);
+      },
+    });
     localStorage.setItem('user', JSON.stringify({ id: 'admin', role: 'ADMIN', name: 'Test Admin', department: 'MAIN', isMainAdmin: true }));
   });
   let incidentRequests = 0;
@@ -1053,20 +1073,23 @@ test('admin data polling stops when its session is removed', async ({ page }) =>
   await expect.poll(() => incidentRequests).toBeGreaterThan(0);
   // Wait for the new queue's initial read before measuring requests after logout.
   await expect(page.getByText('No pending or confirmed review flags.')).toBeVisible();
-  const requestsBeforeLogout = incidentRequests;
 
-  await page.evaluate(() => {
+  const requestsBeforeLogout = await page.evaluate(() => {
+    const before = (window as unknown as Window & { __adminIncidentSends: number }).__adminIncidentSends;
     const epoch = crypto.randomUUID();
     localStorage.removeItem('user');
     localStorage.removeItem('emergency-session-generation');
     localStorage.setItem('emergency-logout-epoch', epoch);
     window.dispatchEvent(new StorageEvent('storage', { key: 'emergency-logout-epoch', newValue: epoch }));
+    return before;
   });
   await expect(page).toHaveURL(/\/$/);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await page.waitForTimeout(500);
 
-  expect(incidentRequests).toBe(requestsBeforeLogout);
+  expect(requestsBeforeLogout).toBeGreaterThan(0);
+  const requestsAfterLogout = await page.evaluate(() => (window as unknown as Window & { __adminIncidentSends: number }).__adminIncidentSends);
+  expect(requestsAfterLogout).toBe(requestsBeforeLogout);
 });
 
 test('logout during an in-flight admin recheck cannot restore the dashboard', async ({ page }) => {

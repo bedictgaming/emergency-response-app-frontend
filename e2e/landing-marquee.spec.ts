@@ -14,6 +14,9 @@ for (const width of [320, 375, 1365, 1440]) {
       await page.addInitScript(theme => localStorage.setItem('emergency-response-theme', theme), theme);
       await page.goto('/');
       const strip = page.getByRole('region', { name: 'Response services', exact: true });
+      // Static export's Suspense fallback can be replaced during hydration.
+      // Wait for the mounted strip's effect before resolving a scroll target.
+      await expect(strip).toHaveAttribute('data-motion', 'true');
       await strip.scrollIntoViewIfNeeded();
       await expect(strip).toHaveAttribute('data-running', 'true');
       await expect(strip.getByRole('listitem')).toHaveText(names);
@@ -54,6 +57,7 @@ test('service motion freezes offscreen and hidden, then resumes', async ({ page 
   const strip = page.getByRole('region', { name: 'Response services', exact: true });
   const track = page.getByTestId('service-marquee-track');
   const time = () => track.evaluate(el => Number(el.getAnimations()[0]?.currentTime ?? 0));
+  await expect(strip).toHaveAttribute('data-motion', 'true');
   await strip.scrollIntoViewIfNeeded();
   await expect(strip).toHaveAttribute('data-running', 'true');
   await page.locator('footer').scrollIntoViewIfNeeded();
@@ -89,7 +93,9 @@ test('reduced motion keeps all four services static, including live changes', as
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   const strip = page.getByRole('region', { name: 'Response services', exact: true });
-  await strip.scrollIntoViewIfNeeded();
+  // Reduced motion intentionally has no active-motion readiness attribute.
+  // Resolve and scroll atomically, without a stability wait on SSR fallback DOM.
+  await strip.evaluate(element => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
   await expect(strip).toHaveAttribute('data-motion', 'false');
   await expect(strip.getByRole('listitem')).toHaveText(names);
   await expect(strip.locator('ul[aria-hidden=true]')).toBeHidden();
@@ -100,6 +106,8 @@ test('reduced motion keeps all four services static, including live changes', as
     expect(box.x + box.width).toBeLessThanOrEqual(320);
   }
   await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await expect(strip).toHaveAttribute('data-motion', 'true');
+  await strip.scrollIntoViewIfNeeded();
   await expect(strip).toHaveAttribute('data-running', 'true');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect(strip).toHaveAttribute('data-running', 'false');

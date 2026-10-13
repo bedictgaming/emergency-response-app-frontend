@@ -1,5 +1,5 @@
 import { devices, expect, test, type Page } from '@playwright/test';
-import { isPointInCordova, isWithinCordovaMapBounds } from '../app/lib/cordovaBoundary';
+import { isPointInCordova, isWithinCordovaMapBounds } from '../src/lib/cordovaBoundary';
 
 async function citizenSession(page: Page) {
   await page.addInitScript(() => Object.defineProperty(navigator.geolocation, 'getCurrentPosition', {

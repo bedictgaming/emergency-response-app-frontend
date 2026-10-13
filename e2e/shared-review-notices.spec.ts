@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { IncidentReviewNotice } from '../lib/services/incidentService';
+import type { IncidentReviewNotice } from '../src/lib/services/incidentService';
 
 const incidentId = '10000000-0000-4000-8000-000000000001';
 const flagId = '20000000-0000-4000-8000-000000000002';

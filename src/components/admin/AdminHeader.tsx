@@ -1,0 +1,191 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { LogOut, MapPin, Users, PieChart, ArrowLeft, Settings } from "lucide-react";
+import Link from "next/link";
+import { logout } from "@/lib/services/authService";
+import { getAdminDepartment, getDepartmentDashboardUrl } from "@/hooks/useAdminGuard";
+import BarangayHistoryDrawer from "@/components/admin/BarangayHistoryDrawer";
+import AdminEmergencyMonitor from "@/components/admin/AdminEmergencyMonitor";
+import { registerWebPush, unregisterWebPush } from "@/lib/browserPush";
+import { markSessionEnded } from "@/lib/apiClient";
+import type { ResponseService } from "@/lib/services/incidentService";
+import { HeaderFrame } from "../shared/HeaderFrame";
+import { EmergencyLogo } from "../shared/EmergencyLogo";
+
+interface AdminHeaderProps {
+  title: string;
+  subtitle: string;
+  departmentIcon: React.ReactNode;
+  iconBgClass?: string;
+  badgeBorderClass?: string;
+  showBackButton?: boolean;
+  backUrl?: string;
+  monitorService?: ResponseService;
+}
+
+export default function AdminHeader({
+  title,
+  subtitle,
+  departmentIcon,
+  iconBgClass = "bg-white",
+  badgeBorderClass = "border-gray-700",
+  showBackButton,
+  backUrl,
+  monitorService,
+}: AdminHeaderProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isMainAdmin, setIsMainAdmin] = useState(false);
+  const [dashboardUrl, setDashboardUrl] = useState("/admin/main-dashboard");
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("user");
+      if (raw) {
+        const u = JSON.parse(raw);
+        const dept = getAdminDepartment(u.department);
+        setIsMainAdmin(u.isMainAdmin === true);
+        setDashboardUrl(dept ? getDepartmentDashboardUrl(dept) : "/");
+      }
+    } catch {
+      // Ignore
+    }
+    void registerWebPush().catch(() => undefined);
+  }, []);
+
+  // Determine if back button should be shown (either explicitly via prop, or automatically when on secondary pages like /admin/analytics)
+  const isSecondaryPage =
+    pathname?.includes("/admin/analytics") ||
+    pathname?.includes("/admin/users") ||
+    pathname?.includes("/admin/barangay-history");
+  const shouldShowBack = showBackButton ?? isSecondaryPage;
+
+  const handleBack = () => {
+    if (backUrl) {
+      router.push(backUrl);
+    } else {
+      router.push(dashboardUrl);
+    }
+  };
+
+  const handleLogout = () => {
+    if (isLoggingOut || typeof window === "undefined") return;
+    setIsLoggingOut(true);
+
+    // Start remote cleanup while the admin cookie is still available. Both
+    // requests are best effort and must never prevent local logout.
+    void unregisterWebPush().catch(() => undefined);
+    void logout().catch(() => undefined);
+
+    localStorage.removeItem("user");
+    markSessionEnded();
+
+    // A hard replacement also stops mounted guards and live dashboard effects
+    // from racing the logout navigation with stale state.
+    window.location.replace("/");
+  };
+
+  return (
+    <>
+      <HeaderFrame pinned wide surfaceClassName="grid w-full min-w-0 gap-3 px-2 py-3 text-foreground sm:px-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+        {/* Department Info & Navigation */}
+        <div className="flex min-w-0 items-center gap-3.5 xl:pt-1">
+          {shouldShowBack && (
+            <button
+              type="button"
+              onClick={handleBack}
+              className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white/80 text-slate-500 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-700 hover:shadow-md dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-700 dark:hover:text-indigo-300"
+              title="Return to Dashboard"
+              aria-label="Back to Dashboard"
+            >
+              <ArrowLeft size={18} className="transition-transform group-hover:-translate-x-0.5" />
+            </button>
+          )}
+
+          <EmergencyLogo />
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-bold tracking-tight text-foreground sm:text-xl">{title}</h1>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span aria-hidden="true" className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border [&>svg]:h-3.5 [&>svg]:w-3.5 ${badgeBorderClass} ${iconBgClass}`}>{departmentIcon}</span>
+              <p className="truncate text-xs font-medium text-muted-foreground">{subtitle}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Controls */}
+        <div data-admin-toolbar className="grid min-w-0 max-w-full gap-2 pb-1 sm:flex sm:items-start sm:gap-3 sm:overflow-x-auto sm:pb-0">
+          {/* Real-time Emergency Siren & Incoming Report Monitor */}
+          <AdminEmergencyMonitor responseService={monitorService} />
+
+          <nav aria-label="Admin navigation" onFocusCapture={event => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            const control = target.getBoundingClientRect();
+            const viewport = event.currentTarget.getBoundingClientRect();
+            // Native focus can leave a partially visible control clipped. Reveal
+            // only that control; keep the pinned alert monitor and page in place.
+            if (control.left < viewport.left || control.right > viewport.right) {
+              target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+            }
+          }} className="flex min-w-0 max-w-full flex-wrap items-center gap-2 overflow-x-auto pt-1.5 sm:flex-1 sm:flex-nowrap sm:gap-3 [&>button]:min-h-11">
+
+          {/* Barangay History Quick Drawer */}
+          <button
+            onClick={() => setIsDrawerOpen(true)}
+            className="flex shrink-0 items-center gap-2 rounded-xl border border-purple-200 bg-purple-50/90 p-2.5 text-xs font-bold text-purple-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-purple-100 hover:shadow-md dark:border-purple-800 dark:bg-purple-950/60 dark:text-purple-200 dark:hover:bg-purple-900/70"
+            title="Open Barangay Incident History Log"
+          >
+            <MapPin size={16} className="text-purple-400" />
+            <span>Barangay History Log</span>
+          </button>
+
+          {/* Dedicated Full Analytics Hub Shortcut */}
+          <button
+            onClick={() => router.push("/admin/analytics")}
+            className="flex shrink-0 items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/90 p-2.5 text-xs font-semibold text-indigo-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-indigo-100 hover:shadow-md dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200 dark:hover:bg-indigo-900/70"
+            title="Go to Analytics & Intelligence Hub"
+          >
+            <PieChart size={15} className="text-indigo-400" />
+            <span>Analytics</span>
+          </button>
+
+          {/* User Management Shortcut (Main Admin Only) */}
+          {isMainAdmin && (
+            <button
+              onClick={() => router.push("/admin/users")}
+              className="flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white/80 p-2.5 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-700 hover:shadow-md dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-700 dark:hover:text-indigo-300"
+              title="Go to User & Personnel Management"
+            >
+              <Users size={15} className="text-purple-400" />
+              <span>Users</span>
+            </button>
+          )}
+
+          {/* Logout */}
+          <Link href="/settings" className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><Settings size={15} aria-hidden="true" />Settings</Link>
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-700 hover:shadow-md dark:border-slate-700 dark:text-slate-200 dark:hover:border-indigo-700 dark:hover:text-indigo-300"
+            aria-label={isLoggingOut ? "Logging out" : "Logout"}
+          >
+            <LogOut size={15} />
+            {isLoggingOut ? "Logging out…" : "Logout"}
+          </button>
+          </nav>
+        </div>
+      </HeaderFrame>
+
+      {/* Slide-over Barangay History Drawer */}
+      <BarangayHistoryDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+      />
+    </>
+  );
+}
