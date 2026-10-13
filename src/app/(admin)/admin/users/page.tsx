@@ -267,7 +267,7 @@ export default function AdminUsersPage() {
                       Role
                     </th>
                     <th className="text-left px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wider hidden md:table-cell">
-                      Unit / Assignment
+                      Department
                     </th>
                     <th className="text-left px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                       Reports
@@ -322,31 +322,9 @@ export default function AdminUsersPage() {
                           )}
                         </td>
 
-                        {/* Unit */}
+                        {/* Current department assignment; retired unit profiles stay in history. */}
                         <td className="px-5 py-4 hidden md:table-cell">
-                          {user.responder ? (
-                            <div>
-                              <p className="text-xs font-bold text-gray-700">
-                                {user.responder.unit.unitName}
-                              </p>
-                              <p className="text-[11px] text-gray-400">
-                                {user.responder.rank || "Field Responder"} •{" "}
-                                <span
-                                  className={
-                                    user.responder.status === "AVAILABLE"
-                                      ? "text-emerald-600"
-                                      : user.responder.status === "DEPLOYED"
-                                      ? "text-amber-600"
-                                      : "text-gray-400"
-                                  }
-                                >
-                                  {user.responder.status}
-                                </span>
-                              </p>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-400">—</span>
-                          )}
+                          <span className="text-xs text-gray-700">{user.department || '—'}</span>
                         </td>
 
                         {/* Report Count */}

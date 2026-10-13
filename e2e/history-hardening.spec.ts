@@ -42,8 +42,9 @@ for (const surface of ['drawer', 'page'] as const) {
     await expect(content.getByText('Oldest matching record', { exact: true })).toBeVisible();
     expect(fixture.requests.at(-1)?.searchParams.get('page')).toBe('1');
     if (surface === 'page') {
-      expect(fixture.requests.at(-1)?.searchParams.get('includeUnits')).toBe('true');
-      await expect(content.getByText('Synthetic Fire unit', { exact: true })).toBeVisible();
+      expect(fixture.requests.at(-1)?.searchParams.get('includeUnits')).toBeNull();
+      await expect(content.getByText('Synthetic Fire unit', { exact: true })).toHaveCount(0);
+      await expect(content.getByRole('columnheader', { name: 'Dispatched Units', exact: true })).toHaveCount(0);
       await expect(content.getByText('Barangay unavailable', { exact: true })).toBeVisible();
       await content.getByLabel('Filter history by status').selectOption('RESPONDING');
       await expect.poll(() => fixture.requests.at(-1)?.searchParams.get('status')).toBe('RESPONDING');

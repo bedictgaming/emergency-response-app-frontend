@@ -126,36 +126,25 @@ test('retired responder page offers missing-page recovery without task requests'
   expect(requests).toBe(0);
 });
 
-test('unit management creates, edits and confirms deletion', async ({ page }) => {
+test('operations never requests or exposes retired unit management', async ({ page }) => {
   await session(page);
-  let unit: Record<string, unknown> | undefined;
+  let unitRequests = 0;
   await page.route('**/api/units/v1/**', async route => {
-    const request = route.request();
-    if (request.method() === 'POST') unit = { unitId: 'test-unit', ...request.postDataJSON() };
-    if (request.method() === 'PUT') unit = { ...unit, ...request.postDataJSON() };
-    if (request.method() === 'DELETE') unit = undefined;
-    await route.fulfill({ json: { data: { units: unit ? [unit] : [], unit } } });
+    unitRequests++;
+    await route.fulfill({ status: 410, json: { message: 'Unit management retired' } });
   });
   await page.goto('/admin/operations');
-  await page.getByRole('button', { name: 'Add units', exact: true }).click();
-  await page.getByLabel('Unit name', { exact: true }).fill('Ambulance 1');
-  await page.getByLabel('Unit type', { exact: true }).fill('MEDICAL');
-  await page.getByLabel('Status', { exact: true }).selectOption('AVAILABLE');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Ambulance 1', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Edit Ambulance 1', exact: true }).click();
-  await page.getByLabel('Unit name', { exact: true }).fill('Ambulance 2');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await page.getByRole('button', { name: 'Delete Ambulance 2', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Ambulance 2', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Confirm delete', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Ambulance 2', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Incident tasks', level: 1 })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add units', exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Unit name', { exact: true })).toHaveCount(0);
+  expect(unitRequests).toBe(0);
 });
 
-test('dispatcher cannot edit resources or responders', async ({ page }) => {
+test('dispatcher retains report tasks but no units, resources or responders', async ({ page }) => {
   await session(page, 'DISPATCHER');
   await page.goto('/admin/operations');
-  await expect(page.getByRole('button', { name: 'Add units', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add units', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add incident tasks', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Add resources', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add responders', exact: true })).toHaveCount(0);
 });
@@ -187,9 +176,9 @@ test('medical dashboard exposes only verified incidents and prevents duplicate s
   await Promise.all([
     page.waitForResponse(response => response.request().method() === 'PATCH'
       && response.url().includes('/api/incidents/v1/')),
-    page.getByRole('button', { name: 'Dispatch Ambulance / Mark Responding' }).dblclick(),
+    page.getByRole('button', { name: 'Mark as Responding', exact: true }).dblclick(),
   ]);
-  await expect(page.getByRole('button', { name: 'Dispatch Ambulance / Mark Responding' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Mark as Responding', exact: true })).toBeEnabled();
   expect(serviceUpdates).toBe(1);
 });
 
@@ -530,7 +519,7 @@ test('multi-response incident appears only on selected department dashboards', a
   await expect(page.getByText('Storm with injured residents')).toHaveCount(0);
 });
 
-test('fire dashboard uses incident-list unit data without a request per report', async ({ page }) => {
+test('fire dashboard handles reports without loading or dispatching units', async ({ page }) => {
   await session(page, 'ADMIN');
   let unitRequests = 0;
   const incidents = Array.from({ length: 3 }, (_, index) => ({
@@ -561,6 +550,7 @@ test('fire dashboard uses incident-list unit data without a request per report',
   await expect(page.getByText('Fire response 0')).toBeVisible();
   await expect(page.getByText('Fire response 1')).toBeVisible();
   await expect(page.getByText('Fire response 2')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Dispatch Unit|Next Status|Return Unit/ })).toHaveCount(0);
   expect(unitRequests).toBe(0);
 });
 

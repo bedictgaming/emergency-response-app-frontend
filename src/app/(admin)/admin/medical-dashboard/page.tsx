@@ -208,7 +208,7 @@ export default function MedicalAdminDashboard() {
                         <h2 className="text-xl font-bold">Medical Emergency Reports</h2>
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                            Live EMS Dispatch
+                            Medical reports
                         </span>
                     </div>
                     <button
@@ -344,7 +344,7 @@ export default function MedicalAdminDashboard() {
                                             onClick={() => handleUpdateStatus(item.id, 'ACTIVE')}
                                             className="flex-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl py-2.5 text-xs font-semibold shadow-sm transition-colors cursor-pointer"
                                         >
-                                            Dispatch Ambulance / Mark Responding
+                                            Mark as Responding
                                         </button>
                                         {canResolveResponse && <button
                                             type="button"

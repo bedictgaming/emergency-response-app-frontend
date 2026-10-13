@@ -22,7 +22,6 @@ import {
   PieChart,
   Download,
   Building2,
-  Truck,
 } from "lucide-react";
 import {
   BarangayItem,
@@ -54,7 +53,7 @@ export default function BarangayHistoryPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedPeriod, setSelectedPeriod] = useState<string>("ALL");
 
-  const history = useIncidentHistory({ search: searchQuery, barangayId: selectedBarangayId === "ALL" ? undefined : selectedBarangayId, typeName: selectedType === "ALL" ? undefined : selectedType, status: selectedStatus === "ALL" ? undefined : selectedStatus as import("@/types/barangay-history").IncidentStatus, period: selectedPeriod === "ALL" ? undefined : selectedPeriod as "THIS_MONTH" | "LAST_30_DAYS", includeUnits: true }, isAuthorized);
+  const history = useIncidentHistory({ search: searchQuery, barangayId: selectedBarangayId === "ALL" ? undefined : selectedBarangayId, typeName: selectedType === "ALL" ? undefined : selectedType, status: selectedStatus === "ALL" ? undefined : selectedStatus as import("@/types/barangay-history").IncidentStatus, period: selectedPeriod === "ALL" ? undefined : selectedPeriod as "THIS_MONTH" | "LAST_30_DAYS" }, isAuthorized);
   const loadAllData = useCallback(async () => {
     const account = adminAccountSnapshot();
     setIsLoading(true);
@@ -596,7 +595,7 @@ export default function BarangayHistoryPage() {
             </div>
           ) : (
             <div className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-red-600" role="region" aria-label="Incident history table" tabIndex={0}>
-              <table className="w-full min-w-[1440px] table-fixed text-left border-collapse">
+              <table className="w-full min-w-[1264px] table-fixed text-left border-collapse">
                 <colgroup>
                   <col className="w-[160px]" />
                   <col className="w-[180px]" />
@@ -604,7 +603,6 @@ export default function BarangayHistoryPage() {
                   <col className="w-[176px]" />
                   <col className="w-[92px]" />
                   <col className="w-[112px]" />
-                  <col className="w-[176px]" />
                   <col className="w-[224px]" />
                 </colgroup>
                 <thead>
@@ -615,7 +613,6 @@ export default function BarangayHistoryPage() {
                     <th className="py-3.5 px-5">Category</th>
                     <th className="py-3.5 px-5">Severity</th>
                     <th className="py-3.5 px-5">Status</th>
-                    <th className="py-3.5 px-5">Dispatched Units</th>
                     <th className="py-3.5 px-5">Reporter</th>
                   </tr>
                 </thead>
@@ -670,18 +667,6 @@ export default function BarangayHistoryPage() {
                       {/* Status */}
                       <td className="py-4 px-5 whitespace-nowrap">
                         {renderStatusBadge(inc.status)}
-                      </td>
-
-                      {/* Dispatched Units */}
-                      <td className="py-4 px-5">
-                        {inc.incidentUnits && inc.incidentUnits.length > 0 ? (
-                          <div className="flex items-start gap-1 text-[11px] text-gray-700 font-semibold [overflow-wrap:anywhere]">
-                            <Truck size={13} className="shrink-0 text-blue-600" />
-                            <span>{inc.incidentUnits.map((u) => u.unit.unitName).join(", ")}</span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-[11px]">{inc.incidentUnits ? "None assigned" : "Not loaded"}</span>
-                        )}
                       </td>
 
                       {/* Reporter */}

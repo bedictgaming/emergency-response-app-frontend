@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 for (const width of [375, 1365]) {
-  test(`operations retains units and admin task updates without responder controls at ${width}px`, async ({ page }, info) => {
+  test(`operations retains incident task updates without unit or responder controls at ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 });
     const admin = { id: 'synthetic-admin', role: 'ADMIN', name: 'Test Admin', department: 'MAIN', isMainAdmin: true };
     await page.addInitScript(user => localStorage.setItem('user', JSON.stringify(user)), admin);
@@ -9,7 +9,7 @@ for (const width of [375, 1365]) {
     let retiredRequests = 0;
     await page.route('**/api/**', route => {
       const path = new URL(route.request().url()).pathname;
-      if (path.includes('/responders/') || path.includes('/users/')) retiredRequests++;
+      if (/\/(responders|users|units|resources|incident-units)\//.test(path)) retiredRequests++;
       if (path.endsWith('/me')) return route.fulfill({ json: { data: { user: admin } } });
       if (path.includes('/tasks/') && route.request().method() === 'PUT') {
         updates++;
@@ -23,7 +23,8 @@ for (const width of [375, 1365]) {
       } } });
     });
     await page.goto('/admin/operations');
-    await expect(page.getByRole('heading', { name: 'Test Fire Unit', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Test Fire Unit', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Incident tasks', level: 1 })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Responders', exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: 'Start task', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Mark done', exact: true })).toBeVisible();

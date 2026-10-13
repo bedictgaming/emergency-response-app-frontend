@@ -38,7 +38,7 @@ for (const path of ['/', '/login']) {
   });
 }
 
-test('admin can reach the operations management surface', async ({ page }) => {
+test('admin can reach incident tasks without unit or equipment management', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('user', JSON.stringify({ id: 'admin', role: 'ADMIN', name: 'Test Admin', department: 'MAIN', isMainAdmin: true }));
   });
@@ -50,10 +50,11 @@ test('admin can reach the operations management surface', async ({ page }) => {
   await page.route('**/api/responders/v1/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { responders: [] } }) }));
   await page.route('**/api/tasks/v1/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { tasks: [] } }) }));
   await page.goto('/admin/operations');
-  await expect(page.getByRole('heading', { name: 'Operations management' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Incident tasks', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Resources', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Units', exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Responders' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Incident tasks' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Incident tasks', level: 2 })).toBeVisible();
 });
 
 test('main admin has no verification queue and receives new incidents as responding', async ({ page }) => {
@@ -504,11 +505,11 @@ test('returning to an authorized admin tab revalidates without hiding the dashbo
   });
 
   await page.goto('/admin/operations');
-  await expect(page.getByRole('heading', { name: 'Operations management' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Incident tasks', level: 1 })).toBeVisible();
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 
   await expect(page.getByText('Verifying authorized access…')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Operations management' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Incident tasks', level: 1 })).toBeVisible();
 });
 
 test('a forged browser role cannot open any admin page', async ({ page }) => {
@@ -521,7 +522,7 @@ test('a forged browser role cannot open any admin page', async ({ page }) => {
   await page.goto('/admin/operations');
 
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole('heading', { name: 'Operations management' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Incident tasks', level: 1 })).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('user'))).toBeNull();
 });
 

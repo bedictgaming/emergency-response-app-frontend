@@ -208,7 +208,7 @@ export default function DrrmoAdminDashboard() {
                         <h2 className="text-xl font-bold">Hazard & Disaster Reports</h2>
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                            Live DRRMO Dispatch
+                            Hazard reports
                         </span>
                     </div>
                     <button
@@ -344,7 +344,7 @@ export default function DrrmoAdminDashboard() {
                                             onClick={() => handleUpdateStatus(item.id, 'ACTIVE')}
                                             className="flex-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-2.5 text-xs font-semibold shadow-sm transition-colors cursor-pointer"
                                         >
-                                            Dispatch Response Team / Mark Responding
+                                            Mark as Responding
                                         </button>
                                         {canResolveResponse && <button
                                             type="button"

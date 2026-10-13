@@ -19,7 +19,6 @@ import {
     DEPARTMENT_INCIDENT_PAGE_SIZE,
     incidentServiceStatusesForTab,
 } from "@/lib/services/incidentService";
-import IncidentDispatchedUnits from "@/components/admin/IncidentDispatchedUnits";
 import { useAdminGuard } from "@/hooks/useAdminGuard";
 import { useDepartmentResponseAuthority } from "@/hooks/useDepartmentResponseAuthority";
 import { useEmergencyEvents } from "@/hooks/useEmergencyEvents";
@@ -70,7 +69,6 @@ export default function FireAdminDashboard() {
                 department: "FIRE",
                 includeAttachments: true,
                 includeReviewFlags: true,
-                includeUnits: true,
                 limit: DEPARTMENT_INCIDENT_PAGE_SIZE,
                 page,
                 responseService: "FIRE",
@@ -210,7 +208,7 @@ export default function FireAdminDashboard() {
                         <h2 className="text-xl font-bold">Fire Emergency Reports</h2>
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-red-50 text-red-700 border border-red-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                            Live BFP Dispatch
+                            Fire reports
                         </span>
                     </div>
                     <button
@@ -335,17 +333,6 @@ export default function FireAdminDashboard() {
                                 <CompactEvidencePhoto sourceUrl={item.photoUrl} alt="Fire Incident Evidence" />
                             )}
 
-                            {/* Assigned Units & Dispatching */}
-                            <IncidentDispatchedUnits
-                                incidentId={item.id}
-                                initialUnits={item.raw.incidentUnits}
-                                incidentTitle={item.title}
-                                incidentType="Fire"
-                                incidentLocation={item.location}
-                                incidentStatus={item.status}
-                                onStatusChange={loadIncidents}
-                            />
-
                             {/* Action Buttons */}
                             <IncidentReviewActions incident={item.raw} onChanged={loadIncidents} />
                             <div className="flex gap-3 pt-2">
@@ -357,7 +344,7 @@ export default function FireAdminDashboard() {
                                             onClick={() => handleUpdateStatus(item.id, 'ACTIVE')}
                                             className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl py-2.5 text-xs font-semibold shadow-sm transition-colors cursor-pointer"
                                         >
-                                            Dispatch Fire Engine / Mark Responding
+                                            Mark as Responding
                                         </button>
                                         {canResolveResponse && <button
                                             type="button"

@@ -219,7 +219,7 @@ export default function PoliceAdminDashboard() {
                         <h2 className="text-xl font-bold">Police Emergency Reports</h2>
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                            Live Police Dispatch
+                            Police reports
                         </span>
                     </div>
                     <button
@@ -355,7 +355,7 @@ export default function PoliceAdminDashboard() {
                                             onClick={() => handleUpdateStatus(item.id, 'ACTIVE')}
                                             className="flex-1 bg-blue-700 hover:bg-blue-800 text-white rounded-xl py-2.5 text-xs font-semibold shadow-sm transition-colors cursor-pointer"
                                         >
-                                            Dispatch Patrol / Mark Responding
+                                            Mark as Responding
                                         </button>
                                         {canResolveResponse && <button
                                             type="button"

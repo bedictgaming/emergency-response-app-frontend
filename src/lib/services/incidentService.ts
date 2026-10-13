@@ -1,5 +1,5 @@
 import apiClient from '@/lib/apiClient';
-import type { IncidentUnit } from '@/lib/services/unitService';
+import type { IncidentUnit } from '@/types/incident-unit-history';
 
 export type IncidentStatus = 'OPEN' | 'ACTIVE' | 'RESPONDING' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
 export type SeverityLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';

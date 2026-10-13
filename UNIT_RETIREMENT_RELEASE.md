@@ -1,0 +1,11 @@
+# Unit retirement release — 14 October 2026
+
+The human requested deployment of the approved citizen → assigned department → Resolve workflow. Staff arrange crews/vehicles outside this application. This scoped frontend starts from actually deployed 2e9c3a7466a9f2bddd1adf1c5832dfa218980b73; publication is pending exact-source CI, immutable tracked archive and independent candidate/live acceptance.
+
+Remove unit/physical-dispatch/equipment controls and requests from department reports, history, user rows and Operations. The existing Operations URL now shows Incident tasks. Keep optional follow-up tasks, multi-department response ownership, alert/session/RBAC/evidence/false-review behavior and Main confirmation/version/reason/DELETE requirements. Historical IncidentUnit DTO compatibility remains without unit network methods. Three unreferenced UI/service files are removed recoverably; no schema or historical record is removed by deployment.
+
+Scoped originals match the deployed baseline after line-ending normalization. Preserve unrelated dirty primary/local-development files and the original failed verification traces. Local build/types/lint/contracts, 119 selected no-retry Chromium cases and bounded desktop/phone review pass. The complete hosted browser suite and unchanged SEO/deployment/gateway/worker gates remain mandatory, not replaced by those selected results.
+
+Deploy backend retirement first, then an unpromoted frontend candidate, preserving production/staging/provider/configuration and backup pins. Validate no unit controls/requests in shipped source plus ordinary anonymous authentication denial; preserve public homepage canonical/index metadata, private/error-page noindex, robots/sitemap/image, CSP/no-store/worker bytes, Google authorization start and accepted 307 aliases. No private production report/account mutation or credential login is used as a probe. Synthetic checks are not authenticated live/provider/physical-device certification.
+
+The guarded unit-retirement-release-20261014.mjs operator and sanitized Local AppData/EmergencyResponse/unit-retirement-release-20261014.json receipt record exact hosted CI/archive/candidate/publication evidence. Until final acceptance, production remains the preceding pair. Workspace MASTER_PROMPT.md Section 73 and UNIT_RETIREMENT_2026-10-14.md retain the detailed ledger.

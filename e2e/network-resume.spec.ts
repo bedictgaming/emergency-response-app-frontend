@@ -35,7 +35,7 @@ async function setup(page: Page, operations = false) {
     return route.fulfill({ json: { data: { items: [], hasMore: false, scope: 'FIRE', incidents: [], units: [], users: [], resources: [], tasks: [], alerts: [], types: [], barangays: [], pagination: { page: 1, total: 0, totalPages: 1 }, serviceSummary: { total: 0, active: 0, responding: 0, resolved: 0 } } } });
   });
   await page.goto(operations ? '/admin/operations' : '/admin/fire-dashboard');
-  await expect(page.getByRole('heading', { name: operations ? 'Operations management' : 'Fire Emergency Dashboard', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: operations ? 'Incident tasks' : 'Fire Emergency Dashboard', exact: true, level: 1 })).toBeVisible();
   if (!operations) await expect.poll(() => page.evaluate(() => (window as unknown as BrowserState).__networkTest.streams.length)).toBe(1);
   return { me: () => me, attention: () => attention, failMe: (value: boolean) => { failMe = value; },
     holdMe: () => { let release!: () => void; heldMe = new Promise<void>(resolve => { release = resolve; }); return release; } };
@@ -104,7 +104,7 @@ test('offline revalidation is deferred and transient me failure keeps the sessio
     window.dispatchEvent(new Event('online'));
   });
   await expect.poll(state.me).toBe(checks + 2); // One bounded foreground GET retry.
-  await expect(page.getByRole('heading', { name: 'Operations management' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Incident tasks', level: 1 })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem('user'))).toContain('fire-admin');
   state.failMe(false);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
@@ -134,5 +134,5 @@ test('a me request interrupted while hidden is not replayed until the page retur
     window.dispatchEvent(new Event('focus'));
   });
   await expect.poll(state.me).toBe(checks + 2);
-  await expect(page.getByRole('heading', { name: 'Operations management' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Incident tasks', level: 1 })).toBeVisible();
 });

@@ -13,7 +13,7 @@ src/
   components/
     auth/                          # login, recovery, settings, session guards
     citizen/                       # reporting, camera, own report history
-    admin/                         # monitoring, review, dispatch, staff history
+    admin/                         # monitoring, review, report tasks, staff history
     landing/                       # public presentation only
     shared/                        # header, logo, PWA, network, evidence viewer
     ui/                            # unified primitive/loading/motion location
@@ -37,3 +37,5 @@ Backend authorization remains authoritative. Cached profiles and client guards a
 Run lint, TypeScript, `npm run test:architecture`, existing deployment/gateway/worker contracts, a fresh static build and Playwright. Rebuild generated route types after relocation rather than suppressing diagnostics. Mocked browsers do not certify Google/Brevo/GPS/camera or physical phones.
 
 Root `MASTER_PROMPT.md` is canonical. Historical release documents retain original paths and receipts; this guide describes local source, not deployment.
+
+Unit retirement (14 October, local): Fire no longer mounts dispatch UI; the unit modal/component/request client are archived recoverably and removed. Operations remains at its existing guarded URL as Incident tasks, without unit/equipment fetches or controls. Current user/history tables no longer present unit tracking. Department headings/actions name reports/response status, not physical dispatch. Historical incident-unit DTOs are type-only compatibility data. Staff arrange vehicles/crews outside the app. Main review, departmental Resolve, evidence, GPS, session and report-history boundaries are unchanged; see root UNIT_RETIREMENT_2026-10-14.md for verification and deployment status.
