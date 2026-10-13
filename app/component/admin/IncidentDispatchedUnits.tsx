@@ -136,7 +136,8 @@ export default function IncidentDispatchedUnits({
 
   const isResolved =
     incidentStatus?.toLowerCase() === "resolved" ||
-    incidentStatus?.toLowerCase() === "closed";
+    incidentStatus?.toLowerCase() === "closed" ||
+    incidentStatus?.toLowerCase() === "cancelled";
 
   return (
     <div className="mt-3.5 mb-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">

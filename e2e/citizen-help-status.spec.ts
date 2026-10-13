@@ -41,6 +41,11 @@ async function mockCitizenDashboard(page: Page, reports: ReturnType<typeof incid
 test('help panel shows truthful own status and opens the latest report across history pages', async ({ page }) => {
   let listRequests = 0;
   await mockCitizenDashboard(page, [1, 2, 3, 4, 5].map(incident), () => { listRequests += 1; });
+  // Keep legitimate SSE reconnect/30-second polling outside this navigation
+  // assertion; a closed mock stream must not race the request-count check.
+  const frozenTime = new Date();
+  await page.clock.install({ time: frozenTime });
+  await page.clock.pauseAt(frozenTime);
   await page.goto('/dashboard');
 
   const help = page.getByRole('complementary', { name: 'Help and status' });
@@ -59,6 +64,15 @@ test('help panel shows truthful own status and opens the latest report across hi
   await help.getByRole('button', { name: 'View latest fire report' }).click();
   await expect(page.locator('#citizen-report-own-report-1')).toBeFocused();
   expect(listRequests).toBe(requestsBeforeView);
+});
+
+test('citizen sees cancellation as cancellation, without false resolution or staff review details', async ({ page }) => {
+  await mockCitizenDashboard(page, [{ ...incident(1), status: 'CANCELLED' }]);
+  await page.goto('/dashboard');
+  await expect(page.getByRole('complementary', { name: 'Help and status' }).getByText('Cancelled by Main Admin')).toBeVisible();
+  await expect(page.locator('#citizen-report-own-report-1')).toContainText('Cancelled by Main Admin');
+  await expect(page.locator('#citizen-report-own-report-1')).not.toContainText('Resolved');
+  await expect(page.getByRole('region', { name: 'Shared report review' })).toHaveCount(0);
 });
 
 test('mobile keeps the telephone action ahead of emergency choices and handles unavailable reports', async ({ page }) => {

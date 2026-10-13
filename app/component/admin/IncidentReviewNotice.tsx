@@ -31,7 +31,7 @@ function updateTime(value: string) {
   }).format(date) + ' (Manila)';
 }
 
-export default function IncidentReviewNotice({ notices }: { notices?: ReviewNotice[] }) {
+export default function IncidentReviewNotice({ notices, cancelled = false }: { notices?: ReviewNotice[]; cancelled?: boolean }) {
   if (!notices?.length) return null;
   const confirmed = notices.some(notice => notice.status === 'CONFIRMED');
   const pending = notices.some(notice => notice.status === 'PENDING');
@@ -50,7 +50,8 @@ export default function IncidentReviewNotice({ notices }: { notices?: ReviewNoti
           Flagging departments: {[...new Set(notices.map(notice => departmentName(notice.department)))].join(', ')}.
         </p>}
         <p className="mt-2 max-w-prose text-base leading-relaxed text-foreground">
-          {confirmed ? 'This decision does not close any response. Coordinate with Main Admin and record your own department’s outcome.'
+          {cancelled ? 'Main Admin cancelled this report. History and evidence are retained; no department Resolve action is needed. A corrected flag does not reopen the report.'
+            : confirmed ? 'This decision does not close any response. Coordinate with Main Admin and record your own department’s outcome.'
             : pending ? 'Suspicion is not a decision. Continue emergency assessment while Main Admin reviews.'
               : dismissed ? 'A dismissed flag no longer classifies this report as false. Continue assessing your own department’s response.'
                 : 'The review status could not be understood. Refresh or contact Main Admin; response work remains available.'}

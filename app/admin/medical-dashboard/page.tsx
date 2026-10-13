@@ -150,6 +150,7 @@ export default function MedicalAdminDashboard() {
     const tabs = [
         { name: "Responding" as const, count: respondingCount },
         { name: "Resolved" as const, count: resolvedCount },
+        { name: "Cancelled" as const, count: summary.cancelled ?? 0 },
     ];
 
     const currentTabIncidents = emergencies;

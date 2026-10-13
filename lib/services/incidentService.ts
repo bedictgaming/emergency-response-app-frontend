@@ -1,11 +1,11 @@
 import apiClient from '@/lib/apiClient';
 import type { IncidentUnit } from '@/lib/services/unitService';
 
-export type IncidentStatus = 'OPEN' | 'ACTIVE' | 'RESPONDING' | 'RESOLVED' | 'CLOSED';
+export type IncidentStatus = 'OPEN' | 'ACTIVE' | 'RESPONDING' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
 export type SeverityLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
 export type ResponseService = 'FIRE' | 'MEDICAL' | 'POLICE' | 'HAZARD';
-export type ServiceResponseStatus = 'RESPONDING' | 'RESOLVED';
+export type ServiceResponseStatus = 'RESPONDING' | 'RESOLVED' | 'CANCELLED';
 export interface IncidentReviewFlag {
   reviewFlagId: string;
   incidentId: string;
@@ -19,6 +19,11 @@ export interface IncidentReviewFlag {
 
 // Shared read-only context, without staff identity or review mutation authority.
 export type IncidentReviewNotice = Omit<IncidentReviewFlag, 'incidentId'> & { reviewedAt?: string | null };
+export interface FalseReportVersion {
+  reviewFlagId: string;
+  expectedReviewUpdatedAt: string;
+  expectedIncidentUpdatedAt: string;
+}
 
 export interface IncidentAttachment {
   attachmentId: string;
@@ -167,6 +172,7 @@ export interface IncidentSummary {
   active: number;
   responding: number;
   resolved: number;
+  cancelled?: number;
   services?: {
     fire: number;
     medical: number;
@@ -264,6 +270,7 @@ export const getIncidentPage = (filters?: IncidentFilters): Promise<IncidentPage
           active: incidents.filter(incident => incident.status === 'OPEN' || incident.status === 'ACTIVE').length,
           responding: incidents.filter(incident => incident.status === 'RESPONDING').length,
           resolved: incidents.filter(incident => incident.status === 'RESOLVED' || incident.status === 'CLOSED').length,
+          cancelled: incidents.filter(incident => incident.status === 'CANCELLED').length,
         },
       };
     })
@@ -277,7 +284,7 @@ export const getIncidentPage = (filters?: IncidentFilters): Promise<IncidentPage
 export const getIncidents = async (filters?: IncidentFilters): Promise<Incident[]> =>
   (await getIncidentPage(filters)).incidents;
 
-export type IncidentDashboardTab = 'All' | 'Active' | 'Responding' | 'Resolved';
+export type IncidentDashboardTab = 'All' | 'Active' | 'Responding' | 'Resolved' | 'Cancelled';
 
 export const ADMIN_INCIDENT_PAGE_SIZE = 5;
 export const DEPARTMENT_INCIDENT_PAGE_SIZE = ADMIN_INCIDENT_PAGE_SIZE;
@@ -290,6 +297,8 @@ export const incidentStatusesForTab = (tab: IncidentDashboardTab): IncidentStatu
       return ['RESPONDING'];
     case 'Resolved':
       return ['RESOLVED', 'CLOSED'];
+    case 'Cancelled':
+      return ['CANCELLED'];
     default:
       return undefined;
   }
@@ -297,7 +306,7 @@ export const incidentStatusesForTab = (tab: IncidentDashboardTab): IncidentStatu
 
 export const incidentServiceStatusesForTab = (
   tab: Exclude<IncidentDashboardTab, 'All' | 'Active'>,
-): ServiceResponseStatus[] => tab === 'Resolved' ? ['RESOLVED'] : ['RESPONDING'];
+): ServiceResponseStatus[] => tab === 'Cancelled' ? ['CANCELLED'] : tab === 'Resolved' ? ['RESOLVED'] : ['RESPONDING'];
 
 /**
  * GET /api/incidents/v1/:id
@@ -353,10 +362,14 @@ export const verifyIncident = async (
 
 /**
  * DELETE /api/incidents/v1/:id
- * Permanently deletes a closed incident (main administrator only).
+ * Deletes a closed/cancelled incident or an explicitly version-bound confirmed false report (Main only).
  */
-export const deleteIncident = async (id: string, reason: string, confirmation: string): Promise<void> => {
-  await apiClient.delete(`/incidents/v1/${id}`, { data: { reason, confirmation } });
+export const deleteIncident = async (id: string, reason: string, confirmation: string, falseReport?: FalseReportVersion): Promise<void> => {
+  await apiClient.delete(`/incidents/v1/${id}`, { data: { reason, confirmation, ...(falseReport && { falseReport }) } });
+};
+
+export const cancelFalseIncident = async (id: string, reason: string, version: FalseReportVersion): Promise<void> => {
+  await apiClient.post(`/incidents/v1/${id}/cancel-confirmed-false`, { reason, ...version });
 };
 
 export const flagIncident = async (id: string, reason: string): Promise<IncidentReviewFlag> => {
@@ -460,6 +473,8 @@ export const formatIncidentForDashboard = (inc: Incident, responseService?: Resp
     const serviceResponse = inc.serviceResponses?.find(item => item.service === responseService);
     if (serviceResponse) status = serviceResponse.status === 'RESOLVED' ? 'resolved' : 'responding';
   }
+  // Cancellation is a global retained outcome, never an active department response.
+  if (inc.status === 'CANCELLED') status = 'cancelled';
 
   let phone = 'Not provided';
   let description = (inc.description || '').trim();

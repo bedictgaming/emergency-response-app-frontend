@@ -129,6 +129,8 @@ export default function BarangayHistoryPage() {
 
   const renderStatusBadge = (status: string) => {
     switch (status) {
+      case "CANCELLED":
+        return <span className="inline-flex rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-800">CANCELLED</span>;
       case "RESOLVED":
       case "CLOSED":
         return (
@@ -487,6 +489,7 @@ export default function BarangayHistoryPage() {
               <option value="ACTIVE">Active Only</option>
               <option value="OPEN">Open Only</option>
               <option value="CLOSED">Closed Only</option>
+              <option value="CANCELLED">Cancelled Only</option>
             </select>
 
             {/* Period Filter */}

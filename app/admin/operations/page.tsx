@@ -50,7 +50,7 @@ export default function OperationsPage() {
   useEffect(() => { void load(); }, [load]);
 
   const unitOptions = (records.units || []).map(row => ({ value: text(row, 'unitId'), label: text(row, 'unitName') }));
-  const incidentOptions = (records.incidents || []).filter(row => row.verificationStatus === 'VERIFIED' && !['CLOSED', 'RESOLVED'].includes(text(row, 'status'))).map(row => ({ value: text(row, 'incidentId'), label: text(row, 'title') }));
+  const incidentOptions = (records.incidents || []).filter(row => row.verificationStatus === 'VERIFIED' && !['CLOSED', 'RESOLVED', 'CANCELLED'].includes(text(row, 'status'))).map(row => ({ value: text(row, 'incidentId'), label: text(row, 'title') }));
   const sections: Section[] = [
     { key: 'units', title: 'Units', id: 'unitId', label: 'unitName', fields: [
       { name: 'unitName', label: 'Unit name', required: true }, { name: 'unitType', label: 'Unit type', required: true },

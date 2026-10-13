@@ -1,6 +1,6 @@
 // Read-only anonymous post-launch smoke. No accounts, submissions or secret cookies.
 import { chromium, devices } from '@playwright/test';
-const origin = 'https://cordova-emergency-response.vercel.app';
+const origin = 'https://cordova-emergency-response.site';
 const protectedPreview = 'https://emergency-response-6mpeihbjc-benedict-mequiabas-projects.vercel.app';
 function must(condition, label) { if (!condition) throw new Error(label); }
 async function get(url) {

@@ -148,6 +148,7 @@ export default function MainDashboard() {
         { name: "Active" as const, count: summary.active },
         { name: "Responding" as const, count: summary.responding },
         { name: "Resolved" as const, count: summary.resolved },
+        { name: "Cancelled" as const, count: summary.cancelled ?? 0 },
     ];
 
     const filteredEmergencies = emergencies;

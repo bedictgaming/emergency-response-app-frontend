@@ -103,6 +103,7 @@ export default function BarangayHistoryDrawer({
 
   const renderStatusBadge = (status: string) => {
     const s = status.toUpperCase();
+    if (s === "CANCELLED") return <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-800">CANCELLED</span>;
     if (s === "RESOLVED" || s === "CLOSED") {
       return (
         <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">

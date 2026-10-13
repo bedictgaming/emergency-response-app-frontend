@@ -28,7 +28,7 @@ export interface EmergencyReport {
   latitude?: number;
   longitude?: number;
   timestamp: string;
-  status: 'pending' | 'in-progress' | 'resolved';
+  status: 'pending' | 'in-progress' | 'resolved' | 'cancelled';
   userId: string;
   photoUrl?: string;
 }

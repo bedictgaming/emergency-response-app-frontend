@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { PUBLIC_ORIGINS, resolveApiOrigin, evidenceAccessPath } from '../lib/public-origins.mjs';
 import { deploymentFailures } from './deployment-policy.mjs';
 const mode = { NEXT_PUBLIC_PUBLIC_LAUNCH: 'true', NEXT_PUBLIC_PRODUCTION_VALIDATION: 'false', NEXT_PUBLIC_PREVIEW_ONLY: 'false', NEXT_PUBLIC_STAGING_TEST: 'false' };
-test('both approved live aliases use their own API and retain strict deployment gates', () => {
+test('the single approved public site uses its own API and retains strict deployment gates', () => {
+  assert.deepEqual(PUBLIC_ORIGINS, ['https://cordova-emergency-response.site']);
   for (const origin of PUBLIC_ORIGINS) {
     assert.deepEqual(deploymentFailures({ ...mode, NEXT_PUBLIC_API_URL: origin }), []);
     assert.equal(resolveApiOrigin(PUBLIC_ORIGINS[0], origin, true, false), origin);
@@ -12,7 +13,7 @@ test('both approved live aliases use their own API and retain strict deployment 
   }
 });
 test('unknown hosts and isolated/local builds cannot select a production API from location', () => {
-  for (const origin of ['https://evil.invalid', 'https://cordova-emergency-response.site.evil.invalid', 'https://www.cordova-emergency-response.site']) {
+  for (const origin of ['https://evil.invalid', 'https://cordova-emergency-response.site.evil.invalid', 'https://www.cordova-emergency-response.site', 'https://cordova-emergency-response.vercel.app']) {
     assert.equal(resolveApiOrigin(PUBLIC_ORIGINS[0], origin, true, false), PUBLIC_ORIGINS[0]);
     assert.ok(deploymentFailures({ ...mode, NEXT_PUBLIC_API_URL: origin }).length);
     // A metadata URL can never direct the cookie-bearing request off-site.

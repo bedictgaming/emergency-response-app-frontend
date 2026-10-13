@@ -1,4 +1,4 @@
-export type IncidentStatus = 'OPEN' | 'ACTIVE' | 'RESPONDING' | 'RESOLVED' | 'CLOSED';
+export type IncidentStatus = 'OPEN' | 'ACTIVE' | 'RESPONDING' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
 export type SeverityLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type BarangayStatus = 'ACTIVE' | 'INACTIVE';
 

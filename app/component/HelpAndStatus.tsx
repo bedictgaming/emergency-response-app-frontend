@@ -28,6 +28,7 @@ const statusLabels: Record<EmergencyReport['status'], string> = {
   pending: 'Report submitted',
   'in-progress': 'Coordination in progress',
   resolved: 'Resolved',
+  cancelled: 'Cancelled by Main Admin',
 };
 
 function formatReportTime(timestamp: string) {

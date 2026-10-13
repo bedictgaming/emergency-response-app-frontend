@@ -88,7 +88,9 @@ test('main admin reviews, closes and deliberately deletes a report with a reason
   await expect(dialog).toContainText('Confirmed false report');
   await expect(dialog.getByRole('button', { name: 'Delete closed report permanently' })).toHaveCount(0);
   await expect(dialog.getByRole('button', { name: /Resolve confirmed|Main Admin Override/ })).toHaveCount(0);
-  await expect(dialog).toContainText('Wait for the assigned departments');
+  await expect(dialog.getByRole('button', { name: 'Cancel confirmed false report', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Delete confirmed false report permanently', exact: true })).toBeVisible();
+  await expect(dialog).toContainText('You do not need departments to click Resolve.');
   // Simulate a separate assigned department completing its response. Main
   // cannot create this state through the review surface.
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();

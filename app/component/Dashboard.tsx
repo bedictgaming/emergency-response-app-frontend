@@ -33,9 +33,10 @@ const mapIncidentToReport = (inc: Incident): EmergencyReport => {
     else if (typeName.includes('pol') || typeName.includes('sec')) category = 'police';
     else if (typeName.includes('haz') || typeName.includes('flood')) category = 'hazard';
 
-    let status: 'pending' | 'in-progress' | 'resolved' = 'pending';
+    let status: EmergencyReport['status'] = 'pending';
     if (inc.status === 'ACTIVE' || inc.status === 'RESPONDING') status = 'in-progress';
     else if (inc.status === 'RESOLVED' || inc.status === 'CLOSED') status = 'resolved';
+    else if (inc.status === 'CANCELLED') status = 'cancelled';
 
     let desc = inc.description || '';
     let contact = '';

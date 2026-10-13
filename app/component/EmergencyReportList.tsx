@@ -108,7 +108,9 @@ export function EmergencyReportsList({
           const Icon = category.icon;
           const hasGps = Number.isFinite(report.latitude) && Number.isFinite(report.longitude);
           const mapExpanded = expandedMapIds.has(report.id);
-          const status = report.status === 'resolved'
+          const status = report.status === 'cancelled'
+            ? { label: 'Cancelled by Main Admin', icon: Clock3, className: 'border-slate-300 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100' }
+            : report.status === 'resolved'
             ? { label: 'Resolved', icon: CheckCircle2, className: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300' }
             : report.status === 'in-progress'
               ? { label: 'Coordination in progress', icon: Clock3, className: 'border-slate-300 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100' }
