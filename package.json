@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "test:architecture": "node --test scripts/architecture.test.mjs",
+    "test:seo": "node --test scripts/seo.test.mjs",
+    "seo:card": "node scripts/generate-seo-card.mjs",
     "release:check": "node scripts/release-preflight.mjs",
     "deploy:check": "node scripts/deployment-preflight.mjs",
     "deploy:build": "node scripts/deploy-build.mjs",

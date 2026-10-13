@@ -1,5 +1,7 @@
 # Emergency Response Client
 
+See [SEO_GUIDE.md](SEO_GUIDE.md) for public-homepage metadata, private-page indexing safeguards, local checks and post-deployment Search Console setup. SEO implementation does not automatically deploy or submit the site to search engines.
+
 Current source organization is documented in [ARCHITECTURE.md](ARCHITECTURE.md): routes, components, hooks, client utilities and types live under `src/`. The canonical public origin is `https://cordova-emergency-response.site`. Historical deployment descriptions below do not override workspace `MASTER_PROMPT.md` or current gates. This structural refactor is local until separately deployed.
 
 Next.js progressive web app for Cordova's emergency-response workflow.

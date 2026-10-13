@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { privateRobots } from "@/lib/seo";
+import { SEO_DESCRIPTION, SEO_NAME, SEO_ORIGIN } from "@/lib/seo-policy.mjs";
 import "./globals.css";
 // The root not-found boundary is available on every route. Load its small,
 // scoped stylesheet here rather than leaving Next's fallback-only preload unused.
@@ -24,11 +26,15 @@ const themeBootScript = `
 `;
 
 export const metadata: Metadata = {
-  title: "Emergency Response App",
-  description: "Community-based emergency reporting and response coordination for Cordova, Cebu.",
-  applicationName: "Emergency Response App",
+  metadataBase: new URL(SEO_ORIGIN),
+  title: { default: SEO_NAME, template: `%s | ${SEO_NAME}` },
+  description: SEO_DESCRIPTION,
+  applicationName: SEO_NAME,
+  // New routes are out of search unless they explicitly opt in like Home.
+  robots: privateRobots,
   icons: {
     icon: [
+      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
     ],

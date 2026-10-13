@@ -16,6 +16,16 @@
       ]
     },
     {
+      "source": "/(.*)",
+      "missing": [{ "type": "host", "value": "cordova-emergency-response\\.site" }],
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow, nosnippet" }]
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "query", "key": "resetToken" }],
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow, nosnippet" }]
+    },
+    {
       "source": "/api/:path*",
       "headers": [
         { "key": "Cache-Control", "value": "no-store" }

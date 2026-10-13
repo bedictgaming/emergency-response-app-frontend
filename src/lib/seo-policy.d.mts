@@ -1,0 +1,12 @@
+import type { MetadataRoute } from 'next';
+type BuildEnvironment = Readonly<Record<string, string | undefined>>;
+export const SEO_ORIGIN: string;
+export const SEO_NAME: string;
+export const SEO_TITLE: string;
+export const SEO_DESCRIPTION: string;
+export const SEO_IMAGE: string;
+export function shouldIndexPublicSite(env: BuildEnvironment): boolean;
+export function robotsPolicy(env: BuildEnvironment): MetadataRoute.Robots;
+export function sitemapPolicy(env: BuildEnvironment): MetadataRoute.Sitemap;
+export function websiteSchema(env: BuildEnvironment): Record<string, string> | null;
+export function serializeJsonLd(value: unknown): string;
