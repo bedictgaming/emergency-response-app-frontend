@@ -336,8 +336,12 @@ test('main verified totals match history without hiding rejected review records'
   }
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.getByRole('button', { name: 'Barangay History Log' }).click();
-  await expect(page.getByText('Verified Reports Resolved')).toBeVisible();
-  await expect(page.getByText('September 2026 · 14 of 14 verified reports (100%).')).toBeVisible();
+  const historyDialog = page.getByRole('dialog', { name: 'Barangay Incident History Log', exact: true });
+  const monthlySummary = historyDialog.locator('[aria-label="Monthly verified resolution summary"]');
+  await expect(monthlySummary.getByText('Verified Reports Resolved', { exact: true })).toBeVisible();
+  await expect(monthlySummary.getByText('September 2026 · 14 of 14 verified reports (100%).', { exact: true })).toBeVisible();
+  await expect(monthlySummary.locator('[aria-label="All-time verified resolution summary"]')
+    .getByText('14 of 14 verified reports resolved across all report dates.', { exact: true })).toBeVisible();
 });
 
 test('main report cards explain verification independently of response status', async ({ page }, testInfo) => {
