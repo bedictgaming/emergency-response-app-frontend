@@ -35,6 +35,11 @@
 /* Operational controls remain pinned and arrive without choreography. */
 .pinnedSurface { animation: none !important; }
 
+@media print {
+  /* Screen auto-hide must not remove report titles/navigation from an export. */
+  .printHeader { position: static; transform: none !important; transition: none !important; }
+}
+
 .scanner {
   --scanner-ink: var(--foreground);
   --scanner-highlight: var(--primary);

@@ -1,5 +1,7 @@
 "use client";
 
+import { HeaderFrame } from '@/components/shared/HeaderFrame';
+
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 
 import { useState, useEffect, useCallback, useId } from "react";
@@ -36,6 +38,7 @@ import ReporterIdentity from "@/components/admin/ReporterIdentity";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 import { useAdminGuard } from "@/hooks/useAdminGuard";
 import MonthlyResolutionCard from "@/components/admin/MonthlyResolutionCard";
+import HistoryAnalyticsScopeNote from "@/components/admin/HistoryAnalyticsScopeNote";
 
 export default function BarangayHistoryPage() {
   const router = useRouter();
@@ -192,7 +195,7 @@ export default function BarangayHistoryPage() {
   return (
     <div className="figma-shell min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60 pb-14 font-sans">
       {/* Header */}
-      <header className="bg-[#0B0F19] text-white px-6 py-4 flex justify-between items-center shadow-md">
+      <HeaderFrame plain surfaceClassName="bg-[#0B0F19] text-white px-6 py-4 flex justify-between items-center shadow-md">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
@@ -224,9 +227,10 @@ export default function BarangayHistoryPage() {
             <span className="hidden sm:inline">Export Report</span>
           </button>
         </div>
-      </header>
+      </HeaderFrame>
 
       <main className="max-w-7xl mx-auto px-6 mt-8 space-y-6">
+        <HistoryAnalyticsScopeNote />
         {/* ============================================================ */}
         {/* SECTION 1: 3 CORE ANALYTICAL KPI CARDS                       */}
         {/* ============================================================ */}
@@ -245,7 +249,7 @@ export default function BarangayHistoryPage() {
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 {analytics?.incidentsByBarangay?.topArea
-                  ? `Accounts for ${analytics.incidentsByBarangay.topArea.percentage}% of all emergency calls (${analytics.incidentsByBarangay.topArea.incidentCount} reports)`
+                  ? `Accounts for ${analytics.incidentsByBarangay.topArea.percentage}% of all-time verified reports (${analytics.incidentsByBarangay.topArea.incidentCount} reports)`
                   : "No incident data recorded yet."}
               </p>
             </div>
@@ -279,7 +283,7 @@ export default function BarangayHistoryPage() {
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 {analytics?.incidentsByType?.topType
-                  ? `Represents ${analytics.incidentsByType.topType.percentage}% of all recorded emergencies (${analytics.incidentsByType.topType.count} cases)`
+                  ? `Represents ${analytics.incidentsByType.topType.percentage}% of all-time verified reports (${analytics.incidentsByType.topType.count} reports)`
                   : "No incident data recorded yet."}
               </p>
             </div>
@@ -578,7 +582,7 @@ export default function BarangayHistoryPage() {
               <p className="text-xs text-gray-500">
                 Showing {filteredIncidents.length} of {history.pagination?.total ?? "…"} matching recorded incidents
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">History includes all authorized records; analytics above count verified reports excluding confirmed-false reports.</p>
+              <p className="mt-1 text-xs text-muted-foreground">History includes all authorized report records, including records excluded from verified analytics. List filters do not change the analytics above.</p>
             </div>
           </div>
 

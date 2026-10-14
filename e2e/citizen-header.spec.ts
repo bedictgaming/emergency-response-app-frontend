@@ -3,12 +3,22 @@ import { expect, test } from '@playwright/test';
 test.use({ serviceWorkers: 'block' });
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('user', JSON.stringify({ id: 'header-citizen', name: 'Synthetic Citizen', email: 'synthetic-citizen@example.test', role: 'USER' }));
+    // Seed once per isolated test context, not again after logout/navigation.
+    if (!sessionStorage.getItem('header-citizen-fixture-seeded')) {
+      localStorage.setItem('user', JSON.stringify({ id: 'header-citizen', name: 'Synthetic Citizen', email: 'synthetic-citizen@example.test', role: 'USER' }));
+      sessionStorage.setItem('header-citizen-fixture-seeded', 'true');
+    }
     class Stream extends EventTarget { close() {} }
     Object.assign(window, { EventSource: Stream });
   });
+  let authenticated = true;
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/auth/v1/logout') && route.request().method() === 'POST') {
+      authenticated = false;
+      return route.fulfill({ json: { message: 'Signed out' } });
+    }
+    if (path.endsWith('/auth/v1/me') && !authenticated) return route.fulfill({ status: 401, json: { message: 'Session ended' } });
     if (path.endsWith('/auth/v1/me')) return route.fulfill({ json: { data: { user: {
       id: 'header-citizen', name: 'Synthetic Citizen', email: 'synthetic-citizen@example.test', role: 'USER', status: 'ACTIVE',
     } } } });

@@ -10,11 +10,12 @@ interface HeaderFrameProps {
   surfaceClassName: string;
   pinned?: boolean;
   wide?: boolean;
+  plain?: boolean;
   scrollContainer?: RefObject<HTMLElement | null>;
 }
 
 // The shared frame owns appearance and scroll behavior, never session or alerts.
-export function HeaderFrame({ children, surfaceClassName, pinned = false, wide = false, scrollContainer }: HeaderFrameProps) {
+export function HeaderFrame({ children, surfaceClassName, pinned = false, wide = false, plain = false, scrollContainer }: HeaderFrameProps) {
   const header = useRef<HTMLElement>(null);
   const previousY = useRef(0);
   const travel = useRef(0);
@@ -59,9 +60,9 @@ export function HeaderFrame({ children, surfaceClassName, pinned = false, wide =
       }}
       onFocusCapture={() => { setFocused(true); setHidden(false); travel.current = 0; }}
       onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}
-      className={`${styles.header} sticky top-0 ${pinned ? 'z-40' : 'z-50'} w-full px-2 sm:px-4`}
+      className={`${styles.printHeader} ${plain ? 'transition-transform duration-[240ms] ease-[cubic-bezier(0.16,1,0.3,1)]' : styles.header} sticky top-0 ${pinned ? 'z-40' : 'z-50'} w-full ${plain ? '' : 'px-2 sm:px-4'}`}
     >
-      <div className={`${styles.headerSurface} ${pinned ? styles.pinnedSurface : ''} ${scrolled ? styles.headerScrolled : ''} mx-auto ${wide ? 'max-w-[1600px]' : 'max-w-7xl'} ${surfaceClassName}`}>
+      <div className={plain ? surfaceClassName : `${styles.headerSurface} ${pinned ? styles.pinnedSurface : ''} ${scrolled ? styles.headerScrolled : ''} mx-auto ${wide ? 'max-w-[1600px]' : 'max-w-7xl'} ${surfaceClassName}`}>
         {children}
       </div>
     </header>

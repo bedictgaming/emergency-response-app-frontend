@@ -30,6 +30,7 @@ import {
 } from "@/types/barangay-history";
 import { getDashboardAnalytics } from "@/lib/services/analyticsService";
 import MonthlyResolutionCard from "./MonthlyResolutionCard";
+import HistoryAnalyticsScopeNote from "./HistoryAnalyticsScopeNote";
 
 interface BarangayHistoryDrawerProps {
   isOpen: boolean;
@@ -193,6 +194,7 @@ export default function BarangayHistoryDrawer({
           {analyticsError && <div role="alert" className="m-6 rounded-lg border border-border bg-card p-4 text-sm">{analyticsError} <button onClick={() => void loadData()} className="min-h-11 underline">Retry analytics</button></div>}
           {/* Core Analytics Cards */}
           <div className="p-6 pb-3 space-y-4">
+            <HistoryAnalyticsScopeNote />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Question 1: Frequent Areas */}
               <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-2xs">
@@ -205,7 +207,7 @@ export default function BarangayHistoryDrawer({
                 </div>
                 <div className="text-[11px] text-gray-500 mt-1">
                   {analytics?.incidentsByBarangay?.topArea
-                    ? `${analytics.incidentsByBarangay.topArea.incidentCount} reports (${analytics.incidentsByBarangay.topArea.percentage}%)`
+                    ? `${analytics.incidentsByBarangay.topArea.incidentCount} verified reports (${analytics.incidentsByBarangay.topArea.percentage}%) · all time`
                     : analyticsError ? "Could not load totals" : "No records yet"}
                 </div>
               </div>
@@ -217,11 +219,11 @@ export default function BarangayHistoryDrawer({
                   <Flame size={14} className="text-amber-500" />
                 </div>
                 <div className="text-base font-extrabold text-gray-900 truncate">
-                  {analytics?.incidentsByType?.topType?.typeName || "None"}
+                  {analytics?.incidentsByType?.topType?.typeName || (analyticsError ? "Unavailable" : "None")}
                 </div>
                 <div className="text-[11px] text-gray-500 mt-1">
                   {analytics?.incidentsByType?.topType
-                    ? `${analytics.incidentsByType.topType.count} cases (${analytics.incidentsByType.topType.percentage}%)`
+                    ? `${analytics.incidentsByType.topType.count} verified reports (${analytics.incidentsByType.topType.percentage}%) · all time`
                     : analyticsError ? "Could not load totals" : "No records yet"}
                 </div>
               </div>
@@ -238,7 +240,7 @@ export default function BarangayHistoryDrawer({
                     Barangay Incident Frequency Ranking
                   </h3>
                   <span className="text-[11px] text-gray-400">
-                    Total {analytics.incidentsByBarangay.totalIncidents} incidents
+                    {analytics.incidentsByBarangay.totalIncidents} verified · all time
                   </span>
                 </div>
                 <div className="space-y-2">
@@ -317,7 +319,7 @@ export default function BarangayHistoryDrawer({
 
           {/* Incident Feed */}
           <div className="px-6 pb-6 space-y-3">
-            <p className="text-sm text-muted-foreground">History includes all authorized report records. Rankings and monthly totals count verified reports excluding confirmed-false reports.</p>
+            <p className="text-sm text-muted-foreground">History includes all authorized report records, including records excluded from verified analytics. List filters do not change the analytics above.</p>
             {history.error && <div role="alert" className="rounded-lg border border-border bg-card p-4 text-sm">{history.error} <button onClick={history.refresh} className="min-h-11 underline">Retry history</button></div>}
             {history.loading && incidents.length === 0 ? (
               <LoadingPlaceholder label="Loading Barangay incident history..." />

@@ -6,6 +6,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import apiClient from '@/lib/apiClient';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
+import { HeaderFrame } from '@/components/shared/HeaderFrame';
 
 type Row = Record<string, unknown>;
 type Choice = { value: string; label: string };
@@ -110,10 +111,10 @@ export default function OperationsPage() {
   if (!authorized) return null;
   return <main className="figma-shell min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60 px-4 py-8 text-slate-900">
     <div className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-4">
+      <HeaderFrame plain surfaceClassName="flex flex-wrap items-center justify-between gap-4 bg-slate-50">
         <div><h1 className="text-2xl font-bold">Incident tasks</h1><p className="text-sm text-slate-600">Manage report follow-up tasks. Staff arrange crews and vehicles outside this app.</p></div>
         <Link href="/admin/main-dashboard" className="inline-flex min-h-11 items-center rounded-lg border bg-white px-4 py-2 text-sm">Back to dashboard</Link>
-      </header>
+      </HeaderFrame>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">{error}</p>}
       {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">{notice}</p>}
       <div className="flex gap-3"><input aria-label="Search records" placeholder="Search records" value={search} onChange={event => setSearch(event.target.value)} className={`${inputClass} min-w-0 flex-1`}/><button disabled={busy} onClick={() => void load()} className="shrink-0 whitespace-nowrap rounded-lg border bg-white px-4">Refresh</button></div>

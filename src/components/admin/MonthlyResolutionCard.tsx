@@ -18,13 +18,16 @@ function summaryPeriod(summary?: ResolvedSummaryItem | null) {
     ? `${summary.year}-${String(summary.month).padStart(2, "0")}` : "";
 }
 
-function validSummary(summary: ResolvedSummaryItem | null | undefined, period: string) {
-  if (!summary || summaryPeriod(summary) !== period) return null;
-  const total = summary.totalReportedThisMonth;
-  const resolved = summary.resolvedThisMonth;
-  if (!Number.isSafeInteger(total) || !Number.isSafeInteger(resolved)
+function validCounts(total: number | undefined, resolved: number | undefined) {
+  if (typeof total !== "number" || typeof resolved !== "number"
+    || !Number.isSafeInteger(total) || !Number.isSafeInteger(resolved)
     || total < 0 || resolved < 0 || resolved > total) return null;
   return { total, resolved, rate: total ? Math.round(resolved / total * 100) : 0 };
+}
+
+function validSummary(summary: ResolvedSummaryItem | null | undefined, period: string) {
+  if (!summary || summaryPeriod(summary) !== period) return null;
+  return validCounts(summary.totalReportedThisMonth, summary.resolvedThisMonth);
 }
 
 /** Past-month reads retain the same backend verification and department scope. */
@@ -44,6 +47,9 @@ export default function MonthlyResolutionCard({ summary, compact = false }: {
   ));
   const monthly = validSummary(selection.period
     ? (isLoading ? null : result?.data) : summary, period);
+  // All-time totals are independent of the selected report month and visible
+  // history page. Retain the authorized dashboard aggregate as their source.
+  const historical = validCounts(summary?.totalHistorical, summary?.totalResolvedAllTime);
   const monthLabel = new Intl.DateTimeFormat("en-US", {
     month: "long", year: "numeric", timeZone: "Asia/Manila",
   }).format(new Date(`${period}-01T00:00:00+08:00`));
@@ -84,8 +90,14 @@ export default function MonthlyResolutionCard({ summary, compact = false }: {
         </p>
       </div>
       <p className="text-xs text-emerald-800 mt-2">
-        Reported in the selected month; currently resolved or closed. Past months remain available.
+        Reported in the selected month (Asia/Manila); currently resolved or closed, not necessarily resolved during that month.
       </p>
+      <div aria-label="All-time verified resolution summary" className="mt-3 border-t border-emerald-200 pt-3 text-xs text-emerald-800">
+        <p className="font-semibold">All-time verified reports resolved</p>
+        <p className="mt-1">{historical
+          ? `${historical.resolved} of ${historical.total} verified reports resolved across all report dates.`
+          : "All-time totals unavailable."}</p>
+      </div>
       {!isLoading && !monthly && (
         <button type="button" className="mt-2 min-h-11 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-semibold text-emerald-900"
           onClick={() => setSelection(previous => ({ period, revision: previous.revision + 1 }))}>

@@ -61,8 +61,13 @@ for (const width of [1366, 1280, 1024, 768, 375, 320]) {
       // Exercise a wider fallback font too: native font metrics differ on CI/phones.
       if (width === 320) await page.addStyleTag({ content: 'body, .figma-shell { font-family: Verdana, sans-serif !important; }' });
       const initial = await geometry(page);
+      const navigation = page.getByRole('navigation', { name: 'Admin navigation', exact: true });
+      await expect(navigation.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
+      await expect(navigation.locator('a[href="/settings"]')).toHaveCount(0);
+      await expect(navigation.getByRole('button', { name: 'Analytics', exact: true })).toBeVisible();
+      await expect(navigation.getByRole('button', { name: 'Users', exact: true })).toHaveCount(department === 'MAIN' ? 1 : 0);
       await expect(page.locator('header')).toHaveAttribute('data-header-frame', 'shared');
-      await expect(page.locator('header')).toHaveAttribute('data-pinned', 'true');
+      await expect(page.locator('header')).toHaveAttribute('data-pinned', 'false');
       await expect(page.locator('header img[src="/emergency-icon.png"]')).toHaveAttribute('width', '40');
       expect(initial.pageOverflow).toBe(false);
       if (width >= 1280) {
@@ -84,10 +89,14 @@ for (const width of [1366, 1280, 1024, 768, 375, 320]) {
       expect((await geometry(page)).header.height).toBe(initial.header.height);
       if (width < 640) {
         for (const name of ['Resume sound', 'Logout', 'Outstanding alerts: 0']) {
-          const box = await page.getByRole('button', { name, exact: true }).boundingBox();
+          const control = page.getByRole('button', { name, exact: true });
+          const box = await control.boundingBox();
           expect(box!.x).toBeGreaterThanOrEqual(0);
           expect(box!.x + box!.width).toBeLessThanOrEqual(width);
-          expect(box!.height).toBeGreaterThanOrEqual(44);
+          // Transformed DOMRects can subtract to 43.999992 for an exact 44px
+          // layout box. Keep the 44px gate, validate both layout and visual size.
+          expect(await control.evaluate(element => (element as HTMLElement).offsetHeight)).toBeGreaterThanOrEqual(44);
+          expect(Number(box!.height.toFixed(4))).toBeGreaterThanOrEqual(44);
         }
         const warning = page.getByText(/Alert queue unavailable\. Shown alerts/);
         const box = await warning.boundingBox();
@@ -98,7 +107,8 @@ for (const width of [1366, 1280, 1024, 768, 375, 320]) {
         const logout = page.getByRole('button', { name: 'Logout', exact: true });
         // Exercise native keyboard traversal, not only programmatic focus.
         const pageY = await page.evaluate(() => scrollY);
-        await page.getByRole('link', { name: 'Settings', exact: true }).focus();
+        const precedingControl = navigation.getByRole('button', { name: department === 'MAIN' ? 'Users' : 'Analytics', exact: true });
+        await precedingControl.focus();
         await page.keyboard.press('Tab');
         await expect(logout).toBeFocused();
         // Focus scrolls the bounded navigation asynchronously; check its settled
@@ -106,18 +116,26 @@ for (const width of [1366, 1280, 1024, 768, 375, 320]) {
         await expect.poll(async () => (await logout.boundingBox())!.x).toBeGreaterThanOrEqual(0);
         await expect.poll(async () => { const box = (await logout.boundingBox())!; return box.x + box.width; }).toBeLessThanOrEqual(width);
         await page.keyboard.press('Shift+Tab');
-        const settings = page.getByRole('link', { name: 'Settings', exact: true });
-        await expect(settings).toBeFocused();
-        const settingsBox = (await settings.boundingBox())!;
-        expect(settingsBox.x).toBeGreaterThanOrEqual(0);
-        expect(settingsBox.x + settingsBox.width).toBeLessThanOrEqual(width);
+        await expect(precedingControl).toBeFocused();
+        await expect.poll(async () => (await precedingControl.boundingBox())!.x).toBeGreaterThanOrEqual(0);
+        await expect.poll(async () => { const box = (await precedingControl.boundingBox())!; return box.x + box.width; }).toBeLessThanOrEqual(width);
         expect(await page.evaluate(() => scrollY)).toBe(pageY);
         await page.getByRole('button', { name: 'Outstanding alerts: 0', exact: true }).focus();
       }
       expect((await geometry(page)).pageOverflow).toBe(false);
+      // Empty synthetic reports still need a real window scroll range to test direction.
+      await page.locator('header').evaluate(header => {
+        (document.activeElement as HTMLElement)?.blur();
+        const spacer = document.createElement('div'); spacer.dataset.headerScrollFixture = 'true'; spacer.style.height = '1600px'; header.parentElement!.append(spacer);
+      });
+      const mainPosition = await page.locator('main').evaluate(element => element.getBoundingClientRect().top + scrollY);
       await page.evaluate(() => window.scrollTo({ top: 500, behavior: 'instant' }));
+      await expect(page.locator('header')).toHaveAttribute('data-hidden', 'true');
+      await expect.poll(async () => { const box = (await page.locator('header').boundingBox())!; return box.y + box.height; }).toBeLessThanOrEqual(0);
+      await page.evaluate(() => window.scrollTo({ top: 480, behavior: 'instant' }));
       await expect(page.locator('header')).toHaveAttribute('data-hidden', 'false');
-      expect((await page.locator('header').boundingBox())!.y).toBeGreaterThanOrEqual(0);
+      await expect.poll(async () => (await page.locator('header').boundingBox())!.y).toBeGreaterThanOrEqual(-1);
+      expect(await page.locator('main').evaluate(element => element.getBoundingClientRect().top + scrollY)).toBe(mainPosition);
       await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
       if (process.env.DASHBOARD_HEADER_CAPTURE === 'true' && [1366, 1024, 375].includes(width)) {
         await page.locator('header').screenshot({ path: `.impeccable/review/dashboard-header-${route}-${width}.png` });

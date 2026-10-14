@@ -48,8 +48,18 @@ for (const surface of ['drawer', 'page'] as const) {
       await expect(content.getByText('Barangay unavailable', { exact: true })).toBeVisible();
       await content.getByLabel('Filter history by status').selectOption('RESPONDING');
       await expect.poll(() => fixture.requests.at(-1)?.searchParams.get('status')).toBe('RESPONDING');
+      const periodLoaded = page.waitForResponse(response => {
+        const url = new URL(response.url());
+        return url.pathname.replace(/\/$/, '') === '/api/incidents/v1'
+          && url.searchParams.get('period') === 'THIS_MONTH'
+          && url.searchParams.get('status') === 'RESPONDING' && response.status() === 200;
+      });
       await content.getByLabel('Filter history by reporting period').selectOption('THIS_MONTH');
       await expect.poll(() => fixture.requests.at(-1)?.searchParams.get('period')).toBe('THIS_MONTH');
+      // A retained-data outage test requires an accepted result for this exact
+      // filter first, not merely a request that has started or old-filter rows.
+      await periodLoaded;
+      await expect(content.getByText('Oldest matching record', { exact: true })).toBeVisible();
     }
     fixture.fail();
     await content.getByRole('button', { name: surface === 'drawer' ? 'Refresh history' : 'Refresh Records', exact: true }).click();

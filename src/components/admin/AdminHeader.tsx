@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { LogOut, MapPin, Users, PieChart, ArrowLeft, Settings } from "lucide-react";
-import Link from "next/link";
+import { LogOut, MapPin, Users, PieChart, ArrowLeft } from "lucide-react";
 import { logout } from "@/lib/services/authService";
 import { getAdminDepartment, getDepartmentDashboardUrl } from "@/hooks/useAdminGuard";
 import BarangayHistoryDrawer from "@/components/admin/BarangayHistoryDrawer";
@@ -91,7 +90,7 @@ export default function AdminHeader({
 
   return (
     <>
-      <HeaderFrame pinned wide surfaceClassName="grid w-full min-w-0 gap-3 px-2 py-3 text-foreground sm:px-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+      <HeaderFrame wide surfaceClassName="grid w-full min-w-0 gap-3 px-2 py-3 text-foreground sm:px-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         {/* Department Info & Navigation */}
         <div className="flex min-w-0 items-center gap-3.5 xl:pt-1">
           {shouldShowBack && (
@@ -127,7 +126,7 @@ export default function AdminHeader({
             const control = target.getBoundingClientRect();
             const viewport = event.currentTarget.getBoundingClientRect();
             // Native focus can leave a partially visible control clipped. Reveal
-            // only that control; keep the pinned alert monitor and page in place.
+            // only that control; keep the alert monitor and page in place.
             if (control.left < viewport.left || control.right > viewport.right) {
               target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
             }
@@ -166,7 +165,6 @@ export default function AdminHeader({
           )}
 
           {/* Logout */}
-          <Link href="/settings" className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><Settings size={15} aria-hidden="true" />Settings</Link>
           <button
             type="button"
             onClick={handleLogout}
