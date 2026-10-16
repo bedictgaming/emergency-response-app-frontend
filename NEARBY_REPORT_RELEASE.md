@@ -1,0 +1,9 @@
+# Separate nearby emergencies
+
+Approved release scope: Fire, Medical, Police and Hazard/DRRMO, with Main oversight. The existing report form submits separate valid nearby emergencies instead of stopping on the 100-metre heuristic. An advisory explains staff assessment; no user confirmation bypass or automatic fake/merge decision is introduced.
+
+Each form generates a stable submission UUID across retries, and a synchronous in-flight guard stops double-click work. A new form uses a new UUID. Existing evidence/camera/GPS/online checks, department routes, unified sessions/RBAC, provider configuration, indexing, gateway, worker and report lifecycle remain unchanged. Shared admin notices appear on all five dashboards and review details. Help text reflects advisory review, not automatic geographic rejection. The older backend's DUPLICATE_ACTIVE_INCIDENT error remains understandable during compatibility/recovery.
+
+Release baseline is published frontend 502d03c2b199617d13d771d232164f4d12977ac0. Only feature files/tests and this handoff are released; no private environment, localhost provider configuration, unrelated CSS work or cancelled fake-report proposal is included. The existing development branch is updated separately without resetting the owner's dirty primary checkout or its preserved environment-example deletion.
+
+Fifteen local mocked browser checks and local types/scoped lint passed before release isolation; they do not certify live APIs/GPS/camera/Google/Cloudinary or real-user UAT. Require fresh exact-source full hosted Frontend checks, a tracked byte-verified archive and unpromoted production candidate, unchanged complete configuration/protection/domain fingerprints, healthy compatible backend, anonymous API/no-store/CSP/SEO/worker/bundle checks and independently verified canonical promotion. Actual release evidence belongs in MASTER_PROMPT.md, OPERATIONS.md and the sanitized nearby-report-release-20261017 receipt outside OneDrive.

@@ -53,7 +53,8 @@ test('help panel shows truthful own status and opens the latest report across hi
   await expect(help.getByRole('link', { name: 'Call 911 for emergency help' })).toHaveAttribute('href', 'tel:911');
   await expect(help.getByText('Coordination in progress')).toBeVisible();
   await expect(help.getByText('No daily report limit.')).toBeVisible();
-  await expect(help.getByText('Similar active emergencies within 100 metres', { exact: false })).toBeVisible();
+  await expect(help.getByText('Separate emergencies nearby can still be reported.', { exact: false })).toBeVisible();
+  await expect(help.getByText('repeat submissions and reused proof photos are blocked.', { exact: false })).toBeVisible();
   if (process.env.HELP_STATUS_CAPTURE === '1') {
     await page.screenshot({ path: 'test-results/help-status-desktop.png', fullPage: true });
   }

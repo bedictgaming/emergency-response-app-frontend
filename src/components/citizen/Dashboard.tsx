@@ -77,6 +77,8 @@ export function Dashboard() {
     const [isSubmittingReport, setIsSubmittingReport] = useState(false);
     const [submitError, setSubmitError] = useState<string>('');
     const [duplicateReportBlocked, setDuplicateReportBlocked] = useState(false);
+    const [nearbyNotice, setNearbyNotice] = useState(false);
+    const submissionInFlight = useRef(false);
     const submitErrorRef = useRef<HTMLDivElement>(null);
     const [reportsLoadError, setReportsLoadError] = useState(false);
     const reportsRequestInFlight = useRef(false);
@@ -260,21 +262,22 @@ export function Dashboard() {
         router.push('/');
     };
 
-    const handleReportSubmit = async (report: Omit<EmergencyReport, 'id' | 'timestamp' | 'status' | 'userId'> & { photoFile?: File | null; barangayName?: string; requestedServices?: ResponseService[] }) => {
-        if (!user || isSubmittingReport) return;
+    const handleReportSubmit = async (report: Omit<EmergencyReport, 'id' | 'timestamp' | 'status' | 'userId'> & { submissionId?: string; photoFile?: File | null; barangayName?: string; requestedServices?: ResponseService[] }) => {
+        if (!user || submissionInFlight.current) return;
         if (!navigator.onLine) {
             setSubmitError('You are offline. Reconnect before submitting this emergency report.');
             return;
         }
+        submissionInFlight.current = true;
         setIsSubmittingReport(true);
         setSubmitError('');
         setDuplicateReportBlocked(false);
+        setNearbyNotice(false);
 
         try {
             let resolvedBarangayName = report.barangayName;
-            // Check first so an already-reported nearby emergency does not
-            // waste time or bandwidth uploading another proof photo. The
-            // create endpoint repeats this check atomically for race safety.
+            // Location remains authoritative; nearby reports are advisory only.
+            // A distinct emergency must not be blocked by the 100-metre radius.
             if (report.latitude !== undefined && report.longitude !== undefined && report.barangayName) {
                 try {
                     const nearby = await checkNearbyIncident({
@@ -294,16 +297,11 @@ export function Dashboard() {
                         return;
                     }
                     resolvedBarangayName = nearby.barangayName || resolvedBarangayName;
-                    if (nearby.duplicate) {
-                        setDuplicateReportBlocked(true);
-                        setSubmitError(nearby.message || 'A similar active emergency has already been reported nearby. Your report was not submitted.');
-                        return;
-                    }
+                    if (nearby.possibleDuplicate || nearby.duplicate) setNearbyNotice(true);
                 } catch (preflightError: unknown) {
                     const status = (preflightError as { response?: { status?: number } })?.response?.status;
-                    // Network/5xx/429 preflight failures cannot bypass the
-                    // authoritative duplicate check in create. An invalid
-                    // session or location must still stop before upload.
+                    // Preflight is optional; creation still checks location,
+                    // evidence and repeated submissions. Invalid sessions stop.
                     if (status && status < 500 && status !== 429) throw preflightError;
                 }
             }
@@ -330,6 +328,7 @@ export function Dashboard() {
             // 2. Submit the incident to backend PostgreSQL
             const categoryUpper = (report.category || 'EMERGENCY').toUpperCase();
             await createIncident({
+                submissionId: report.submissionId,
                 title: `${categoryUpper} Emergency: ${report.location.slice(0, 40)}`,
                 description: report.description,
                 category: report.category,
@@ -378,11 +377,13 @@ export function Dashboard() {
             setSubmitError(msg);
             console.warn('Incident submission failed:', { status, message: msg });
         } finally {
+            submissionInFlight.current = false;
             setIsSubmittingReport(false);
         }
     };
 
     const handleQuickReport = (category: EmergencyCategory) => {
+        setNearbyNotice(false);
         setSubmitError('');
         setDuplicateReportBlocked(false);
         setSelectedCategory(category);
@@ -656,6 +657,9 @@ export function Dashboard() {
                             <span className="text-sm font-medium text-foreground">Checking and submitting your report…</span>
                         </div>
                     )}
+                    {nearbyNotice && <p role="status" className="mb-4 max-w-prose text-base leading-relaxed text-foreground">
+                        A similar report is nearby. Your separate emergency can still be submitted; staff will assess both reports.
+                    </p>}
 
                     <EmergencyReportForm
                         submitting={isSubmittingReport}

@@ -81,7 +81,7 @@ export function HelpAndStatus({
             </div>
             <p className="mt-2 text-sm font-semibold text-slate-950 dark:text-white">No daily report limit.</p>
             <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">
-              Similar active emergencies within 100 metres are checked for duplicates. For a separate or worsening emergency nearby, call 911.
+              Separate emergencies nearby can still be reported. Staff assess similar reports within 100 metres; repeat submissions and reused proof photos are blocked.
             </p>
           </div>
         </div>

@@ -66,6 +66,7 @@ export interface ReporterInfo {
 }
 
 export interface Incident {
+  nearbyReportWarning?: 'POSSIBLE_DUPLICATE' | 'UNAVAILABLE';
   incidentId: string;
   title: string;
   description?: string;
@@ -94,6 +95,7 @@ export interface Incident {
 }
 
 export interface CreateIncidentPayload {
+  submissionId?: string;
   title: string;
   description?: string;
   category?: string;
@@ -122,6 +124,7 @@ export interface NearbyIncidentCheckPayload {
 
 export interface NearbyIncidentCheckResult {
   duplicate: boolean;
+  possibleDuplicate?: boolean;
   locationAccepted?: boolean;
   message?: string;
   barangayName?: string;

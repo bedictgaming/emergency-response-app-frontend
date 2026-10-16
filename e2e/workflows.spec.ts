@@ -7,6 +7,17 @@ async function session(page: Page, role = 'ADMIN') {
     await page.context().grantPermissions(['geolocation']);
     await page.context().setGeolocation({ latitude: 10.252191, longitude: 123.949475, accuracy: 25 });
     await page.addInitScript(() => {
+      // Reporting requires a fresh watch fix; getCurrentPosition supplies only an estimate.
+      Object.defineProperty(navigator.geolocation, 'watchPosition', {
+        configurable: true,
+        value: (success: PositionCallback) => setTimeout(() => success({
+          coords: { latitude: 10.252191, longitude: 123.949475, accuracy: 25 }, timestamp: Date.now(),
+        } as GeolocationPosition), 0),
+      });
+      Object.defineProperty(navigator.geolocation, 'clearWatch', {
+        configurable: true,
+        value: (id: number) => clearTimeout(id),
+      });
       Object.defineProperty(navigator.geolocation, 'getCurrentPosition', {
         configurable: true,
         value: (success: PositionCallback) => setTimeout(() => success({
@@ -27,6 +38,7 @@ async function session(page: Page, role = 'ADMIN') {
 }
 
 async function confirmEmergencyMapPin(page: Page) {
+  await expect(page.getByRole('button', { name: 'Confirm GPS location' })).toBeEnabled({ timeout: 15_000 });
   await page.getByRole('button', { name: 'Confirm GPS location' }).click();
   await expect(page.getByText('Location confirmed', { exact: true })).toBeVisible();
 }
@@ -355,43 +367,68 @@ test('citizen short-term rate-limit response preserves the draft without a devel
   expect(consoleErrors.some(message => message.includes('Incident report error:'))).toBe(false);
 });
 
-test('nearby active incident is detected before uploading evidence', async ({ page }) => {
+for (const category of ['Fire', 'Medical', 'Police', 'Hazard']) test(`nearby ${category} report is advisory and does not block a separate emergency`, async ({ page }) => {
   await session(page, 'USER');
   let uploadRequests = 0;
+  let createdPayload: Record<string, unknown> | undefined;
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.setViewportSize({ width: category === 'Medical' ? 390 : 1280, height: 900 });
   await page.route('https://nominatim.openstreetmap.org/**', route =>
     route.fulfill({ json: { address: { town: 'Cordova', province: 'Cebu' } } }),
   );
   await page.route('**/api/upload/v1/signature', route => {
     uploadRequests += 1;
-    return route.fulfill({ json: { data: {} } });
+    return route.fulfill({ json: { data: { cloudName: 'test', apiKey: 'test', timestamp: 1, folder: 'emergency-incidents/test-user', publicId: 'photo', signature: 'test', type: 'authenticated' } } });
+  });
+  await page.route('https://api.cloudinary.com/**', route => route.abort('blockedbyclient'));
+  await page.route('**/api/upload/v1/image', route => route.fulfill({ json: { data: {
+    publicId: 'emergency-incidents/test-user/nearby-separate', fileName: 'synthetic.jpg', format: 'jpg', bytes: 100,
+  } } }));
+  await page.route('**/api/incidents/v1/**', async route => {
+    if (new URL(route.request().url()).pathname.endsWith('/nearby-check')) return route.fulfill({ json: { data: { duplicate: false, possibleDuplicate: true, locationAccepted: true } } });
+    if (route.request().method() === 'POST') {
+      createdPayload = route.request().postDataJSON();
+      await gate;
+      return route.fulfill({ status: 201, json: { data: { incident: { incidentId: 'synthetic-separate' } } } });
+    }
+    return route.fulfill({ json: { data: { incidents: [] } } });
   });
   await page.route('**/api/incidents/v1/nearby-check', route => route.fulfill({
     json: {
       data: {
-        duplicate: true,
-        message: 'A similar active emergency has already been reported nearby. Your report was not submitted.',
+        duplicate: false,
+        possibleDuplicate: true,
       },
     },
   }));
 
   await page.goto('/dashboard');
-  await page.getByRole('heading', { name: 'Fire', exact: true }).click();
+  await page.getByRole('heading', { name: category, exact: true }).click();
   await page.getByLabel('Description of Incident').fill('Smoke coming from the same building');
   await page.getByLabel('Contact Number').fill('09171234567');
   await page.getByLabel('Incident barangay').selectOption('Poblacion');
   await confirmEmergencyMapPin(page);
   await captureIncidentPhoto(page);
-  await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
+  await page.getByRole('button', { name: 'Submit Report', exact: true }).evaluate(button => {
+    if (button instanceof HTMLButtonElement) { button.click(); button.click(); }
+  });
 
-  await expect(page.getByRole('dialog', { name: 'Report Emergency' }).getByRole('alert')).toContainText('A similar active emergency has already been reported nearby.');
-  await expect(page.getByRole('dialog', { name: 'Report Emergency' }).getByRole('alert').getByRole('link', { name: /Call 911/i })).toBeVisible();
+  await expect(page.getByText('A similar report is nearby. Your separate emergency can still be submitted; staff will assess both reports.')).toBeVisible();
+  await expect.poll(() => createdPayload).toBeTruthy();
+  expect(createdPayload?.submissionId).toEqual(expect.stringMatching(/^[a-f0-9-]{36}$/));
+  expect(createdPayload?.category).toBe(category.toLowerCase());
   await expect(page.getByLabel('Description of Incident')).toHaveValue('Smoke coming from the same building');
-  expect(uploadRequests).toBe(0);
+  expect(uploadRequests).toBe(1);
+  if (category === 'Fire' || category === 'Medical') await page.screenshot({ path: test.info().outputPath(`nearby-citizen-${category}.png`), fullPage: true });
+  release();
+  await expect(page.getByRole('dialog', { name: 'Report Emergency' })).toHaveCount(0);
 });
 
-test('create-time duplicate race retains the form and gives a safe warning', async ({ page }) => {
+test('repeated submission retains the draft and reuses its submission ID on retry', async ({ page }) => {
   await session(page, 'USER');
   let createRequests = 0;
+  const submissionIds: string[] = [];
   await page.route('https://nominatim.openstreetmap.org/**', route =>
     route.fulfill({ json: { address: { town: 'Cordova', province: 'Cebu' } } }),
   );
@@ -407,12 +444,13 @@ test('create-time duplicate race retains the form and gives a safe warning', asy
     }
     if (route.request().method() === 'POST') {
       createRequests += 1;
+      submissionIds.push(route.request().postDataJSON().submissionId);
       return route.fulfill({
         status: 409,
         json: {
           status: 'error',
-          errorCode: 'DUPLICATE_ACTIVE_INCIDENT',
-          message: 'A similar active emergency has already been reported nearby. Your report was not submitted.',
+          errorCode: 'DUPLICATE_SUBMISSION',
+          message: 'This submission was already received. Check your reports before starting a new report.',
         },
       });
     }
@@ -428,11 +466,14 @@ test('create-time duplicate race retains the form and gives a safe warning', asy
   await captureIncidentPhoto(page);
   await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
 
-  await expect(page.getByRole('dialog', { name: 'Report Emergency' }).getByRole('alert')).toContainText('Your report was not submitted.');
-  await expect(page.getByRole('dialog', { name: 'Report Emergency' }).getByRole('alert').getByRole('link', { name: /Call 911/i })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Report Emergency' }).getByRole('alert')).toContainText('This submission was already received.');
   await expect(page.getByLabel('Description of Incident')).toHaveValue('Smoke coming from the same building');
   await expect(page.getByLabel('Contact Number')).toHaveValue('09171234567');
   expect(createRequests).toBe(1);
+  await page.getByRole('button', { name: 'Submit Report', exact: true }).click();
+  await expect.poll(() => createRequests).toBe(2);
+  expect(submissionIds[0]).toBeTruthy();
+  expect(submissionIds[1]).toBe(submissionIds[0]);
 });
 
 test('Other emergency can request Medical and Hazard in one report', async ({ page }) => {

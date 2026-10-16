@@ -121,6 +121,7 @@ const getIcon = (iconName: string) => {
 interface EmergencyReportFormProps {
     submitting?: boolean;
     onSubmit: (report: {
+        submissionId: string;
         category: EmergencyCategory;
         requestedServices?: ResponseService[];
         description: string;
@@ -147,6 +148,8 @@ export function EmergencyReportForm({
     const [selectedCategory, setSelectedCategory] = useState<EmergencyCategory | null>(defaultCategory);
     const [requestedServices, setRequestedServices] = useState<ResponseService[]>([]);
     const [description, setDescription] = useState('');
+    // A deliberate new form gets a new key; retries of this draft keep it.
+    const submissionId = useRef<string | null>(null);
     const [reporterName, setReporterName] = useState(defaultName);
     const [contactNumber, setContactNumber] = useState('');
     const [location, setLocation] = useState('');
@@ -378,7 +381,9 @@ export function EmergencyReportForm({
 
         if (submitting || !validateForm() || !selectedCategory) return;
 
+        submissionId.current ??= crypto.randomUUID();
         onSubmit({
+            submissionId: submissionId.current,
             category: selectedCategory,
             requestedServices: selectedCategory === 'other' ? requestedServices : undefined,
             description: description.trim(),

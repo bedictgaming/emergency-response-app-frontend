@@ -7,6 +7,7 @@ import { Flag, ShieldCheck, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 import { CompactEvidencePhoto } from "../shared/SecureEvidencePhoto";
 import IncidentReviewNotice, { mergeReviewNotices } from './IncidentReviewNotice';
+import NearbyReportNotice from './NearbyReportNotice';
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 import { cancelFalseIncident, correctIncidentFlag, deleteIncident, flagIncident, getIncidentById, Incident, IncidentReviewFlag, reviewIncidentFlag, updateIncident, type FalseReportVersion } from "@/lib/services/incidentService";
 
@@ -113,6 +114,7 @@ export default function IncidentReviewActions({ incident, mainAdmin = false, onC
       ? { ...flag, status: latest.status } : flag;
   }).find(flag => flag.status !== "DISMISSED");
   return <div className="mt-4 border-t border-gray-200 pt-3">
+    <NearbyReportNotice warning={incident.nearbyReportWarning} />
     {!mainAdmin && <IncidentReviewNotice notices={incident.reviewNotices} cancelled={incident.status === 'CANCELLED'} />}
     <div className="flex flex-wrap items-center gap-3">
       <button type="button" onClick={() => void openReport()} disabled={busy} className={`${buttonClass} inline-flex items-center gap-2 border-gray-300 bg-white text-gray-700 hover:bg-gray-50`}>
@@ -132,6 +134,7 @@ export default function IncidentReviewActions({ incident, mainAdmin = false, onC
         {notice && <p role="status" className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
         {!current && (busy ? <LoadingPlaceholder label="Loading the latest report…" /> : <p role="status" className="mt-4 text-sm text-gray-600">Close this dialog and reopen it to retry.</p>)}
         {current && <>
+          <NearbyReportNotice warning={current.nearbyReportWarning} />
           <p className="mt-2 text-sm text-gray-600">Current status: <strong>{current.status}</strong> · Services: {current.requestedServices?.join(", ") || current.type?.typeName}</p>
           {!dispositionMode && <>
             <p className="my-4 whitespace-pre-wrap break-words text-sm text-gray-700">{current.description}</p>
