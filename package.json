@@ -5,7 +5,7 @@
   "scripts": {
     "test:architecture": "node --test scripts/architecture.test.mjs",
     "test:seo": "node --test scripts/seo.test.mjs",
-    "test:realtime": "node --experimental-strip-types --test scripts/emergency-transport.test.mjs scripts/public-reference-cache.test.mjs",
+    "test:realtime": "node --experimental-strip-types --test scripts/emergency-transport.test.mjs scripts/public-reference-cache.test.mjs scripts/new-report-alert.test.mjs",
     "seo:card": "node scripts/generate-seo-card.mjs",
     "release:check": "node scripts/release-preflight.mjs",
     "deploy:check": "node scripts/deployment-preflight.mjs",

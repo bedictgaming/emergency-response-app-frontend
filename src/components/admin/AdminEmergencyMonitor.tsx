@@ -23,11 +23,13 @@ import { sirenManager } from "@/lib/services/sirenService";
 import { useEmergencyEvents } from "@/hooks/useEmergencyEvents";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 import { saveAdminSoundPreference } from "@/lib/adminSoundPreference";
+import { NewReportAlertGate } from '@/lib/newReportAlertGate';
 
 export default function AdminEmergencyMonitor({ responseService }: { responseService?: ResponseService }) {
   const [sirenState, setSirenState] = useState(sirenManager.getState());
   const [enablingSound, setEnablingSound] = useState(false);
   const [alertsMuted, setAlertsMuted] = useState(false);
+  const [hasPendingSound, setHasPendingSound] = useState(false);
   const isSirenPlaying = sirenState.playing;
   const [queue, setQueue] = useState<IncidentAttention[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -42,7 +44,10 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   const incomingCount = queue.length;
   const queueRef = useRef<IncidentAttention[]>([]);
   const queueConfirmedRef = useRef(false);
-  const knownKeysRef = useRef(new Set<string>());
+  const reportGateRef = useRef(new NewReportAlertGate());
+  const gateIdentityRef = useRef('');
+  const pendingSoundKeysRef = useRef(new Set<string>());
+  const activeSoundKeysRef = useRef(new Set<string>());
   const mutedKeysRef = useRef(new Set<string>());
   const pendingRefreshRef = useRef(false);
   const queueRevisionRef = useRef(0);
@@ -55,8 +60,27 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
 
   useEffect(() => {
     // Subscribe to audio state
-    const unsubscribe = sirenManager.subscribe(setSirenState);
+    const unsubscribe = sirenManager.subscribe(state => {
+      // A stopped/interrupted playback must not attach its old reports to a
+      // later siren started for a genuinely new submission.
+      if (!state.playing) activeSoundKeysRef.current.clear();
+      setSirenState(state);
+    });
     return () => unsubscribe();
+  }, []);
+
+  const playPendingReports = useCallback(() => {
+    if (!queueConfirmedRef.current) return;
+    const pending = queueRef.current.map(attentionKey).filter(key => pendingSoundKeysRef.current.has(key) && !mutedKeysRef.current.has(key));
+    if (!pending.length) { setHasPendingSound(false); return; }
+    sirenManager.startSiren();
+    if (sirenManager.getState().playing) {
+      for (const key of pending) {
+        pendingSoundKeysRef.current.delete(key);
+        activeSoundKeysRef.current.add(key);
+      }
+    }
+    setHasPendingSound(pendingSoundKeysRef.current.size > 0);
   }, []);
 
   const checkIncomingIncidents = useCallback(async () => {
@@ -68,20 +92,36 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
       try {
         const page = await getIncidentAttention(responseService);
         if (!isMountedRef.current || revision !== queueRevisionRef.current || adminAccountSnapshot() !== accountAtStart || localStorage.getItem('emergency-logout-epoch') !== logoutAtStart) return;
+        const identity = `${accountAtStart}:${logoutAtStart}:${responseService ?? 'MAIN'}`;
+        if (gateIdentityRef.current !== identity) {
+          gateIdentityRef.current = identity;
+          reportGateRef.current = new NewReportAlertGate();
+          pendingSoundKeysRef.current.clear(); activeSoundKeysRef.current.clear(); mutedKeysRef.current.clear();
+          setHasPendingSound(false);
+          audioActionRef.current++; sirenManager.stopSiren(); setDialogOpen(false);
+        }
         const keys = new Set(page.items.map(attentionKey));
-        const arrived = page.items.some(item => !knownKeysRef.current.has(attentionKey(item)));
-        knownKeysRef.current = keys;
+        const arrived = reportGateRef.current.observe(page.items, page.observedAt);
+        pendingSoundKeysRef.current = new Set([...pendingSoundKeysRef.current].filter(key => keys.has(key)));
+        activeSoundKeysRef.current = new Set([...activeSoundKeysRef.current].filter(key => keys.has(key)));
         mutedKeysRef.current = new Set([...mutedKeysRef.current].filter(key => keys.has(key)));
+        for (const item of page.items) {
+          const key = attentionKey(item);
+          if (arrived.has(item.incidentId)) pendingSoundKeysRef.current.add(key);
+          else if (!pendingSoundKeysRef.current.has(key) && !activeSoundKeysRef.current.has(key)) mutedKeysRef.current.add(key);
+        }
         queueConfirmedRef.current = true;
         setAlertsMuted(page.items.length > 0 && page.items.every(item => mutedKeysRef.current.has(attentionKey(item))));
         queueRef.current = page.items; setQueue(page.items); setHasMore(page.hasMore); setQueueError('');
         const monitoring = page.acknowledgementMode === 'DEPARTMENT_HANDOFF' || page.scope === 'MAIN' || page.items.some(item => item.scope === 'MAIN');
         setMainMonitoring(monitoring);
-        if (!page.items.length) { audioActionRef.current++; sirenManager.stopSiren(); setDialogOpen(false); setAckError(''); }
+        if (!page.items.length) { audioActionRef.current++; sirenManager.stopSiren(); setHasPendingSound(false); setDialogOpen(false); setAckError(''); }
         else {
-          if (arrived || monitoring) setDialogOpen(true);
-          if (page.items.some(item => !mutedKeysRef.current.has(attentionKey(item)))) sirenManager.startSiren();
-          else { audioActionRef.current++; sirenManager.stopSiren(); }
+          const newest = page.items.find(item => arrived.has(item.incidentId));
+          if (newest) { setSelected(attentionKey(newest)); setDialogOpen(true); }
+          if (!activeSoundKeysRef.current.size) sirenManager.stopSiren();
+          playPendingReports();
+          if (!pendingSoundKeysRef.current.size && !activeSoundKeysRef.current.size) audioActionRef.current++;
         }
       } catch {
         if (isMountedRef.current && revision === queueRevisionRef.current && adminAccountSnapshot() === accountAtStart && localStorage.getItem('emergency-logout-epoch') === logoutAtStart) {
@@ -95,7 +135,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
           pendingRefreshRef.current = false; void refreshRef.current();
         }
       }
-  }, [responseService]);
+  }, [responseService, playPendingReports]);
   useEffect(() => { refreshRef.current = checkIncomingIncidents; }, [checkIncomingIncidents]);
 
   useEmergencyEvents(checkIncomingIncidents, true, setConnection);
@@ -128,6 +168,8 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
 
   const handleSilenceSiren = () => {
     mutedKeysRef.current = new Set(queueRef.current.map(attentionKey));
+    pendingSoundKeysRef.current.clear(); activeSoundKeysRef.current.clear();
+    setHasPendingSound(false);
     setAlertsMuted(queueRef.current.length > 0);
     audioActionRef.current += 1;
     sirenManager.stopSiren();
@@ -139,6 +181,9 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
     // Cancel a gesture's pending audio unlock immediately, before the network
     // acknowledgement settles. The visual item remains until server success.
     audioActionRef.current++; sirenManager.stopSiren();
+    pendingSoundKeysRef.current.delete(attentionKey(item));
+    setHasPendingSound(pendingSoundKeysRef.current.size > 0);
+    activeSoundKeysRef.current.clear();
     queueRevisionRef.current++;
     setAckError('');
     setAcknowledging(true);
@@ -173,10 +218,10 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
     setEnablingSound(false);
     if (ready) saveAdminSoundPreference(accountAtStart);
     if (ready && audioActionRef.current === action && queueConfirmedRef.current) {
-      if (queueRef.current.some(item => !mutedKeysRef.current.has(attentionKey(item)))) sirenManager.startSiren();
-      // Only current unmuted work can sound; arming never plays a speaker test.
+      playPendingReports();
+      // A normal gesture cannot replay baseline or already sounded work.
     }
-  }, []);
+  }, [playPendingReports]);
 
   useEffect(() => {
     const account = adminAccountSnapshot();
@@ -216,6 +261,9 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
     if (!alertsMuted) { handleSilenceSiren(); return; }
     if (queueError) return;
     mutedKeysRef.current.clear();
+    // Explicit Unmute is deliberate operator intent, unlike a refresh/gesture.
+    pendingSoundKeysRef.current = new Set(queueRef.current.map(attentionKey));
+    setHasPendingSound(pendingSoundKeysRef.current.size > 0);
     setAlertsMuted(false);
     void activateSound();
   };
@@ -305,7 +353,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
               </div>}
               {hasMore && <p className="text-xs text-muted-foreground">{mainMonitoring ? 'More reports remain in the server queue. Each clears here when an assigned department admin acknowledges it.' : 'More reports remain in the server queue. Acknowledge reviewed items to load the next ones; none are cleared together.'}</p>}
               {(queueError || ackError) && <p role="alert" className="rounded-lg bg-warning p-3 text-sm text-warning-foreground">{queueError || ackError}</p>}
-              {!sirenState.audioReady && !alertsMuted && (
+              {!sirenState.audioReady && !alertsMuted && hasPendingSound && (
                 <p role="status" className="rounded-lg bg-warning p-3 text-sm text-warning-foreground">
                   {sirenState.unavailable ? 'Browser sound could not start. Check site sound settings and device volume; visual alerts remain active.' : 'Browser sound is waiting for a click or keypress on this dashboard. No separate sound button is needed.'}
                 </p>
@@ -427,7 +475,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
                   <span>{acknowledging ? 'Saving acknowledgement…' : 'Acknowledge this report'}</span>
                 </button>}
               </div>
-              <p role="status" className="text-xs text-muted-foreground">{alertsMuted ? 'Alert sound is muted. The report remains outstanding; new reports can still sound.' : enablingSound ? 'Enabling alert sound…' : isSirenPlaying ? 'Alert sound is playing.' : 'Alert sound is not playing. Check your browser’s sound settings if needed.'}</p>
+              <p role="status" className="text-xs text-muted-foreground">{alertsMuted ? 'Alert sound is muted. The report remains outstanding; new reports can still sound.' : enablingSound ? 'Enabling alert sound…' : isSirenPlaying ? 'Alert sound is playing.' : hasPendingSound ? 'Alert sound is not playing. Check your browser’s sound settings if needed.' : 'No new report is waiting to sound. Outstanding reports remain in the queue.'}</p>
               <p className="text-xs text-muted-foreground">{mainMonitoring ? 'Only an assigned Fire, Medical, Police or DRRMO Admin’s acknowledgement clears this Main Admin alert. It does not resolve the incident.' : 'Acknowledgement does not dispatch units or resolve the incident. An assigned department admin’s acknowledgement also clears the Main Admin alert; other departments keep theirs.'}</p>
               {mainMonitoring ? <button type="button" onClick={() => { void checkIncomingIncidents(); }} className="min-h-11 w-full rounded-lg border border-border px-3 text-sm">Check department acknowledgement</button> : <button type="button" data-siren-control onClick={() => { handleSilenceSiren(); setDialogOpen(false); }} className="min-h-11 w-full rounded-lg border border-border px-3 text-sm">Review later — keep in queue</button>}
             </div>

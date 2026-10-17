@@ -106,6 +106,7 @@ async function setup(page: Page, mode: 'native' | 'reject' | 'held' | 'unsupport
   let acknowledged = false;
   let queueUnavailable = false;
   let monitorReads = 0;
+  let reportNumber = 0;
   await page.route('**/api/incidents/v1/**', route => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: {
@@ -115,13 +116,13 @@ async function setup(page: Page, mode: 'native' | 'reject' | 'held' | 'unsupport
     if (url.pathname.endsWith('/attention')) {
       monitorReads += 1;
       if (queueUnavailable) return route.fulfill({ status: 503, json: { message: 'Synthetic queue outage' } });
-      return route.fulfill({ json: { data: { hasMore: false, acknowledgementMode: 'DEPARTMENT_HANDOFF', items: showReport && !acknowledged ? [{
-        incidentId: 'audio-test-report', title: 'SYNTHETIC AUDIO TEST', description: 'No emergency', version: 1, scope: 'MAIN',
+      return route.fulfill({ json: { data: { observedAt: '2026-09-01T00:00:00.000Z', hasMore: false, acknowledgementMode: 'DEPARTMENT_HANDOFF', items: showReport && !acknowledged ? [{
+        incidentId: `audio-test-report-${reportNumber}`, title: `SYNTHETIC AUDIO TEST ${reportNumber}`, description: 'No emergency', version: 1, scope: 'MAIN',
         status: 'RESPONDING', reportedAt: new Date().toISOString(), type: { typeName: 'Fire' }, reporter: { name: 'Test Citizen' }, location: { locationName: 'Poblacion' },
       }] : [] } } });
     }
     return route.fulfill({ json: { data: { incidents: showReport ? [{
-      incidentId: 'audio-test-report', title: 'SYNTHETIC AUDIO TEST', description: 'No emergency',
+      incidentId: `audio-test-report-${reportNumber}`, title: `SYNTHETIC AUDIO TEST ${reportNumber}`, description: 'No emergency',
       status: 'RESPONDING', verificationStatus: 'VERIFIED', reportedBy: 'citizen',
       reportedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       type: { typeId: 'fire', typeName: 'Fire' }, reporter: { id: 'citizen', name: 'Test Citizen' },
@@ -150,7 +151,15 @@ async function setup(page: Page, mode: 'native' | 'reject' | 'held' | 'unsupport
       return page.getByRole('dialog').filter({ hasText: 'SYNTHETIC AUDIO TEST' }).isVisible();
     }).toBe(true);
   };
-  return Object.assign(arrive, { outage: async () => {
+  return Object.assign(arrive, { next: async () => {
+    reportNumber++;
+    await inspectPage(page, () => window.dispatchEvent(new Event('focus')));
+    await expect(page.getByRole('dialog')).toContainText(`SYNTHETIC AUDIO TEST ${reportNumber}`);
+  }, recover: async () => {
+    queueUnavailable = false;
+    await inspectPage(page, () => window.dispatchEvent(new Event('focus')));
+    await expect(page.getByRole('dialog')).not.toContainText('Alert queue unavailable');
+  }, outage: async () => {
     queueUnavailable = true;
     await inspectPage(page, () => window.dispatchEvent(new Event('focus')));
     await expect(page.getByRole('dialog')).toContainText('Alert queue unavailable');
@@ -281,7 +290,7 @@ test('unsupported audio does not prevent incident monitoring', async ({ page }) 
   await expect(page.getByRole('dialog')).toContainText('Browser sound could not start');
 });
 
-test('mute/unmute and automatic foreground recovery preserve actual audio state', async ({ page }) => {
+test('explicit mute/unmute works but foreground recovery cannot replay an already sounded report', async ({ page }) => {
   const arrive = await setup(page);
   await arrive();
   await page.getByRole('heading', { name: 'Outstanding report', exact: true }).click();
@@ -296,12 +305,33 @@ test('mute/unmute and automatic foreground recovery preserve actual audio state'
   await expect(mute).toBeVisible();
   expect(await inspectPage(page, () => (window as ProbedWindow).audioProbe.starts)).toBe(4);
   await inspectPage(page, () => (window as ProbedWindow).audioProbe.suspend?.());
-  await expect(page.getByRole('dialog')).toContainText('Browser sound is waiting');
+  await expect(page.getByRole('dialog')).toContainText('No new report is waiting to sound');
   await expect(mute).toHaveCount(0);
   await inspectPage(page, () => document.dispatchEvent(new Event('visibilitychange')));
+  await expect.poll(() => inspectPage(page, () => window.audioProbe.ready?.())).toBe(true);
+  await expect(mute).toHaveCount(0);
+  expect(await inspectPage(page, () => window.audioProbe.starts)).toBe(4);
+  await arrive.next();
   await expect(mute).toBeVisible();
+  expect(await inspectPage(page, () => window.audioProbe.starts)).toBe(6);
   await arrive.clear();
   await expect(mute).toHaveCount(0);
+});
+
+test('polling and outage recovery cannot restart already played work; another report still can', async ({ page }) => {
+  const arrive = await setup(page);
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await arrive();
+  await expect(page.getByRole('button', { name: 'MUTE SIREN', exact: true })).toBeVisible();
+  const starts = await inspectPage(page, () => window.audioProbe.starts);
+  await inspectPage(page, () => window.dispatchEvent(new Event('focus')));
+  expect(await inspectPage(page, () => window.audioProbe.starts)).toBe(starts);
+  await arrive.outage(); await arrive.recover();
+  await expect(page.getByRole('button', { name: 'MUTE SIREN', exact: true })).toHaveCount(0);
+  expect(await inspectPage(page, () => window.audioProbe.starts)).toBe(starts);
+  await arrive.next();
+  await expect(page.getByRole('button', { name: 'MUTE SIREN', exact: true })).toBeVisible();
+  expect(await inspectPage(page, () => window.audioProbe.starts)).toBe(starts + 2);
 });
 
 for (const viewport of [{ width: 1366, height: 900 }, { width: 390, height: 844 }]) {

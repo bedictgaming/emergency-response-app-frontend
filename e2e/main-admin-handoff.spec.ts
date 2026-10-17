@@ -25,16 +25,18 @@ async function setup(page: Page, department = 'MAIN', filtered = false) {
     }
     if (path.endsWith('/auth/v1/me')) return route.fulfill({ json: { data: { user } } });
     if (path.endsWith('/attention')) return route.fulfill({ status: fail ? 503 : 200, json: fail ? { message: 'Unavailable' } : {
-      data: { items, hasMore: false, scope, acknowledgementMode: main ? 'DEPARTMENT_HANDOFF' : 'PERSONAL' },
+      data: { items, hasMore: false, scope, observedAt: '2026-10-17T00:00:00.000Z', acknowledgementMode: main ? 'DEPARTMENT_HANDOFF' : 'PERSONAL' },
     } });
     return route.fulfill({ json: { data: { incidents: [report], flags: [], alerts: [], units: [], users: [],
       pagination: { page: 1, pages: 1, total: 1, limit: 5 }, summary: { total: 1, active: 0, responding: 1, resolved: 0 },
       serviceSummary: { total: 0, active: 0, responding: 0, resolved: 0 }, verifiedSummary: { total: 0, active: 0, responding: 0, resolved: 0 } } } });
   });
   await page.goto(`/admin/${main ? filtered ? 'fire' : 'main' : department === 'DRRMO' ? 'drrmo' : department.toLowerCase()}-dashboard`);
+  await page.getByRole('button', { name: 'Outstanding alerts: 1', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText(item.title);
+  await page.getByRole('button', { name: 'Unmute alert', exact: true }).click();
   return { writes, fail: (value: boolean) => { fail = value; }, handoff: () => { items = []; }, reopen: () => { items = [{ ...item, version: 2 }]; },
-    add: () => { items = [...items, { ...item, incidentId: '10000000-0000-4000-8000-000000000002', title: 'Second synthetic handoff test' }]; },
+    add: () => { items = [...items, { ...item, reportedAt: '2026-10-17T00:00:01.000Z', incidentId: '10000000-0000-4000-8000-000000000002', title: 'Second synthetic handoff test' }]; },
     handoffFirst: () => { items = items.slice(1); } };
 }
 const refresh = (page: Page) => page.evaluate(() => window.dispatchEvent(new Event('focus')));
@@ -66,8 +68,11 @@ for (const width of [390, 1440]) {
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Outstanding alerts: 0', exact: true })).toBeVisible();
     state.reopen(); await refresh(page);
+    await expect(page.getByRole('button', { name: 'Outstanding alerts: 1', exact: true })).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Outstanding alerts: 1', exact: true }).click();
     await expect(page.getByRole('dialog')).toContainText('Synthetic handoff test');
-    await expect(page.getByRole('button', { name: 'Mute alert', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Unmute alert', exact: true })).toBeVisible();
     expect(state.writes).toEqual([]);
   });
 }

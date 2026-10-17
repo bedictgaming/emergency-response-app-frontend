@@ -9,6 +9,7 @@ export const attentionKey = (item: IncidentAttention) => `${item.incidentId}:${i
 export interface IncidentAttentionPage {
   items: IncidentAttention[];
   hasMore: boolean;
+  observedAt?: string;
   scope?: 'MAIN' | ResponseService;
   acknowledgementMode?: 'DEPARTMENT_HANDOFF' | 'PERSONAL';
 }
