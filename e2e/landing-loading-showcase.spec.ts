@@ -119,7 +119,9 @@ test('shimmer and wave move only while visible and motion is allowed', async ({ 
  const release = await mock(page, '/', true);
  await page.goto('/?session=manual');
  const footer = page.locator('[data-wave-footer]');
- expect(await footer.locator('svg[viewBox="0 0 3600 500"]').evaluate(element => getComputedStyle(element).animationPlayState)).toBe('paused');
+ // The initial SVG attachment/styles can settle while a style is sampled.
+ // Wait for the same required paused state, as the running-state check does.
+ await expect.poll(() => footer.locator('svg[viewBox="0 0 3600 500"]').evaluate(element => getComputedStyle(element).animationPlayState)).toBe('paused');
  await page.getByRole('heading', { name: 'Public safety advisories' }).scrollIntoViewIfNeeded();
  await expect(page.locator('[data-skeleton-shimmer]').first()).toBeVisible();
  await page.emulateMedia({ reducedMotion: 'reduce' });
