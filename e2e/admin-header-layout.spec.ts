@@ -33,7 +33,8 @@ async function setup(page: Page, route: string, department: string, saved = true
   });
   await page.goto(`/admin/${route}-dashboard`);
   await expect(page.getByRole('button', { name: 'Outstanding alerts: 0', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: saved ? 'Resume sound' : 'Enable sound', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^(Enable sound|Resume sound|Test)$/ })).toHaveCount(0);
+  await expect(page.getByText('Siren Armed', { exact: true })).toHaveCount(0);
   await page.evaluate(() => document.fonts.ready);
   return { fail: () => { failure = true; } };
 }
@@ -88,7 +89,7 @@ for (const width of [1366, 1280, 1024, 768, 375, 320]) {
       await expect(page.getByText(/Alert queue unavailable\. Shown alerts/)).toBeVisible();
       expect((await geometry(page)).header.height).toBe(initial.header.height);
       if (width < 640) {
-        for (const name of ['Resume sound', 'Logout', 'Outstanding alerts: 0']) {
+        for (const name of ['Logout', 'Outstanding alerts: 0']) {
           const control = page.getByRole('button', { name, exact: true });
           const box = await control.boundingBox();
           expect(box!.x).toBeGreaterThanOrEqual(0);
@@ -147,17 +148,18 @@ for (const width of [1366, 1280, 1024, 768, 375, 320]) {
   }
 }
 
-test('sound opt-in, saved preference and arming do not move the desktop header', async ({ page }) => {
+test('automatic sound arming and reload do not restore controls or move the desktop header', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 900 });
   await setup(page, 'main', 'MAIN', false);
   const before = await geometry(page);
-  await page.getByRole('button', { name: 'Enable sound', exact: true }).click();
-  await expect(page.getByText('Siren Armed', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('emergency-admin-sound-v1:layout-admin:ADMIN:MAIN'))).toBe('enabled');
   expect((await geometry(page)).header.height).toBe(before.header.height);
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Resume sound', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Outstanding alerts: 0', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^(Enable sound|Resume sound|Test)$/ })).toHaveCount(0);
   expect((await geometry(page)).header.height).toBe(before.header.height);
-  await page.getByRole('button', { name: 'Resume sound', exact: true }).click();
-  await expect(page.getByText('Siren Armed', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect(page.getByText('Siren Armed', { exact: true })).toHaveCount(0);
   expect((await geometry(page)).header.height).toBe(before.header.height);
 });

@@ -167,6 +167,7 @@ export default function AdminHeader({
           {/* Logout */}
           <button
             type="button"
+            data-siren-control
             onClick={handleLogout}
             disabled={isLoggingOut}
             className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-700 hover:shadow-md dark:border-slate-700 dark:text-slate-200 dark:hover:border-indigo-700 dark:hover:text-indigo-300"

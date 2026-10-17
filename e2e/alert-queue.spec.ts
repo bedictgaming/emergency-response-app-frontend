@@ -40,8 +40,9 @@ test('finishing an audible report stops its siren even when other muted work rem
   const state = await setup(page, [make(1)]);
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: 'Review later — keep in queue', exact: true }).click();
-  await page.getByRole('button', { name: 'Enable sound', exact: true }).click();
-  await expect(page.getByText('Siren Armed', { exact: true })).toBeVisible();
+  // Any ordinary dashboard interaction arms audio without unmuting retained work.
+  await page.getByRole('button', { name: 'Outstanding alerts: 1', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Enable sound', exact: true })).toHaveCount(0);
   // The first item stays muted, but a genuinely new item can still sound.
   state.set([make(1), make(2)]); await refresh(page);
   await expect(page.getByRole('button', { name: 'MUTE SIREN', exact: true })).toBeVisible();

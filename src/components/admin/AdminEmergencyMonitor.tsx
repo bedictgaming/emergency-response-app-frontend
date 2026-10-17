@@ -22,12 +22,11 @@ import { useModalIsolation } from '@/hooks/useModalIsolation';
 import { sirenManager } from "@/lib/services/sirenService";
 import { useEmergencyEvents } from "@/hooks/useEmergencyEvents";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
-import { readAdminSoundPreference, saveAdminSoundPreference } from "@/lib/adminSoundPreference";
+import { saveAdminSoundPreference } from "@/lib/adminSoundPreference";
 
 export default function AdminEmergencyMonitor({ responseService }: { responseService?: ResponseService }) {
   const [sirenState, setSirenState] = useState(sirenManager.getState());
   const [enablingSound, setEnablingSound] = useState(false);
-  const [soundPreferenceSaved, setSoundPreferenceSaved] = useState(false);
   const [alertsMuted, setAlertsMuted] = useState(false);
   const isSirenPlaying = sirenState.playing;
   const [queue, setQueue] = useState<IncidentAttention[]>([]);
@@ -42,6 +41,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   const newIncidentAlert = queue.find(item => attentionKey(item) === selected) ?? queue[0];
   const incomingCount = queue.length;
   const queueRef = useRef<IncidentAttention[]>([]);
+  const queueConfirmedRef = useRef(false);
   const knownKeysRef = useRef(new Set<string>());
   const mutedKeysRef = useRef(new Set<string>());
   const pendingRefreshRef = useRef(false);
@@ -72,6 +72,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
         const arrived = page.items.some(item => !knownKeysRef.current.has(attentionKey(item)));
         knownKeysRef.current = keys;
         mutedKeysRef.current = new Set([...mutedKeysRef.current].filter(key => keys.has(key)));
+        queueConfirmedRef.current = true;
         setAlertsMuted(page.items.length > 0 && page.items.every(item => mutedKeysRef.current.has(attentionKey(item))));
         queueRef.current = page.items; setQueue(page.items); setHasMore(page.hasMore); setQueueError('');
         const monitoring = page.acknowledgementMode === 'DEPARTMENT_HANDOFF' || page.scope === 'MAIN' || page.items.some(item => item.scope === 'MAIN');
@@ -84,6 +85,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
         }
       } catch {
         if (isMountedRef.current && revision === queueRevisionRef.current && adminAccountSnapshot() === accountAtStart && localStorage.getItem('emergency-logout-epoch') === logoutAtStart) {
+          queueConfirmedRef.current = false;
           audioActionRef.current++; sirenManager.stopSiren();
           setQueueError('Alert queue unavailable. Shown alerts may be out of date. Check report lists and retry.');
         }
@@ -115,6 +117,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
 
     return () => {
       isMountedRef.current = false;
+      queueConfirmedRef.current = false;
       audioActionRef.current += 1;
       sirenManager.stopSiren();
       window.clearInterval(interval);
@@ -156,10 +159,10 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
     } finally { if (isMountedRef.current && adminAccountSnapshot() === account) setAcknowledging(false); }
   };
 
-  const activateSound = useCallback(async (mode: 'test' | 'alert' | 'restore') => {
-    if (enablingSoundRef.current) return;
-    const action = ++audioActionRef.current;
+  const activateSound = useCallback(async () => {
     const accountAtStart = adminAccountSnapshot();
+    if (!accountAtStart || !isMountedRef.current || enablingSoundRef.current) return;
+    const action = ++audioActionRef.current;
     const logoutEpoch = localStorage.getItem('emergency-logout-epoch');
     enablingSoundRef.current = true;
     setEnablingSound(true);
@@ -168,55 +171,53 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
     if (!isMountedRef.current || adminAccountSnapshot() !== accountAtStart
       || localStorage.getItem('emergency-logout-epoch') !== logoutEpoch) return;
     setEnablingSound(false);
-    if (ready && mode !== 'restore') {
-      setSoundPreferenceSaved(saveAdminSoundPreference(accountAtStart));
-    }
-    if (ready && audioActionRef.current === action) {
-      if (mode === 'alert' && queueRef.current.some(item => !mutedKeysRef.current.has(attentionKey(item)))) sirenManager.startSiren();
-      else if (mode === 'test') sirenManager.testSiren();
-      // Restoring readiness must never replay an old or acknowledged alert.
+    if (ready) saveAdminSoundPreference(accountAtStart);
+    if (ready && audioActionRef.current === action && queueConfirmedRef.current) {
+      if (queueRef.current.some(item => !mutedKeysRef.current.has(attentionKey(item)))) sirenManager.startSiren();
+      // Only current unmuted work can sound; arming never plays a speaker test.
     }
   }, []);
 
   useEffect(() => {
     const account = adminAccountSnapshot();
-    const saved = readAdminSoundPreference(account);
-    setSoundPreferenceSaved(saved);
-    if (!saved) return;
+    if (!account) return;
 
-    // Persist consent, not the AudioContext. A fresh document still needs a trusted
-    // gesture; background reports, synthetic events and page load cannot unlock it.
+    // The browser still owns autoplay permission. A normal trusted interaction
+    // arms first-time admins too; no dedicated Enable/Resume button is needed.
+    const armIfActivated = () => {
+      if (document.visibilityState !== 'visible' || !navigator.userActivation?.hasBeenActive
+        || !isMountedRef.current || adminAccountSnapshot() !== account
+        || sirenManager.getState().audioReady) return;
+      void activateSound();
+    };
     const restoreOnInteraction = (event: Event) => {
-      if (!event.isTrusted || !isMountedRef.current || adminAccountSnapshot() !== account
+      if (!event.isTrusted || document.visibilityState !== 'visible'
+        || !isMountedRef.current || adminAccountSnapshot() !== account
         || sirenManager.getState().audioReady) return;
       if (event.target instanceof Element && event.target.closest('[data-siren-control]')) return;
       if (event instanceof KeyboardEvent
         && (event.repeat || event.ctrlKey || event.metaKey || event.altKey
           || event.key === 'Escape' || event.key === 'Shift' || event.key === 'Control'
           || event.key === 'Alt' || event.key === 'Meta')) return;
-      void activateSound('restore');
+      void activateSound();
     };
     document.addEventListener('click', restoreOnInteraction, true);
     document.addEventListener('keydown', restoreOnInteraction, true);
+    document.addEventListener('visibilitychange', armIfActivated);
+    armIfActivated();
     return () => {
       document.removeEventListener('click', restoreOnInteraction, true);
       document.removeEventListener('keydown', restoreOnInteraction, true);
+      document.removeEventListener('visibilitychange', armIfActivated);
     };
   }, [activateSound]);
 
-  const handleEnableSound = (playAlert = false) => {
-    if (playAlert && newIncidentAlert && !queueError) {
-      mutedKeysRef.current.clear();
-      setAlertsMuted(false);
-    }
-    return activateSound(playAlert && !queueError ? 'alert' : 'test');
-  };
   const handleToggleAlertSound = () => {
     if (!alertsMuted) { handleSilenceSiren(); return; }
     if (queueError) return;
     mutedKeysRef.current.clear();
     setAlertsMuted(false);
-    void activateSound('alert');
+    void activateSound();
   };
   useModalIsolation(dialogOpen && Boolean(newIncidentAlert), panelRef, () => {
     // Main monitoring is server-owned: neither Escape nor a local dismissal
@@ -235,40 +236,24 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
 
   return (
     <>
-      {/* Header Siren Status & Control Button */}
-      <div data-admin-monitor className="w-full min-w-0 sm:w-[28rem] sm:shrink-0">
-      <div data-siren-control className="grid h-22 grid-cols-[8.5rem_minmax(0,1fr)] items-center gap-2 sm:h-14">
+      {/* Keep queue access and active-alarm muting, without idle sound controls. */}
+      <div data-admin-monitor className="w-full min-w-0 sm:w-[22rem] sm:shrink-0">
+      <div className="flex h-11 items-center gap-2 sm:h-14">
         <button type="button" onClick={() => { if (incomingCount) setDialogOpen(true); void checkIncomingIncidents(); }}
           className="h-11 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground">
           Outstanding alerts: {incomingCount}{hasMore ? '+' : ''}
         </button>
-        {isSirenPlaying ? (
+        {isSirenPlaying && (
           <button
+            type="button"
+            data-siren-control
             onClick={handleSilenceSiren}
-            className="motion-press flex h-22 items-center justify-center gap-2 px-3 py-1.5 rounded-xl bg-red-600 text-white font-bold text-xs hover:bg-red-700 shadow-sm border border-red-400 sm:h-14"
+            className="motion-press flex h-11 items-center justify-center gap-2 px-3 py-1.5 rounded-xl bg-red-600 text-white font-bold text-xs hover:bg-red-700 shadow-sm border border-red-400"
             title="Siren is wailing! Click to mute audio"
           >
             <VolumeX className="w-4 h-4" />
             <span>MUTE SIREN</span>
           </button>
-        ) : (
-          <div className="grid h-22 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-1.5 gap-y-1 rounded-xl border border-border bg-card px-2.5 py-1 text-xs sm:flex sm:h-14 sm:gap-1.5 sm:py-1.5">
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className={`relative inline-flex h-2 w-2 rounded-full ${sirenState.audioReady ? 'bg-success' : 'bg-warning'}`}></span>
-            </span>
-            <span role="status" className="min-w-0 flex-1 text-xs font-semibold text-foreground">
-              {sirenState.audioReady ? 'Siren Armed' : sirenState.unavailable ? 'Sound unavailable' : soundPreferenceSaved ? 'Sound saved · click to arm' : 'Sound not enabled'}
-            </span>
-            <button
-              type="button"
-              disabled={enablingSound}
-              onClick={() => { void handleEnableSound(queue.some(item => !mutedKeysRef.current.has(attentionKey(item)))); }}
-              className="col-span-2 min-h-11 min-w-0 shrink-0 rounded-lg border border-border bg-card px-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-60 sm:min-w-[7rem] sm:px-3"
-              title={sirenState.audioReady ? "Test loud emergency siren" : soundPreferenceSaved ? "Your preference is saved. Click or press a key on this dashboard to arm sound, or use Resume sound to test it." : "Enable and test emergency alert sound; remember this preference in this browser"}
-            >
-              {enablingSound ? 'Enabling sound…' : sirenState.audioReady ? 'Test' : soundPreferenceSaved ? 'Resume sound' : 'Enable sound'}
-            </button>
-          </div>
         )}
       </div>
       <span role="status" className="mt-1 block min-h-8 text-xs leading-4 text-muted-foreground">
@@ -284,7 +269,6 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
           tabIndex={-1}
           className="motion-dialog-backdrop fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
           role="dialog"
-          data-siren-control
           aria-modal="true"
           aria-labelledby="emergency-alert-title"
         >
@@ -322,16 +306,9 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
               {hasMore && <p className="text-xs text-muted-foreground">{mainMonitoring ? 'More reports remain in the server queue. Each clears here when an assigned department admin acknowledges it.' : 'More reports remain in the server queue. Acknowledge reviewed items to load the next ones; none are cleared together.'}</p>}
               {(queueError || ackError) && <p role="alert" className="rounded-lg bg-warning p-3 text-sm text-warning-foreground">{queueError || ackError}</p>}
               {!sirenState.audioReady && !alertsMuted && (
-                <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-warning p-3 text-sm text-warning-foreground">
-                  <p className="min-w-0 flex-1">
-                    {sirenState.unavailable ? 'Sound could not start. Try again and check your browser’s sound settings.' : soundPreferenceSaved ? 'Your sound preference is saved, but this page is not armed yet. Resume sound to hear this alert.' : 'Sound is not enabled. Enable it to hear this alert.'}
-                  </p>
-                  <button type="button" disabled={enablingSound}
-                    onClick={() => { void handleEnableSound(true); }}
-                    className="min-h-11 rounded-lg border border-current px-3 font-semibold disabled:opacity-60">
-                    {enablingSound ? 'Enabling sound…' : soundPreferenceSaved ? 'Resume sound' : 'Enable sound'}
-                  </button>
-                </div>
+                <p role="status" className="rounded-lg bg-warning p-3 text-sm text-warning-foreground">
+                  {sirenState.unavailable ? 'Browser sound could not start. Check site sound settings and device volume; visual alerts remain active.' : 'Browser sound is waiting for a click or keypress on this dashboard. No separate sound button is needed.'}
+                </p>
               )}
               {/* Type and Status */}
               <div className="flex items-center justify-between">
@@ -425,6 +402,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
               <div className="pt-2 flex flex-col sm:flex-row gap-3">
                 <button
                   type="button"
+                  data-siren-control
                   onClick={handleToggleAlertSound}
                   aria-pressed={alertsMuted}
                   disabled={alertsMuted && (enablingSound || Boolean(queueError))}
@@ -440,6 +418,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
 
                 {!mainMonitoring && <button
                   type="button"
+                  data-siren-control
                   disabled={acknowledging || Boolean(queueError)}
                   onClick={() => { void handleAcknowledgeAlert(); }}
                   className="flex-1 rounded-xl bg-destructive px-4 py-3 text-xs font-semibold text-destructive-foreground flex items-center justify-center gap-2 disabled:opacity-60"
@@ -450,7 +429,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
               </div>
               <p role="status" className="text-xs text-muted-foreground">{alertsMuted ? 'Alert sound is muted. The report remains outstanding; new reports can still sound.' : enablingSound ? 'Enabling alert sound…' : isSirenPlaying ? 'Alert sound is playing.' : 'Alert sound is not playing. Check your browser’s sound settings if needed.'}</p>
               <p className="text-xs text-muted-foreground">{mainMonitoring ? 'Only an assigned Fire, Medical, Police or DRRMO Admin’s acknowledgement clears this Main Admin alert. It does not resolve the incident.' : 'Acknowledgement does not dispatch units or resolve the incident. An assigned department admin’s acknowledgement also clears the Main Admin alert; other departments keep theirs.'}</p>
-              {mainMonitoring ? <button type="button" onClick={() => { void checkIncomingIncidents(); }} className="min-h-11 w-full rounded-lg border border-border px-3 text-sm">Check department acknowledgement</button> : <button type="button" onClick={() => { handleSilenceSiren(); setDialogOpen(false); }} className="min-h-11 w-full rounded-lg border border-border px-3 text-sm">Review later — keep in queue</button>}
+              {mainMonitoring ? <button type="button" onClick={() => { void checkIncomingIncidents(); }} className="min-h-11 w-full rounded-lg border border-border px-3 text-sm">Check department acknowledgement</button> : <button type="button" data-siren-control onClick={() => { handleSilenceSiren(); setDialogOpen(false); }} className="min-h-11 w-full rounded-lg border border-border px-3 text-sm">Review later — keep in queue</button>}
             </div>
           </div>
         </div>,
