@@ -31,4 +31,10 @@ Use separate normal browser profiles/devices for simultaneously subscribed Main 
 
 Fresh publication qualification passes frontend types, full lint and 74 contracts; the matching backend passes build/native ESM and 853 ordinary tests with 99 opt-in integration skips. These are local checks, not hosted CI or live acceptance.
 
-Production hosted WebSocket ingress remains unverified; production transport remains SSE by default. The pre-existing build-only braces dependency-audit allowance expired on 17 October 2026. Fresh audit commands in both repositories reach that unchanged expiry check after finding no runtime advisory. It is not renewed or bypassed here; hosted CI may stop on that legitimate release blocker even when feature checks pass. No live deployment, SMS, live credential rotation or production worker activation is included.
+Production hosted WebSocket ingress remains unverified; production transport remains SSE by default. The initial development publication's dependency-audit failures are retained, not represented as green. SMS is not implemented.
+
+## Explicit release approval (17 October 2026)
+
+The owner subsequently approves the reviewed temporary build-only GHSA-vfj7-8cjw-p6xm exception until **19 October 2026, 23:59 Asia/Manila** (`2026-10-19T15:59:00Z`) and requests live Web Push deployment with development preserved. It is not an upstream fix or a general exception. Runtime findings, unrelated build advisories, audit failure and the exact expiry remain blocking; seven policy contracts run in CI before the real audit. All other tests/build/hosted release checks remain required.
+
+Release keeps the existing first-party gateway, production VAPID keys/worker, cookies and SSE transport. The local push-only dev flag must not be enabled on production builds. No schema/private report mutation, provider key rotation or SMS integration is included. Physical Android/Chrome Main/assigned-department closed-tab delivery and sound remain a separate device test; the owner must sign in, explicitly Allow notifications and close the tab without logging out.

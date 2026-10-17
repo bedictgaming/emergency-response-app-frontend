@@ -28,6 +28,7 @@ jobs:
       - run: npm run test:architecture
       - run: npm run test:realtime
       - run: npm run test:seo
+      - run: node --test scripts/dependency-audit-policy.test.mjs
       - run: node scripts/check-dependency-audit.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e -- --workers=2
