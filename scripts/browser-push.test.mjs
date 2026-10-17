@@ -9,6 +9,8 @@ const source = ts.transpileModule(readFileSync(new URL('../src/lib/browserPush.t
 }).outputText;
 function fixture(options = {}) {
   const calls = [], timers = new Set(); let account = 'admin-a', permission = options.permission ?? 'default';
+  const storage = options.storage ?? new Map([['emergency-logout-epoch', 'epoch']]);
+  const document = { visibilityState: options.hidden ? 'hidden' : 'visible' };
   const subscription = { toJSON: () => ({ endpoint: 'https://fcm.googleapis.com/synthetic', keys: {} }) };
   const worker = { pushManager: {
     getSubscription: async () => options.existing ? subscription : null,
@@ -16,7 +18,12 @@ function fixture(options = {}) {
   }, showNotification: async () => { calls.push('display'); } };
   const browserNotification = {
     get permission() { return permission; },
-    requestPermission() { calls.push('permission'); permission = options.answer ?? 'granted'; return Promise.resolve(permission); },
+    requestPermission() {
+      calls.push('permission');
+      if (options.throwPermission) throw Error('Synthetic user-gesture restriction');
+      if (options.rejectPermission) return Promise.reject(Error('Synthetic user-gesture restriction'));
+      permission = options.answer ?? 'granted'; return Promise.resolve(permission);
+    },
   };
   const apiClient = { post: async () => { calls.push('post'); if (options.postFails) throw Error('Synthetic registration failed'); }, delete: async () => { calls.push('delete'); } };
   const axios = { get: async () => { calls.push('config'); return { data: { data: options.config ?? { enabled: true, publicKey: 'B'.repeat(87) } } }; } };
@@ -29,13 +36,17 @@ function fixture(options = {}) {
       : id === '@/lib/adminAccountSnapshot' ? { adminAccountSnapshot: () => account } : (() => { throw Error('Unexpected import'); })(),
     window, Notification: browserNotification,
     navigator: { serviceWorker: { ready: options.noWorker ? new Promise(() => {}) : Promise.resolve(worker), getRegistration: async () => worker } },
-    localStorage: { getItem: () => 'epoch' },
+    document,
+    localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => {
+      if (options.storageFails) throw Error('Synthetic storage restriction');
+      storage.set(key, value);
+    } },
     process: { env: { NODE_ENV: options.development ? 'development' : 'production', NEXT_PUBLIC_ENABLE_DEV_PUSH: options.devPush ? 'true' : 'false' } },
     Uint8Array, setTimeout: callback => { timers.add(callback); return callback; }, clearTimeout: callback => timers.delete(callback),
   });
-  return { api: exports, calls, expire: () => { for (const callback of timers) callback(); } };
+  return { api: exports, calls, storage, document, changeAccount: value => { account = value; }, expire: () => { for (const callback of timers) callback(); } };
 }
-test('passive mounts never prompt, subscribe or fetch config before opt-in', async () => {
+test('silent checks never prompt, subscribe or fetch config before browser consent', async () => {
   const f = fixture(); assert.equal(await f.api.registerWebPush(), false); assert.deepEqual(f.calls, []);
 });
 test('permission is requested during the click before configuration network work', async () => {
@@ -89,4 +100,67 @@ test('a missing service worker times out instead of hanging', async () => {
 });
 test('device display test does not call any registration/provider API', async () => {
   const f = fixture({ permission: 'granted' }); await f.api.showWebPushDeviceTest(); assert.deepEqual(f.calls, ['display']);
+});
+
+test('first visible admin visit automatically requests browser consent before any network work', async () => {
+  const f = fixture(); const pending = f.api.registerWebPushOnAdminVisit();
+  assert.deepEqual(f.calls, ['permission']); assert.equal(f.storage.get('emergency-admin-push-prompt-v1'), 'attempted');
+  assert.equal(await pending, true); assert.deepEqual(f.calls, ['permission', 'config', 'subscribe', 'post']);
+});
+test('dismissed automatic permission is not retried on remount, account switch or reload', async () => {
+  const f = fixture({ answer: 'default' }); assert.equal(await f.api.registerWebPushOnAdminVisit(), false);
+  f.changeAccount('admin-b'); assert.equal(await f.api.registerWebPushOnAdminVisit(), false);
+  assert.deepEqual(f.calls, ['permission']);
+  const reloaded = fixture({ storage: f.storage });
+  assert.equal(await reloaded.api.registerWebPushOnAdminVisit(), false); assert.deepEqual(reloaded.calls, []);
+});
+test('denying an automatic request never subscribes or contacts the registration backend', async () => {
+  const f = fixture({ answer: 'denied' }); assert.equal(await f.api.registerWebPushOnAdminVisit(), false);
+  assert.equal(await f.api.registerWebPushOnAdminVisit(), false); assert.deepEqual(f.calls, ['permission']);
+});
+test('an already denied browser is never automatically prompted', async () => {
+  const f = fixture({ permission: 'denied' }); assert.equal(await f.api.registerWebPushOnAdminVisit(), false);
+  assert.deepEqual(f.calls, []);
+});
+test('an already allowed browser registers without another prompt even with the attempted marker', async () => {
+  const f = fixture({ permission: 'granted', storage: new Map([['emergency-admin-push-prompt-v1', 'attempted']]) });
+  assert.equal(await f.api.registerWebPushOnAdminVisit(), true); assert.deepEqual(f.calls, ['config', 'subscribe', 'post']);
+});
+test('browser gesture rejection leaves manual retry available without an automatic prompt loop', async () => {
+  for (const kind of ['throwPermission', 'rejectPermission']) {
+    const options = { [kind]: true }; const f = fixture(options);
+    assert.equal(await f.api.registerWebPushOnAdminVisit(), false);
+    assert.equal(await f.api.registerWebPushOnAdminVisit(), false); assert.deepEqual(f.calls, ['permission']);
+    options[kind] = false; assert.equal(await f.api.registerWebPush(true), true);
+    assert.deepEqual(f.calls, ['permission', 'permission', 'config', 'subscribe', 'post']);
+  }
+});
+test('hidden tabs defer automatic permission until visible', async () => {
+  const f = fixture({ hidden: true }); assert.equal(await f.api.registerWebPushOnAdminVisit(), false);
+  assert.deepEqual(f.calls, []); assert.equal(f.storage.has('emergency-admin-push-prompt-v1'), false);
+  f.document.visibilityState = 'visible'; assert.equal(await f.api.registerWebPushOnAdminVisit(), true);
+  assert.equal(f.calls.filter(call => call === 'permission').length, 1);
+});
+test('unsupported, insecure and ordinary development contexts never automatically prompt', async () => {
+  for (const options of [{ unsupported: true }, { secure: false }, { development: true }]) {
+    const f = fixture(options); assert.equal(await f.api.registerWebPushOnAdminVisit(), false); assert.deepEqual(f.calls, []);
+    assert.equal(f.storage.has('emergency-admin-push-prompt-v1'), false);
+  }
+});
+test('unavailable marker storage skips automatic prompting but preserves explicit opt-in', async () => {
+  const f = fixture({ storageFails: true }); assert.equal(await f.api.registerWebPushOnAdminVisit(), false);
+  assert.deepEqual(f.calls, []); assert.equal(await f.api.registerWebPush(true), true);
+});
+test('automatic and explicit checks for the same account share the pending registration', async () => {
+  const f = fixture(); const automatic = f.api.registerWebPushOnAdminVisit(), explicit = f.api.registerWebPush(true);
+  assert.deepEqual(await Promise.all([automatic, explicit]), [true, true]);
+  assert.equal(f.calls.filter(call => call === 'permission').length, 1);
+  assert.equal(f.calls.filter(call => call === 'post').length, 1);
+});
+test('automatic permission does not mask missing configuration or failed authenticated persistence', async () => {
+  const unconfigured = fixture({ config: { enabled: false, publicKey: null, reason: 'worker-disabled' } });
+  await assert.rejects(unconfigured.api.registerWebPushOnAdminVisit(), error => error.problem === 'worker-disabled');
+  assert.deepEqual(unconfigured.calls, ['permission', 'config']);
+  const rejected = fixture({ postFails: true }); await assert.rejects(rejected.api.registerWebPushOnAdminVisit());
+  assert.deepEqual(rejected.calls, ['permission', 'config', 'subscribe', 'post']);
 });

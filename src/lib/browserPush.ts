@@ -10,6 +10,8 @@ export class WebPushError extends Error {
 
 let pushConfigRequest: Promise<PushConfig> | undefined;
 const registrationRequests = new Map<string, Promise<boolean>>();
+const automaticPromptKey = 'emergency-admin-push-prompt-v1';
+let automaticPromptAttempted = false;
 
 export function webPushProblem(): PushProblem | null {
   if (typeof window === 'undefined') return 'unsupported';
@@ -80,22 +82,45 @@ export function registerWebPush(requestPermission = false): Promise<boolean> {
   if (webPushProblem()) return Promise.resolve(false);
 
   const permission = Notification.permission;
-  // Passive page mounts must not call the backend or show a prompt when the
-  // citizen/admin has not opted into notifications.
+  // Silent checks must not call the backend or prompt before browser consent.
   if (!requestPermission && permission !== 'granted') return Promise.resolve(false);
 
   const expectedIdentity = identity();
-  const key = `${expectedIdentity}:${requestPermission}`;
+  const key = expectedIdentity;
   const existing = registrationRequests.get(key);
   if (existing) return existing;
-  // Request permission synchronously within the click's user activation,
-  // before fetching configuration or awaiting service-worker readiness.
-  const permissionRequest = permission === 'default' && requestPermission
-    ? Notification.requestPermission() : Promise.resolve(permission);
+  // Explicit retries retain the click's activation. An automatic first-visit
+  // attempt may be refused by the browser; refusal must leave a manual fallback,
+  // never pretend consent or mask errors from the subsequent registration API.
+  let permissionRequest = Promise.resolve(permission);
+  if (permission === 'default' && requestPermission) {
+    try {
+      permissionRequest = Notification.requestPermission().catch(() => 'default' as const);
+    } catch {
+      return Promise.resolve(false);
+    }
+  }
   const pending = performWebPushRegistration(permissionRequest, expectedIdentity)
     .finally(() => { if (registrationRequests.get(key) === pending) registrationRequests.delete(key); });
   registrationRequests.set(key, pending);
   return pending;
+}
+
+/** Call only from the server-verified admin surface, never public/login pages. */
+export function registerWebPushOnAdminVisit(): Promise<boolean> {
+  if (webPushProblem() || document.visibilityState !== 'visible') return Promise.resolve(false);
+  if (Notification.permission !== 'default') return registerWebPush();
+  // Browser permission is origin-wide. Keep only a non-private attempted marker
+  // so dismissals, remounts, reloads and account switches do not nag the user.
+  // If persistence is unavailable, fail closed to the explicit Enable button.
+  try {
+    if (automaticPromptAttempted || localStorage.getItem(automaticPromptKey)) return Promise.resolve(false);
+    localStorage.setItem(automaticPromptKey, 'attempted');
+    automaticPromptAttempted = true;
+  } catch {
+    return Promise.resolve(false);
+  }
+  return registerWebPush(true);
 }
 
 /** Device display only: not a provider-send or closed-tab delivery proof. */
