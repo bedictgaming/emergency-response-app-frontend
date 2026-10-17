@@ -1,6 +1,7 @@
 import { API_ORIGIN, ensureFreshSession, isDefinitiveAuthFailure } from '@/lib/apiClient';
 import { getMe } from '@/lib/services/authService';
 import { adminAccountSnapshot } from '@/lib/adminAccountSnapshot';
+import { createEmergencyTransport, type EmergencyTransport } from '@/lib/emergencyTransport';
 
 export type EmergencyConnectionState = 'connecting' | 'live' | 'recovering' | 'offline' | 'signed-out';
 type Listener = { refresh: () => void; state?: (state: EmergencyConnectionState) => void };
@@ -12,7 +13,7 @@ export function subscribeEmergencyStream(listener: Listener) {
   let stream = streams.get(identity);
   if (!stream) {
     const listeners = new Set<Listener>();
-    let source: EventSource | null = null, timer: number | null = null;
+    let source: EmergencyTransport | null = null, timer: number | null = null;
     let stopped = false, checking = false, attempts = 0, suspended = false, lifecycle = 0;
     let state: EmergencyConnectionState = 'connecting';
     const valid = () => !stopped && identity === `${adminAccountSnapshot()}:${localStorage.getItem('emergency-logout-epoch')}`;
@@ -30,7 +31,27 @@ export function subscribeEmergencyStream(listener: Listener) {
       if (document.visibilityState !== 'visible') return;
       const started = lifecycle;
       checking = true;
-      try { await ensureFreshSession(); }
+      try { await ensureFreshSession();
+        if (!canConnect() || started !== lifecycle) return;
+        const next = await createEmergencyTransport(API_ORIGIN);
+        if (!canConnect() || started !== lifecycle) { next.close(); return; }
+        source = next;
+        for (const name of ['incident.created', 'incident.updated', 'incident.verified', 'dispatch.updated', 'task.updated', 'alert.created']) next.addEventListener(name, refresh);
+        next.onopen = () => {
+          if (!valid() || source !== next) { next.close(); return; }
+          attempts = 0; broadcast('live'); refresh();
+        };
+        next.onerror = () => {
+          if (source !== next) return;
+          close(); broadcast(navigator.onLine ? 'recovering' : 'offline');
+          if (!canConnect() || checking) return;
+          checking = true;
+          void getMe().catch(error => {
+            if (valid() && isDefinitiveAuthFailure(error)) { stopped = true; broadcast('signed-out'); }
+          }).finally(() => { checking = false; retry(); });
+        };
+        next.start();
+      }
       catch (error) {
         if (!valid() || started !== lifecycle) return;
         if (isDefinitiveAuthFailure(error)) { stopped = true; broadcast('signed-out'); }
@@ -40,23 +61,6 @@ export function subscribeEmergencyStream(listener: Listener) {
         checking = false;
         if (started !== lifecycle && canConnect()) retry();
       }
-      if (!canConnect() || started !== lifecycle) return;
-      const next = new EventSource(`${API_ORIGIN}/api/events/v1/stream`, { withCredentials: true });
-      source = next;
-      for (const name of ['incident.created', 'incident.updated', 'incident.verified', 'dispatch.updated', 'task.updated', 'alert.created']) next.addEventListener(name, refresh);
-      next.onopen = () => {
-        if (!valid() || source !== next) { next.close(); return; }
-        attempts = 0; broadcast('live'); refresh();
-      };
-      next.onerror = () => {
-        if (source !== next) return;
-        close(); broadcast(navigator.onLine ? 'recovering' : 'offline');
-        if (!canConnect() || checking) return;
-        checking = true;
-        void getMe().catch(error => {
-          if (valid() && isDefinitiveAuthFailure(error)) { stopped = true; broadcast('signed-out'); }
-        }).finally(() => { checking = false; retry(); });
-      };
     };
     const pause = () => { lifecycle += 1; suspended = true; close(); broadcast(navigator.onLine ? 'recovering' : 'offline'); };
     const offline = () => { lifecycle += 1; close(); broadcast('offline'); };

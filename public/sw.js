@@ -1,4 +1,18 @@
 const CACHE = 'emergency-response-shell-v4';
+const workerUrl = new URL(self.location.href || self.location.origin);
+const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(workerUrl.hostname);
+const PUSH_ONLY = loopback && workerUrl.searchParams.get('pushOnly') === '1';
+// Production always uses the first-party authenticated gateway. Only an
+// explicitly selected loopback worker may address this project's local API.
+let pushApiOrigin = self.location.origin;
+if (PUSH_ONLY) {
+  try {
+    const configured = new URL(workerUrl.searchParams.get('apiOrigin'));
+    if (configured.protocol === workerUrl.protocol && configured.hostname === workerUrl.hostname
+      && configured.port === '8000' && configured.pathname === '/' && !configured.search
+      && !configured.hash && !configured.username && !configured.password) pushApiOrigin = configured.origin;
+  } catch { /* Fall back to first-party; never trust an external endpoint. */ }
+}
 const OFFLINE_URL = '/offline.html';
 const PRECACHE = [
   OFFLINE_URL,
@@ -10,12 +24,12 @@ const PRECACHE = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)));
+  if (!PUSH_ONLY) event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)));
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
+  if (!PUSH_ONLY) event.waitUntil(
     caches.keys().then((keys) => Promise.all(
       keys.filter((key) => key.startsWith('emergency-response-shell-') && key !== CACHE)
         .map((key) => caches.delete(key)),
@@ -25,6 +39,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  if (PUSH_ONLY) return; // Do not intercept or cache next dev assets/API calls.
   const request = event.request;
   if (request.method !== 'GET') return;
 
@@ -123,7 +138,7 @@ self.addEventListener('push', (event) => {
       try {
         const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 8000);
         let response;
-        try { response = await fetch(`/api/notifications/v1/${id}/relevance`, { credentials: 'include', cache: 'no-store', signal: controller.signal }); }
+        try { response = await fetch(`${pushApiOrigin}/api/notifications/v1/${id}/relevance`, { credentials: 'include', cache: 'no-store', signal: controller.signal }); }
         finally { clearTimeout(timeout); }
         if (response.status === 404 || response.status === 403) return;
         if (response.ok) { const current = await response.json(); if (current.relevant === false) return; verified = current.relevant === true; }

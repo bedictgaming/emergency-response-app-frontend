@@ -5,6 +5,7 @@
   "scripts": {
     "test:architecture": "node --test scripts/architecture.test.mjs",
     "test:seo": "node --test scripts/seo.test.mjs",
+    "test:realtime": "node --experimental-strip-types --test scripts/emergency-transport.test.mjs scripts/public-reference-cache.test.mjs",
     "seo:card": "node scripts/generate-seo-card.mjs",
     "release:check": "node scripts/release-preflight.mjs",
     "deploy:check": "node scripts/deployment-preflight.mjs",
@@ -12,6 +13,7 @@
     "test:deployment": "node --test scripts/deployment-policy.test.mjs scripts/public-origins.test.mjs",
     "test:gateway": "node --test gateway/sign-request.test.mjs",
     "test:worker": "node --test scripts/notification-worker.test.mjs",
+    "test:push": "node --test scripts/browser-push.test.mjs",
     "prebuild": "node scripts/validation-preflight.mjs",
     "dev": "next dev",
     "build": "next build",
@@ -34,6 +36,7 @@
     "react-dom": "19.2.4",
     "react-icons": "^5.7.0",
     "react-leaflet": "^5.0.0",
+    "socket.io-client": "4.8.4",
     "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {

@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect } from 'react';
+import { API_ORIGIN } from '@/lib/apiClient';
 
 export default function ServiceWorkerRegistration() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
 
-    if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_PRODUCTION_VALIDATION === 'true') {
+    const devPush = process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ENABLE_DEV_PUSH === 'true'
+      && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
+    if ((!devPush && process.env.NODE_ENV !== 'production') || process.env.NEXT_PUBLIC_PRODUCTION_VALIDATION === 'true') {
       // A service worker installed by a local production preview otherwise
       // keeps controlling `next dev` and can serve stale hashed CSS/JS.
       // Protected Vercel validation also disables PWA installability because
@@ -26,7 +29,9 @@ export default function ServiceWorkerRegistration() {
 
     const register = async () => {
       try {
-        const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        // Explicit local push testing never enables dev asset/offline caching.
+        const workerUrl = devPush ? `/sw.js?pushOnly=1&apiOrigin=${encodeURIComponent(API_ORIGIN)}` : '/sw.js';
+        const registration = await navigator.serviceWorker.register(workerUrl, { scope: '/', updateViaCache: 'none' });
         await registration.update();
       } catch (error) {
         console.warn('Offline cache registration failed', error);

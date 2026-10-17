@@ -7,7 +7,8 @@ import { logout } from "@/lib/services/authService";
 import { getAdminDepartment, getDepartmentDashboardUrl } from "@/hooks/useAdminGuard";
 import BarangayHistoryDrawer from "@/components/admin/BarangayHistoryDrawer";
 import AdminEmergencyMonitor from "@/components/admin/AdminEmergencyMonitor";
-import { registerWebPush, unregisterWebPush } from "@/lib/browserPush";
+import { unregisterWebPush } from "@/lib/browserPush";
+import AdminPushNotifications from '@/components/admin/AdminPushNotifications';
 import { markSessionEnded } from "@/lib/apiClient";
 import type { ResponseService } from "@/lib/services/incidentService";
 import { HeaderFrame } from "../shared/HeaderFrame";
@@ -53,7 +54,6 @@ export default function AdminHeader({
     } catch {
       // Ignore
     }
-    void registerWebPush().catch(() => undefined);
   }, []);
 
   // Determine if back button should be shown (either explicitly via prop, or automatically when on secondary pages like /admin/analytics)
@@ -177,6 +177,7 @@ export default function AdminHeader({
           </button>
           </nav>
         </div>
+        <AdminPushNotifications />
       </HeaderFrame>
 
       {/* Slide-over Barangay History Drawer */}

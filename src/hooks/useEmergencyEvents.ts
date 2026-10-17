@@ -6,7 +6,7 @@ export function useEmergencyEvents(onEvent: () => void, enabled = true, onState?
   const callback = useRef(onEvent), state = useRef(onState);
   useEffect(() => { callback.current = onEvent; state.current = onState; }, [onEvent, onState]);
   useEffect(() => {
-    if (!enabled || typeof EventSource === 'undefined') return;
+    if (!enabled) return;
     return subscribeEmergencyStream({ refresh: () => callback.current(), state: value => state.current?.(value) });
   }, [enabled]);
 }

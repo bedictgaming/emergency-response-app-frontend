@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
 const source = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
-function worker(receipts = new Map(), relevant = true, receiptMode = 'normal') {
+function worker(receipts = new Map(), relevant = true, receiptMode = 'normal', href = 'https://app.example.test/sw.js') {
   const handlers = {};
   const shown = mock.fn(async () => {});
   const fetched = mock.fn(async () => {
@@ -36,8 +36,9 @@ function worker(receipts = new Map(), relevant = true, receiptMode = 'normal') {
     } };
     setTimeout(() => { open.result = db; open.onsuccess(); }, 0); return open;
   } };
+  const location = new URL(href);
   runInNewContext(source, { indexedDB, URL, Date, Promise, AbortController, setTimeout, clearTimeout, fetch: fetched,
-    self: { location: { origin: 'https://app.example.test' }, addEventListener: (name, handler) => { handlers[name] = handler; },
+    self: { location, skipWaiting() {}, addEventListener: (name, handler) => { handlers[name] = handler; },
       registration: { showNotification: shown, getNotifications: async () => [] } },
   });
   const push = async (id, extra = {}) => {
@@ -45,7 +46,7 @@ function worker(receipts = new Map(), relevant = true, receiptMode = 'normal') {
     handlers.push({ data: { json: () => ({ title: 'Private title', body: 'Private address', data: { notificationId: id, expiresAt: new Date(Date.now() + 60000).toISOString(), ...extra } }) }, waitUntil: value => { done = value; } });
     await done;
   };
-  return { push, shown, fetched };
+  return { push, shown, fetched, handlers };
 }
 const id = '00000000-0000-0000-0000-000000000001';
 const calls = fn => fn.mock.calls.map(call => call.arguments);
@@ -75,4 +76,30 @@ test('independent advisories have distinct identities and off-origin click URLs 
   await current.push('00000000-0000-0000-0000-000000000002', { alertId: 'advisory-b' });
   assert.notEqual(calls(current.shown)[0][1].tag, calls(current.shown)[1][1].tag);
   assert.equal(calls(current.shown)[0][1].data.url, 'https://app.example.test/dashboard');
+});
+
+test('a background push handler has no dependency on any open page or live socket', async () => {
+  const current = worker(); await current.push(id);
+  assert.equal(current.shown.mock.callCount(), 1);
+  assert.equal(calls(current.fetched)[0][1].credentials, 'include');
+  assert.equal(calls(current.fetched)[0][1].cache, 'no-store');
+});
+
+test('explicit loopback push-only mode targets local API without intercepting dev assets', async () => {
+  const current = worker(undefined, true, 'normal', 'http://localhost:3000/sw.js?pushOnly=1&apiOrigin=http%3A%2F%2Flocalhost%3A8000');
+  await current.push(id);
+  assert.equal(calls(current.fetched)[0][0], `http://localhost:8000/api/notifications/v1/${id}/relevance`);
+  current.handlers.install({ waitUntil() { assert.fail('Dev worker must not precache'); } });
+  current.handlers.fetch({ get request() { assert.fail('Dev worker must not intercept fetches'); } });
+});
+
+test('worker query parameters cannot redirect authenticated fetches to external origins', async () => {
+  for (const href of [
+    'http://localhost:3000/sw.js?pushOnly=1&apiOrigin=https%3A%2F%2Fevil.example.test',
+    'http://localhost:3000/sw.js?pushOnly=1&apiOrigin=http%3A%2F%2Fuser%3Asecret%40localhost%3A8000',
+    'https://app.example.test/sw.js?pushOnly=1&apiOrigin=https%3A%2F%2Fevil.example.test',
+  ]) {
+    const current = worker(undefined, true, 'normal', href); await current.push(id);
+    assert.equal(new URL(calls(current.fetched)[0][0]).origin, new URL(href).origin);
+  }
 });

@@ -1,5 +1,8 @@
 import apiClient from '@/lib/apiClient';
 import { BarangayItem, IncidentRecord } from '@/types/barangay-history';
+import { createPublicReferenceCache } from '@/lib/publicReferenceCache';
+
+const barangayReferences = createPublicReferenceCache<BarangayItem[]>();
 
 export interface BarangaysResponse {
   code: number;
@@ -30,10 +33,15 @@ export interface BarangayIncidentsResponse {
  * GET /api/barangays/v1/
  * Lists all 13 reference barangays
  */
-export const getBarangays = async (options?: { throwOnError?: boolean }): Promise<BarangayItem[]> => {
+export const getBarangays = async (options?: { throwOnError?: boolean; fresh?: boolean }): Promise<BarangayItem[]> => {
   try {
-    const response = await apiClient.get<BarangaysResponse>('/barangays/v1/');
-    return response.data?.data?.barangays || [];
+    if (options?.fresh) barangayReferences.clear();
+    return await barangayReferences.read(async () => {
+      const response = await apiClient.get<BarangaysResponse>('/barangays/v1/');
+      const barangays = response.data?.data?.barangays;
+      if (!Array.isArray(barangays)) throw new Error('Barangay reference list unavailable');
+      return barangays;
+    });
   } catch (error) {
     if (options?.throwOnError) throw error;
     console.error('Failed to fetch barangays', error);

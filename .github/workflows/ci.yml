@@ -24,12 +24,17 @@ jobs:
       - run: npm run test:deployment
       - run: npm run test:gateway
       - run: npm run test:worker
+      - run: npm run test:push
       - run: npm run test:architecture
+      - run: npm run test:realtime
       - run: npm run test:seo
       - run: node scripts/check-dependency-audit.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e -- --workers=2
       - run: node scripts/check-seo-export.mjs .next-e2e private
+      - run: npm run test:e2e -- e2e/socket-events.spec.ts --workers=2
+        env:
+          NEXT_PUBLIC_EMERGENCY_TRANSPORT: socket.io
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
