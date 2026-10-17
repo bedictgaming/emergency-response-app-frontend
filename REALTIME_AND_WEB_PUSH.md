@@ -20,6 +20,8 @@ Incomplete setup can retry on real online/foreground events, coalesced while pen
 
 Removing the panel does not guarantee delivery after every kind of browser closure. An allowed, registered browser can receive Web Push with no page open; normal Chrome/Android background operation can receive it, but force-stop, fully exited desktop browsers without background operation, logout, power/network/permission/battery restrictions can prevent it. Keep the backend online and perform actual device acceptance. The old device-display helper remains a developer contract, not a visible control or a provider/closed-browser proof.
 
+The first local headless browser run passes 28 cases and explicitly skips native OS/device acceptance, but its new offline fixture fails by expecting an admin header before authoritative offline session verification. Preserve the failure/trace. Correct only the fixture: assert no verified header while offline, restore connectivity, then require that verified header and automatic registration. This strengthens the real authorization boundary rather than weakening it; app/bootstrap/helper/worker source, all required outcomes and global retries/timeouts are unchanged. Fresh browser/exact-source hosted qualification is still required before release.
+
 ## Local development opt-in
 
 - Set `NEXT_PUBLIC_API_URL=http://localhost:8000` and `NEXT_PUBLIC_ENABLE_DEV_PUSH=true` only for a controlled loopback test with the matching backend, separately approved synthetic database and fresh development VAPID keys. Never put a private key in frontend variables or Git.

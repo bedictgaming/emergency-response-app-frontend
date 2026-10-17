@@ -70,6 +70,11 @@ async function setup(page: Page, options: Options = {}) {
   const departmentRoute = department === 'DRRMO' ? 'drrmo' : department.toLowerCase();
   await page.goto('/admin/' + departmentRoute + '-dashboard');
   if (options.unauthorized) await expect.poll(() => new URL(page.url()).pathname).not.toContain('/admin/');
+  else if (options.offline) {
+    // The real access boundary intentionally defers /me while offline. The
+    // dashboard and its push bootstrap must not mount before verification.
+    await expect(page.locator('header[data-header-frame="shared"]')).toHaveCount(0);
+  }
   else {
     await expect(page.locator('header[data-header-frame="shared"]')).toBeVisible();
     if (!options.offline && !options.unauthorized) {
@@ -141,6 +146,7 @@ test('offline setup waits for connectivity without consuming the automatic permi
   const state = await setup(page, { offline: true });
   expect(state.keys()).toBe(0); expect(state.registrations()).toBe(0); expect((await calls(page)).prompts).toBe(0);
   await page.evaluate(() => (window as unknown as { __pushSetOnline: () => void }).__pushSetOnline());
+  await expect(page.locator('header[data-header-frame="shared"]')).toBeVisible();
   await expect.poll(() => state.registrations()).toBe(1); expect((await calls(page)).prompts).toBe(1);
 });
 test('clustered foreground and online events do not duplicate pending or completed registration', async ({ page }) => {
