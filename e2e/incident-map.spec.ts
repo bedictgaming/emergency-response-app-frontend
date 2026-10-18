@@ -121,13 +121,19 @@ test('zoom limits and location popup never change the recorded coordinates', asy
   const map = card.locator('.leaflet-container');
   await expect(map.locator('.incident-reference-radius')).toBeVisible();
   for (let index = 0; index < 4; index++) {
+    const before = (await map.locator('.incident-reference-radius').boundingBox())!.width;
     await map.getByRole('button', { name: 'Zoom out', exact: true }).click();
+    // Leaflet starts zoom animation on the next frame. Wait for an actual
+    // scale change before another click, not merely the absence of its class.
+    await expect.poll(async () => (await map.locator('.incident-reference-radius').boundingBox())!.width).toBeLessThan(before * 0.75);
     await expect(map).not.toHaveClass(/leaflet-zoom-anim/);
     await expectPinOnRadius(map);
   }
   await expect(map.getByRole('button', { name: 'Zoom out', exact: true })).toHaveAttribute('aria-disabled', 'true');
   for (let index = 0; index < 6; index++) {
+    const before = (await map.locator('.incident-reference-radius').boundingBox())!.width;
     await map.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    await expect.poll(async () => (await map.locator('.incident-reference-radius').boundingBox())!.width).toBeGreaterThan(before * 1.5);
     await expect(map).not.toHaveClass(/leaflet-zoom-anim/);
     await expectPinOnRadius(map);
   }
