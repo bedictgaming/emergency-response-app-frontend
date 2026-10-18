@@ -1,6 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import { captureIncidentPhoto, installFakeIncidentCamera } from './helpers/incident-camera';
 
+// Nearby detection is also POST; only the collection endpoint creates reports.
+function isIncidentCreation(request: { method(): string; url(): string }) {
+  return request.method() === 'POST' && new URL(request.url()).pathname.replace(/\/$/, '') === '/api/incidents/v1';
+}
+
 async function session(page: Page, role = 'ADMIN') {
   if (role === 'USER') {
     await installFakeIncidentCamera(page);
@@ -215,7 +220,7 @@ test('citizen proof upload precedes submission and failed uploads retain the dra
     if (new URL(route.request().url()).pathname.endsWith('/nearby-check')) {
       return route.fulfill({ json: { data: { duplicate: false } } });
     }
-    if (route.request().method() === 'POST') {
+    if (isIncidentCreation(route.request())) {
       order.push('incident');
       expect(route.request().postDataJSON().proofAttachment).toEqual({ publicId: 'evidence/test-user/photo', fileName: expect.stringMatching(/^incident-camera-\d+\.jpg$/) });
       expect(route.request().postDataJSON().barangayName).toBe('Poblacion');
@@ -269,7 +274,7 @@ test('citizen photo upload falls back securely when the browser blocks Cloudinar
     if (new URL(request.url()).pathname.endsWith('/nearby-check')) {
       return route.fulfill({ json: { data: { duplicate: false } } });
     }
-    if (request.method() === 'POST') {
+    if (isIncidentCreation(request)) {
       incidentCreated = true;
       expect(request.postDataJSON().proofAttachment).toEqual({
         publicId: 'emergency-incidents/test-user/fallback',
@@ -306,7 +311,7 @@ test('blocked direct upload of a large photo preserves the draft without sending
   await page.route('**/api/upload/v1/image', route => { fallbacks++; return route.fulfill({ status: 413 }); });
   await page.route('**/api/incidents/v1/**', route => {
     if (new URL(route.request().url()).pathname.endsWith('/nearby-check')) return route.fulfill({ json: { data: { duplicate: false } } });
-    if (route.request().method() === 'POST') creations++;
+    if (isIncidentCreation(route.request())) creations++;
     return route.fulfill({ json: { data: { incidents: [] } } });
   });
   await page.goto('/dashboard');
@@ -344,7 +349,7 @@ test('citizen short-term rate-limit response preserves the draft without a devel
     if (new URL(route.request().url()).pathname.endsWith('/nearby-check')) {
       return route.fulfill({ json: { data: { duplicate: false } } });
     }
-    if (route.request().method() === 'POST') {
+    if (isIncidentCreation(route.request())) {
       return route.fulfill({
         status: 429,
         json: { status: 'error', message: 'Too many requests. Please try again shortly.' },
@@ -387,7 +392,7 @@ for (const category of ['Fire', 'Medical', 'Police', 'Hazard']) test(`nearby ${c
   } } }));
   await page.route('**/api/incidents/v1/**', async route => {
     if (new URL(route.request().url()).pathname.endsWith('/nearby-check')) return route.fulfill({ json: { data: { duplicate: false, possibleDuplicate: true, locationAccepted: true } } });
-    if (route.request().method() === 'POST') {
+    if (isIncidentCreation(route.request())) {
       createdPayload = route.request().postDataJSON();
       await gate;
       return route.fulfill({ status: 201, json: { data: { incident: { incidentId: 'synthetic-separate' } } } });
@@ -442,7 +447,7 @@ test('repeated submission retains the draft and reuses its submission ID on retr
     if (new URL(route.request().url()).pathname.endsWith('/nearby-check')) {
       return route.fulfill({ json: { data: { duplicate: false } } });
     }
-    if (route.request().method() === 'POST') {
+    if (isIncidentCreation(route.request())) {
       createRequests += 1;
       submissionIds.push(route.request().postDataJSON().submissionId);
       return route.fulfill({
@@ -494,7 +499,7 @@ test('Other emergency can request Medical and Hazard in one report', async ({ pa
       expect(route.request().postDataJSON().requestedServices).toEqual(['MEDICAL', 'HAZARD']);
       return route.fulfill({ json: { data: { duplicate: false } } });
     }
-    if (route.request().method() === 'POST') {
+    if (isIncidentCreation(route.request())) {
       createdPayload = route.request().postDataJSON();
       return route.fulfill({ json: { data: { incident: { incidentId: 'storm-incident' } } } });
     }
@@ -768,14 +773,16 @@ test('one citizen submission becomes visible to main admin without a list-reques
     if (new URL(request.url()).pathname.endsWith('/nearby-check')) {
       return route.fulfill({ json: { data: { duplicate: false } } });
     }
-    if (request.method() === 'POST') {
+    if (isIncidentCreation(request)) {
       submissions += 1;
       expect(request.postDataJSON().proofAttachment?.publicId).toBe('evidence/test-user/flow-proof');
       created = true;
       return route.fulfill({ status: 201, json: { data: { incident } } });
     }
     if (new URL(request.url()).pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
-    if (!new URL(request.url()).searchParams.has('reportedBy')) adminListRequests += 1;
+    const url = new URL(request.url());
+    if (request.method() === 'GET' && url.pathname.replace(/\/$/, '') === '/api/incidents/v1'
+      && !url.searchParams.has('reportedBy')) adminListRequests += 1;
     return route.fulfill({ json: { data: { incidents: created ? [incident] : [] } } });
   });
 
