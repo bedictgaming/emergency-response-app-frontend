@@ -120,28 +120,42 @@ test('zoom limits and location popup never change the recorded coordinates', asy
   await card.scrollIntoViewIfNeeded();
   const map = card.locator('.leaflet-container');
   await expect(map.locator('.incident-reference-radius')).toBeVisible();
-  for (let index = 0; index < 4; index++) {
-    const before = (await map.locator('.incident-reference-radius').boundingBox())!.width;
+  const expectTileZoom = async (zoom: number) => {
+    // At wide zoom the existing Cordova bounds can shift the view; a report
+    // can then lie outside the SVG viewport when zooming back in. Loaded OSM
+    // tile levels observe completed zoom without inventing a fixed center.
+    await expect.poll(() => map.locator('.leaflet-tile-container').evaluateAll(levels => {
+      // Leaflet retains lower-priority background levels after animation.
+      // GridLayer gives the current level the highest inline z-index.
+      const current = levels.sort((a, b) => Number((b as HTMLElement).style.zIndex) - Number((a as HTMLElement).style.zIndex))[0];
+      return current ? [...new Set([...current.querySelectorAll<HTMLImageElement>('.leaflet-tile-loaded')]
+        .map(tile => Number(new URL(tile.src).pathname.split('/')[1])))] : [];
+    })).toEqual([zoom]);
+  };
+  await expectTileZoom(16);
+  for (let zoom = 15; zoom >= 12; zoom--) {
     await map.getByRole('button', { name: 'Zoom out', exact: true }).click();
-    // Leaflet starts zoom animation on the next frame. Wait for an actual
-    // scale change before another click, not merely the absence of its class.
-    await expect.poll(async () => (await map.locator('.incident-reference-radius').boundingBox())!.width).toBeLessThan(before * 0.75);
-    await expect(map).not.toHaveClass(/leaflet-zoom-anim/);
-    await expectPinOnRadius(map);
+    await expectTileZoom(zoom);
+    await expect(map.locator('.leaflet-map-pane')).not.toHaveClass(/leaflet-zoom-anim/);
+    await expect(card.getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
   }
   await expect(map.getByRole('button', { name: 'Zoom out', exact: true })).toHaveAttribute('aria-disabled', 'true');
-  for (let index = 0; index < 6; index++) {
-    const before = (await map.locator('.incident-reference-radius').boundingBox())!.width;
+  for (let zoom = 13; zoom <= 18; zoom++) {
     await map.getByRole('button', { name: 'Zoom in', exact: true }).click();
-    await expect.poll(async () => (await map.locator('.incident-reference-radius').boundingBox())!.width).toBeGreaterThan(before * 1.5);
-    await expect(map).not.toHaveClass(/leaflet-zoom-anim/);
-    await expectPinOnRadius(map);
+    await expectTileZoom(zoom);
+    await expect(map.locator('.leaflet-map-pane')).not.toHaveClass(/leaflet-zoom-anim/);
+    await expect(card.getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
   }
   await expect(map.getByRole('button', { name: 'Zoom in', exact: true })).toHaveAttribute('aria-disabled', 'true');
+  // Leaflet's existing keyboard focus brings an off-screen recorded marker
+  // into view; this is viewer navigation, not a location edit.
+  await map.getByTitle('Emergency location pin', { exact: true }).focus();
+  await expectPinOnRadius(map);
   await map.getByTitle('Emergency location pin', { exact: true }).click();
   await expect(map.getByText('Reported Location', { exact: true })).toBeVisible();
   await expectPinOnRadius(map);
-  await expect(card.getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
+  await expect(card.locator('span.tabular-nums')).toHaveText('10.252191, 123.949475');
+  await expect(map.locator('.leaflet-popup').getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
   await expect(card.getByText('100 m reference radius', { exact: true })).toBeVisible();
 });
 
@@ -170,7 +184,7 @@ test.describe('touch map navigation', () => {
     }
     await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await expect.poll(async () => (await circle.boundingBox())!.width).toBeGreaterThan(before * 1.9);
-    await expect(map).not.toHaveClass(/leaflet-zoom-anim/);
+    await expect(map.locator('.leaflet-map-pane')).not.toHaveClass(/leaflet-zoom-anim/);
     await expectPinOnRadius(map);
     await expect(card.getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
     await session.detach();

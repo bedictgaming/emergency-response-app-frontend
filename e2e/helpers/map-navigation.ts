@@ -21,11 +21,11 @@ export async function expectZoomAndPan(page: Page, map: Locator) {
   const before = (await circle.boundingBox())!.width;
   await map.getByRole('button', { name: 'Zoom in', exact: true }).click();
   await expect.poll(async () => (await circle.boundingBox())!.width).toBeGreaterThan(before * 1.9);
-  await expect(map).not.toHaveClass(/leaflet-zoom-anim/);
+  await expect(map.locator('.leaflet-map-pane')).not.toHaveClass(/leaflet-zoom-anim/);
   await expectPinOnRadius(map);
   await map.getByRole('button', { name: 'Zoom out', exact: true }).click();
   await expect.poll(async () => Math.abs((await circle.boundingBox())!.width - before)).toBeLessThan(2);
-  await expect(map).not.toHaveClass(/leaflet-zoom-anim/);
+  await expect(map.locator('.leaflet-map-pane')).not.toHaveClass(/leaflet-zoom-anim/);
 
   const startX = (await circle.boundingBox())!.x;
   const box = (await map.boundingBox())!;
