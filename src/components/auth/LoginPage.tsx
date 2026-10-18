@@ -74,6 +74,9 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
     if (oauthStatus === 'oauth_failed') {
       setError('Google login failed. Please try again.');
     }
+    if (oauthStatus === 'report_sequence_limit') {
+      setError('Account deactivated after three consecutive reports to the same department within five minutes. Submitted reports remain with responders. Contact Main Admin for reactivation.');
+    }
     if (oauthStatus === 'oauth_link_required' || oauthStatus === 'oauth_link_password_required') {
       setError('Please log in with your password first, then connect Google in Settings. If you forgot your password, use “Forgot password?” to recover access.');
     }

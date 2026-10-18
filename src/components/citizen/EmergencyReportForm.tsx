@@ -740,6 +740,9 @@ export function EmergencyReportForm({
             </div>
 
             {/* Action Buttons */}
+            <p className="text-sm leading-6 text-amber-800 dark:text-amber-200">
+                Three consecutive reports requesting the same department within five minutes deactivate your account. Main Admin must reactivate it. Retrying the same submission does not add a report.
+            </p>
             <div className="flex gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={onCancel} className="min-h-11 flex-1 rounded-lg border-slate-300 bg-white font-semibold text-slate-800 shadow-none hover:bg-slate-50">
                     Cancel

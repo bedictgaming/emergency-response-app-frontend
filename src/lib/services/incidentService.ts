@@ -197,6 +197,7 @@ interface SingleIncidentResponse {
   message?: string;
   data: {
     incident: Incident;
+    accountDeactivated?: boolean;
   };
 }
 
@@ -324,9 +325,9 @@ export const getIncidentById = async (id: string, signal?: AbortSignal): Promise
  * POST /api/incidents/v1/
  * Creates a new emergency incident.
  */
-export const createIncident = async (payload: CreateIncidentPayload): Promise<Incident> => {
+export const createIncident = async (payload: CreateIncidentPayload): Promise<Incident & { accountDeactivated?: boolean }> => {
   const response = await apiClient.post<SingleIncidentResponse>('/incidents/v1/', payload);
-  return response.data.data.incident;
+  return { ...response.data.data.incident, accountDeactivated: response.data.data.accountDeactivated === true };
 };
 
 export const checkNearbyIncident = async (

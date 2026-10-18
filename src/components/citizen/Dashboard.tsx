@@ -276,6 +276,7 @@ export function Dashboard() {
         setNearbyNotice(false);
 
         try {
+            const submittingGeneration = localStorage.getItem('emergency-session-generation');
             let resolvedBarangayName = report.barangayName;
             // Location remains authoritative; nearby reports are advisory only.
             // A distinct emergency must not be blocked by the 100-metre radius.
@@ -328,7 +329,7 @@ export function Dashboard() {
 
             // 2. Submit the incident to backend PostgreSQL
             const categoryUpper = (report.category || 'EMERGENCY').toUpperCase();
-            await createIncident({
+            const created = await createIncident({
                 submissionId: report.submissionId,
                 title: `${categoryUpper} Emergency: ${report.location.slice(0, 40)}`,
                 description: report.description,
@@ -345,6 +346,35 @@ export function Dashboard() {
                     fileName: uploadedProof.fileName,
                 } : undefined,
             });
+
+            if (created.accountDeactivated) {
+                // The third report committed successfully. Do not refetch with
+                // its now-revoked session or present this as a failed submission.
+                setIsReportDialogOpen(false);
+                setSelectedCategory(null);
+                let ownsCurrentSession = false;
+                try {
+                    const cached = JSON.parse(localStorage.getItem('user') || 'null');
+                    ownsCurrentSession = cached?.id === created.reportedBy
+                        && localStorage.getItem('emergency-session-generation') === submittingGeneration;
+                    if (ownsCurrentSession) {
+                        localStorage.removeItem('user');
+                        localStorage.removeItem('accessToken');
+                        localStorage.removeItem('refreshToken');
+                        markSessionEnded();
+                    }
+                } catch {
+                    // Storage failure cannot turn an accepted report into a
+                    // failed submission or clear another account's session.
+                }
+                if (ownsCurrentSession) {
+                    setUser(null);
+                    setReports([]);
+                    setReportsLoaded(false);
+                    router.replace('/login?error=report_sequence_limit');
+                }
+                return;
+            }
 
             // 3. Reload incidents from backend
             if (user?.id) {
