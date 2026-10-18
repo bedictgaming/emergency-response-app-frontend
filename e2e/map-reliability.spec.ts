@@ -1,5 +1,6 @@
 import { devices, expect, test, type Page } from '@playwright/test';
 import { isPointInCordova, isWithinCordovaMapBounds } from '../src/lib/cordovaBoundary';
+import { expectPinOnRadius, expectZoomAndPan } from './helpers/map-navigation';
 
 async function citizenSession(page: Page) {
   await page.addInitScript(() => Object.defineProperty(navigator.geolocation, 'getCurrentPosition', {
@@ -45,7 +46,7 @@ for (const device of ['desktop', 'mobile'] as const) {
       test.use({ viewport: pixel.viewport, userAgent: pixel.userAgent, deviceScaleFactor: pixel.deviceScaleFactor, isMobile: pixel.isMobile, hasTouch: pixel.hasTouch });
     }
 
-    test('map interactions cannot move the GPS pin, approximate outline does not reject it', async ({ page }, testInfo) => {
+    test('zoom and pan cannot edit the GPS pin, approximate outline does not reject it', async ({ page }, testInfo) => {
       expect(isPointInCordova(10.255, 123.967)).toBe(false);
       expect(isWithinCordovaMapBounds(10.255, 123.967)).toBe(true);
       await citizenSession(page);
@@ -59,7 +60,7 @@ for (const device of ['desktop', 'mobile'] as const) {
       await expect(pin).toBeVisible();
       await expect(map.locator('.incident-reference-radius')).toBeVisible();
       await expect(dialog.getByText('100 m reference radius', { exact: true })).toBeVisible();
-      const initial = await pin.getAttribute('style');
+      await expectZoomAndPan(page, map);
       await map.click({ position: { x: 90, y: 160 } });
       await map.dblclick({ position: { x: 100, y: 170 } });
       const box = await map.boundingBox();
@@ -70,7 +71,7 @@ for (const device of ['desktop', 'mobile'] as const) {
       await map.evaluate(element => element.setAttribute('tabindex', '0'));
       await map.focus();
       await page.keyboard.press('ArrowRight');
-      await expect(pin).toHaveAttribute('style', initial!);
+      await expectPinOnRadius(map);
       await expect(dialog.getByText('GPS: 10.255000, 123.967000', { exact: true })).toBeVisible();
       await expect(dialog.getByRole('button', { name: 'Confirm center' })).toHaveCount(0);
       await expect(dialog.getByRole('button', { name: 'Cordova center' })).toHaveCount(0);

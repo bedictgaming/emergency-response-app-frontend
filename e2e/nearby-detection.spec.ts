@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { expectPinOnRadius, expectZoomAndPan } from './helpers/map-navigation';
 test.use({ serviceWorkers: 'block' });
 const anchorId = '10000000-0000-4000-8000-000000000001';
 const peerId = '20000000-0000-4000-8000-000000000002';
@@ -73,6 +74,8 @@ for (const dark of [false, true]) test(`citizen ${dark ? 'dark' : 'light'} recei
   await expect(region.locator('.leaflet-marker-icon')).toHaveCount(1);
   expect(state.listReads).toBe(lists); expect(state.detailReads).toBe(0);
   expect(await page.content()).not.toContain(peerId);
+  await expectZoomAndPan(page, region.locator('.leaflet-container'));
+  expect(state.listReads).toBe(lists); expect(state.detailReads).toBe(0);
   await expect(region.getByRole('button', { name: /Review nearby/ })).toHaveCount(0);
   await region.screenshot({ path: info.outputPath('citizen-nearby.png'), animations: 'disabled' });
   state.present = false; await emit(page);
@@ -128,6 +131,7 @@ test('new GPS and category invalidate the previous lookup; event bursts are boun
   await expect.poll(() => state.bodies.some(body => JSON.stringify(body.services) === '["MEDICAL"]')).toBe(true);
   await page.evaluate(() => (window as typeof window & { __nearby: Browser }).__nearby.gps(10.2525));
   await expect.poll(() => state.bodies.some(body => body.latitude === 10.2525)).toBe(true);
+  await expectPinOnRadius(region.locator('.leaflet-container'));
   const before = state.reads;
   for (let index = 0; index < 20; index++) await emit(page);
   // Wait through a coalescing window, not a refresh/poll interval.

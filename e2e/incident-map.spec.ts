@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { expectPinOnRadius, expectZoomAndPan } from './helpers/map-navigation';
 
 test.use({ serviceWorkers: 'block' });
 const coordinates = { latitude: 10.252191, longitude: 123.949475 };
@@ -45,6 +46,8 @@ for (const width of [390, 1280]) {
       await expect(card.getByText('100 m reference radius', { exact: true })).toBeVisible();
       await expect(card.getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
       await expect(card.getByRole('link', { name: 'OpenStreetMap' })).toBeVisible();
+      await expectZoomAndPan(page, card.locator('.leaflet-container'));
+      await expect(card.getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: /view map/i })).toHaveCount(0);
       await expect(page.locator('a[href*="google.com/maps"],iframe')).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -77,6 +80,7 @@ for (const dark of [false, true]) {
       await expect(card.getByRole('button', { name: 'Zoom in' })).toHaveCSS('color', 'rgb(248, 250, 252)');
     }
     await expect(card.getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
+    await expectZoomAndPan(page, card.locator('.leaflet-container'));
     await expect(page.getByRole('button', { name: /show map|view map|hide map/i })).toHaveCount(0);
     await expect(page.locator('a[href*="google.com/maps"]')).toHaveCount(0);
     await expect(card.locator('.leaflet-tile-loaded').first()).toBeVisible();
@@ -106,4 +110,63 @@ test('tile failure keeps coordinates and radius, with explicit retry recovery', 
   await card.getByRole('button', { name: 'Retry map tiles' }).click();
   await expect(card.getByText(/Base map tiles could not load/)).toHaveCount(0);
   await expect(card.locator('.leaflet-tile-loaded').first()).toBeVisible();
+});
+
+test('zoom limits and location popup never change the recorded coordinates', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await fixture(page, 'FIRE');
+  await page.goto('/admin/fire-dashboard');
+  const card = page.getByRole('group', { name: 'Reported emergency location', exact: true });
+  await card.scrollIntoViewIfNeeded();
+  const map = card.locator('.leaflet-container');
+  await expect(map.locator('.incident-reference-radius')).toBeVisible();
+  for (let index = 0; index < 4; index++) {
+    await map.getByRole('button', { name: 'Zoom out', exact: true }).click();
+    await expect(map).not.toHaveClass(/leaflet-zoom-anim/);
+    await expectPinOnRadius(map);
+  }
+  await expect(map.getByRole('button', { name: 'Zoom out', exact: true })).toHaveAttribute('aria-disabled', 'true');
+  for (let index = 0; index < 6; index++) {
+    await map.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    await expect(map).not.toHaveClass(/leaflet-zoom-anim/);
+    await expectPinOnRadius(map);
+  }
+  await expect(map.getByRole('button', { name: 'Zoom in', exact: true })).toHaveAttribute('aria-disabled', 'true');
+  await map.getByTitle('Emergency location pin', { exact: true }).click();
+  await expect(map.getByText('Reported Location', { exact: true })).toBeVisible();
+  await expectPinOnRadius(map);
+  await expect(card.getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
+  await expect(card.getByText('100 m reference radius', { exact: true })).toBeVisible();
+});
+
+test.describe('touch map navigation', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  test('an off-center two-finger pinch changes scale, not the report anchor', async ({ page }) => {
+    await fixture(page, 'FIRE');
+    await page.goto('/admin/fire-dashboard');
+    const card = page.getByRole('group', { name: 'Reported emergency location', exact: true });
+    await card.scrollIntoViewIfNeeded();
+    const map = card.locator('.leaflet-container');
+    const circle = map.locator('.incident-reference-radius');
+    await expect(circle).toBeVisible();
+    const before = (await circle.boundingBox())!.width;
+    const box = (await map.boundingBox())!;
+    const session = await page.context().newCDPSession(page);
+    // An off-center gesture may pan the view, never edit the recorded pin.
+    const x = box.x + box.width * 0.65, y = box.y + box.height * 0.65;
+    const points = (distance: number) => [
+      { id: 1, x: x - distance, y, radiusX: 1, radiusY: 1 },
+      { id: 2, x: x + distance, y, radiusX: 1, radiusY: 1 },
+    ];
+    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: points(18) });
+    for (const distance of [22, 28, 34, 40, 46]) {
+      await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: points(distance) });
+    }
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect.poll(async () => (await circle.boundingBox())!.width).toBeGreaterThan(before * 1.9);
+    await expect(map).not.toHaveClass(/leaflet-zoom-anim/);
+    await expectPinOnRadius(map);
+    await expect(card.getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
+    await session.detach();
+  });
 });

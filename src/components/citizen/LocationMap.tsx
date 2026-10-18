@@ -193,7 +193,9 @@ export function LocationMap({
     longitude,
     onLocationChange,
     interactive = false,
-    navigable = interactive,
+    // Viewing controls never grant permission to select/edit the recorded pin.
+    // This also lets the GPS-locked form zoom and pan without changing its fix.
+    navigable = true,
     zoom = 16,
     height = '300px',
     nearbyPins = [], nearbyLabel, onNearbyReport
