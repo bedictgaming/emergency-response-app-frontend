@@ -24,6 +24,7 @@ import { useEmergencyEvents } from '../../hooks/useEmergencyEvents';
 import { isDefinitiveAuthFailure, markSessionEnded } from '@/lib/apiClient';
 import { HeaderFrame } from '../shared/HeaderFrame';
 import { EmergencyLogo } from '../shared/EmergencyLogo';
+import { CitizenNearbyMap } from './CitizenNearbyMap';
 
 const mapIncidentToReport = (inc: Incident): EmergencyReport => {
     const typeName = inc.type?.typeName?.toLowerCase() || '';
@@ -594,6 +595,7 @@ export function Dashboard() {
                 />
 
                 {/* Reports List */}
+                {user && <CitizenNearbyMap />}
                 {!reportsLoaded ? (
                     <section aria-label="Your reports" className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
                         <h2 className="text-xl font-bold text-slate-950 dark:text-white">Your reports</h2>

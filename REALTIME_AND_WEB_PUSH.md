@@ -4,6 +4,14 @@ This source update is for `development`, paired with the matching backend candid
 
 ## Transport and cache
 
+### Nearby submitted-report maps (local candidate, 18 October)
+
+The citizen dashboard and GPS-locked report form detect submitted active incidents around a fresh shared device fix; preliminary/expired/revoked fixes never authorize detection. Citizens see presence-only labels, not peer pins, identities or report access. Main/department maps use the selected report ID; the backend resolves its authorized persisted center and returns only authorized nearby pins. A separate existing guarded report GET supplies read-only details when an operator selects a peer. Live resolution removes active matches, and unavailable/incomplete results never mean no reports. Similarity is response-service overlap, not proof of the same event; report acceptance/routing and duplicate-key/proof protection are unchanged.
+
+The supplied mapcn MarkerLabel is adapted as a pure React presentation in `src/components/ui/mapcn-marker-label.tsx`, with positioning owned by Leaflet Tooltip. Do not install a second MapLibre/Carto renderer, execute an unpinned registry installer or add stock map images. Keep Leaflet/OSM attribution, 100m circle, citizen themes, bounded layouts and keyboard review alternatives.
+
+`useNearbyDetection` shares the existing account-isolated transport. A new anonymous `nearby.changed` hint reaches nearby callbacks only, never ordinary report/alert subscribers or the siren. It says nothing about which report changed or whether anything is near the citizen; authenticated read-only POST results own that state. Requests are coalesced (normally 100ms, minimum 3s between starts per visible anchor), canceled/discarded on GPS/category/selection/account/logout/lifecycle changes, and pause offscreen/background. Thirty-second fallback and foreground/online/reconnection checks are recovery, not a zero-latency or continuous background-GPS promise. UI distinguishes live connection from degraded recovery. Keep this data in component memory only; no private result cache or subscription rooms are added. Matching backend support is required; no live publication or real-device/UAT acceptance is asserted here.
+
 `src/lib/emergencyTransport.ts` selects Socket.IO in ordinary Next development; production keeps SSE by default. `NEXT_PUBLIC_EMERGENCY_TRANSPORT=socket.io|sse` explicitly selects a transport at build time. Socket.IO uses WebSocket-only `/api/events/v1/socket.io`; there is no hidden polling fallback. Existing account-isolated shared streams, reconnect/backoff, lifecycle catch-up reads and permission/session boundaries are retained.
 
 The backend must support the selected transport and preserve its authenticated gateway upgrade boundary. Never bypass the gateway or place tokens in query strings. Events invalidate fresh authorized HTTP reads; no zero-latency, exactly-once or multi-replica replay guarantee is made.

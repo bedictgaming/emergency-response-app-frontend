@@ -464,11 +464,21 @@ select {
   color: #fbbf24 !important;
 }
 
+.incident-location-pin { background: transparent; border: 0; }
+.leaflet-tooltip.nearby-map-tooltip { width: max-content; max-width: 160px; border: 0; background: transparent; padding: 0; box-shadow: none; white-space: normal; }
+.leaflet-tooltip.nearby-map-tooltip::before { display: none; }
+.leaflet-control-zoom a { min-width: 44px; min-height: 44px; line-height: 44px !important; }
+.leaflet-control-zoom a:focus-visible,
+.leaflet-marker-icon:focus-visible { outline: 2px solid #dc2626; outline-offset: 3px; }
+.leaflet-control-attribution { max-width: 100%; font-size: 10px; }
 .dark .leaflet-container { background: #0f172a; }
 .dark .leaflet-tile-pane { filter: brightness(0.72) contrast(1.12) saturate(0.75); }
 .dark .leaflet-control-zoom a,
 .dark .leaflet-popup-content-wrapper,
 .dark .leaflet-popup-tip { background: #1e293b; color: #f8fafc; }
+.dark .leaflet-container .leaflet-control-zoom a:hover,
+.dark .leaflet-container .leaflet-control-zoom a:focus-visible { background: #334155; color: #f8fafc; }
+.dark .leaflet-container .leaflet-control-zoom a.leaflet-disabled { background: #1e293b; color: #94a3b8; }
 
 /* Cordova Map Mask & Out-of-Scope Blur Styling */
 .cordova-mask-polygon {

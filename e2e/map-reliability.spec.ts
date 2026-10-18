@@ -57,6 +57,8 @@ for (const device of ['desktop', 'mobile'] as const) {
       const map = dialog.locator('.leaflet-container');
       const pin = map.locator('.leaflet-marker-icon');
       await expect(pin).toBeVisible();
+      await expect(map.locator('.incident-reference-radius')).toBeVisible();
+      await expect(dialog.getByText('100 m reference radius', { exact: true })).toBeVisible();
       const initial = await pin.getAttribute('style');
       await map.click({ position: { x: 90, y: 160 } });
       await map.dblclick({ position: { x: 100, y: 170 } });
@@ -128,7 +130,7 @@ for (const scenario of ['denied', 'unavailable', 'timeout', 'old', 'invalid', 'o
     }, scenario);
     let unsafeRequests = 0;
     page.on('request', request => {
-      if (request.url().includes('/api/') && request.method() === 'POST') unsafeRequests++;
+      if (request.url().includes('/api/') && request.method() === 'POST' && !request.url().endsWith('/nearby-detection')) unsafeRequests++;
     });
     if (scenario === 'timeout') await page.clock.install();
     const dialog = await openForm(page);

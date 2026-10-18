@@ -1,16 +1,9 @@
 'use client';
 
-import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
-
-import { useState } from 'react';
-import dynamic from 'next/dynamic';
 import {
   AlertTriangle,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Clock3,
-  ExternalLink,
   Flame,
   Heart,
   HelpCircle,
@@ -21,16 +14,7 @@ import {
 import type { EmergencyReport } from '../../types';
 import { CompactEvidencePhoto } from '../shared/SecureEvidencePhoto';
 import { ContinuousPagination } from '../ui/continuous-pagination';
-
-const LocationMap = dynamic(
-  () => import('./LocationMap').then((mod) => mod.LocationMap),
-  {
-    ssr: false,
-    loading: () => (
-      <LoadingPlaceholder label="Loading incident map..." layout="map" className="h-[260px]" />
-    ),
-  },
-);
+import { IncidentLocationMap } from '../shared/IncidentLocationMap';
 
 interface EmergencyReportsListProps {
   reports: EmergencyReport[];
@@ -67,17 +51,6 @@ export function EmergencyReportsList({
   totalReports,
   onPageChange,
 }: EmergencyReportsListProps) {
-  const [expandedMapIds, setExpandedMapIds] = useState<Set<string>>(new Set());
-
-  const toggleMap = (id: string) => {
-    setExpandedMapIds((previous) => {
-      const next = new Set(previous);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   if (reports.length === 0) {
     return (
       <section aria-labelledby="reports-heading" className="rounded-2xl border border-slate-200 bg-white p-8 text-center sm:p-10 dark:border-slate-800 dark:bg-slate-900">
@@ -106,8 +79,6 @@ export function EmergencyReportsList({
         {reports.map((report) => {
           const category = categoryConfig[report.category] ?? categoryConfig.other;
           const Icon = category.icon;
-          const hasGps = Number.isFinite(report.latitude) && Number.isFinite(report.longitude);
-          const mapExpanded = expandedMapIds.has(report.id);
           const status = report.status === 'cancelled'
             ? { label: 'Cancelled by Main Admin', icon: Clock3, className: 'border-slate-300 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100' }
             : report.status === 'resolved'
@@ -174,39 +145,7 @@ export function EmergencyReportsList({
                 </div>
               )}
 
-              {hasGps && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => toggleMap(report.id)}
-                    aria-expanded={mapExpanded}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
-                  >
-                    {mapExpanded ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
-                    {mapExpanded ? 'Hide map' : 'Show map'}
-                  </button>
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
-                  >
-                    Open map
-                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                  </a>
-                </div>
-              )}
-              {hasGps && mapExpanded && (
-                <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
-                  <LocationMap
-                    latitude={report.latitude!}
-                    longitude={report.longitude!}
-                    interactive={false}
-                    height="260px"
-                    zoom={16}
-                  />
-                </div>
-              )}
+              <IncidentLocationMap latitude={report.latitude} longitude={report.longitude} />
             </article>
           );
         })}

@@ -5,10 +5,11 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   Flame, BarChart2, AlertTriangle, ShieldCheck, 
-  MapPin, Phone, ExternalLink, RefreshCw, Copy, Check
+  MapPin, Phone, RefreshCw, Copy, Check
 } from "lucide-react";
 import AdminHeader from "@/components/admin/AdminHeader";
 import ReporterIdentity from "@/components/admin/ReporterIdentity";
+import { IncidentLocationMap } from "@/components/shared/IncidentLocationMap";
 import {
     getIncidentPage,
     updateIncidentServiceResponse,
@@ -259,17 +260,6 @@ export default function FireAdminDashboard() {
                                     </div>
                                     <h3 className="font-bold text-[15px] text-gray-900">{item.title}</h3>
                                 </div>
-                                {item.hasLocationBtn && (
-                                    <button
-                                        type="button"
-                                        onClick={() => window.open(`https://www.google.com/maps?q=${item.latitude},${item.longitude}`, '_blank')}
-                                        className="border border-gray-300 rounded-lg px-3.5 py-1.5 text-xs font-medium hover:bg-gray-50 text-gray-700 transition-colors inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                                    >
-                                        <MapPin size={13} className="text-red-500" />
-                                        <span>View Map</span>
-                                        <ExternalLink size={12} className="text-gray-400" />
-                                    </button>
-                                )}
                             </div>
 
                             {/* Incident Description */}
@@ -327,6 +317,8 @@ export default function FireAdminDashboard() {
                                     <span>Location: <strong>{item.location}</strong></span>
                                 </div>
                             </div>
+
+                            <IncidentLocationMap latitude={item.latitude} longitude={item.longitude} operationalIncidentId={item.id} />
 
                             {/* Photo Attachment */}
                             {item.photoUrl && (

@@ -10,6 +10,8 @@ import dynamic from 'next/dynamic';
 import { isWithinCordovaMapBounds } from '../../lib/cordovaBoundary';
 import { isReportGpsFresh, useReportGps } from '../../hooks/useReportGps';
 import { IncidentCameraCapture } from './IncidentCameraCapture';
+import { useNearbyDetection } from '@/hooks/useNearbyDetection';
+import { NearbyDetectionStatus } from '@/components/shared/NearbyDetectionStatus';
 
 const LocationMap = dynamic(() => import('./LocationMap').then(mod => mod.LocationMap), {
   ssr: false,
@@ -168,6 +170,10 @@ export function EmergencyReportForm({
     const [confirmedFix, setConfirmedFix] = useState<typeof gpsFix>(null);
     const locationConfirmed = gpsFix !== null && confirmedFix === gpsFix;
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const nearbyServices: ResponseService[] = selectedCategory === 'other' ? requestedServices : selectedCategory ? [selectedCategory.toUpperCase() as ResponseService] : [];
+    const nearbyReady = gpsFix && isGpsInCordova && nearbyServices.length > 0 && (selectedCategory !== 'other' || nearbyServices.length >= 2);
+    const nearby = useNearbyDetection(nearbyReady
+      ? { kind: 'citizen', latitude: gpsFix.latitude, longitude: gpsFix.longitude, services: nearbyServices } : null);
 
     // The dashboard can open the one-tap form while the verified profile is
     // still loading. Populate the reporter name as soon as that profile
@@ -625,8 +631,9 @@ export function EmergencyReportForm({
                         </span>
                     </div>
                     {gpsFix && isGpsInCordova && (
-                        <LocationMap latitude={currentLatitude} longitude={currentLongitude} interactive={false} height="240px" />
+                        <LocationMap latitude={currentLatitude} longitude={currentLongitude} interactive={false} height="240px" nearbyLabel={nearby.result?.nearby ? 'Similar report within 100 m' : undefined} />
                     )}
+                    {nearbyReady && <NearbyDetectionStatus detection={nearby} />}
                     <p className="text-base sm:text-sm text-muted-foreground">
                         Report only an emergency at your current location. You cannot move this pin. If GPS is wrong or the emergency is elsewhere, <a href="tel:911" className="font-semibold underline underline-offset-4">call 911</a>.
                     </p>

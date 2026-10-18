@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polygon, Polyline, useMapEvents, useMap } from 'react-leaflet';
-import { Icon } from 'leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, Polygon, Polyline, Circle, useMapEvents, useMap } from 'react-leaflet';
+import { divIcon, type TileLayer as LeafletTileLayer } from 'leaflet';
 import { Ban, Crosshair, MapPinCheck } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
+import { MarkerLabel } from '@/components/ui/mapcn-marker-label';
+import type { NearbyMapPin } from '@/lib/services/nearbyDetectionService';
 import {
     CORDOVA_CENTER,
     CORDOVA_BOUNDS,
@@ -12,24 +14,29 @@ import {
     isWithinCordovaMapBounds,
 } from '../../lib/cordovaBoundary';
 
-// Fix for default marker icon in React-Leaflet
-const defaultIcon = new Icon({
-    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
+// Static markup only: never interpolate report text into Leaflet HTML.
+const defaultIcon = divIcon({
+    className: 'incident-location-pin',
+    html: '<svg width="36" height="44" viewBox="0 0 36 44" aria-hidden="true"><path d="M18 42S2 26 2 18a16 16 0 1 1 32 0c0 8-16 24-16 24Z" fill="#dc2626" stroke="#fff" stroke-width="2"/><circle cx="18" cy="18" r="6" fill="#fff"/></svg>',
+    iconSize: [36, 44],
+    iconAnchor: [18, 42],
+    popupAnchor: [0, -36],
 });
+
+// A distance reference, not GPS accuracy, incident extent or duplicate authority.
+export const INCIDENT_REFERENCE_RADIUS_METERS = 100;
 
 interface LocationMapProps {
     latitude: number | null;
     longitude: number | null;
     onLocationChange?: (lat: number, lng: number) => void;
     interactive?: boolean;
+    navigable?: boolean;
     zoom?: number;
     height?: string;
+    nearbyPins?: NearbyMapPin[];
+    nearbyLabel?: string;
+    onNearbyReport?: (id: string) => void;
 }
 
 function MapEffects() {
@@ -114,12 +121,14 @@ function LocationMarker({
     position,
     onLocationChange,
     interactive,
-    onOutOfScopeClick
+    onOutOfScopeClick,
+    nearbyLabel,
 }: {
-    position: [number, number];
+    position: [number, number] | null;
     onLocationChange?: (lat: number, lng: number) => void;
     interactive?: boolean;
     onOutOfScopeClick?: () => void;
+    nearbyLabel?: string;
 }) {
     useMapEvents({
         click(e) {
@@ -134,8 +143,10 @@ function LocationMarker({
         },
     });
 
+    if (!position) return null;
+
     return (
-        <Marker position={position} icon={defaultIcon}>
+        <Marker position={position} icon={defaultIcon} alt="Emergency location pin" title="Emergency location pin">
             <Popup>
                 {interactive ? (
                     <div className="text-center p-1">
@@ -160,6 +171,7 @@ function LocationMarker({
                     </div>
                 )}
             </Popup>
+            {nearbyLabel && <Tooltip permanent direction="top" offset={[0, -42]} className="nearby-map-tooltip"><MarkerLabel>{nearbyLabel}</MarkerLabel></Tooltip>}
         </Marker>
     );
 }
@@ -181,11 +193,15 @@ export function LocationMap({
     longitude,
     onLocationChange,
     interactive = false,
-    zoom = 14,
-    height = '300px'
+    navigable = interactive,
+    zoom = 16,
+    height = '300px',
+    nearbyPins = [], nearbyLabel, onNearbyReport
 }: LocationMapProps) {
     const [scopeWarning, setScopeWarning] = useState(false);
     const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const tileLayerRef = useRef<LeafletTileLayer | null>(null);
+    const [tilesFailed, setTilesFailed] = useState(false);
 
     useEffect(() => () => {
         if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
@@ -213,6 +229,12 @@ export function LocationMap({
             role="group"
             aria-label={interactive ? 'Choose the emergency location on the Cordova map' : 'Incident location map'}
         >
+            {tilesFailed && (
+                <div role="status" className="absolute inset-x-2 top-2 z-[1000] rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                    Base map tiles could not load. The pin and radius still show the recorded coordinates.
+                    <button type="button" className="ml-2 min-h-11 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-red-600" onClick={() => { setTilesFailed(false); tileLayerRef.current?.redraw(); }}>Retry map tiles</button>
+                </div>
+            )}
             {/* Out-of-Scope Warning Toast */}
             {scopeWarning && (
                 <div role="alert" className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-xl">
@@ -222,9 +244,8 @@ export function LocationMap({
             )}
 
             {/* Scope Badge in Map Corner */}
-            <div className="absolute bottom-2.5 left-2.5 z-[999] pointer-events-none bg-slate-900/80 backdrop-blur-md text-slate-200 text-[11px] font-medium px-2.5 py-1 rounded-md border border-slate-700/60 shadow-md flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Approximate Cordova outline</span>
+            <div className="absolute bottom-7 left-2 z-[999] pointer-events-none rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full border-2 border-red-600 bg-red-100" aria-hidden="true" />{hasValidCoords ? '100 m reference radius' : 'No valid location pin'}</span>
             </div>
 
             <MapContainer
@@ -235,15 +256,17 @@ export function LocationMap({
                 maxBounds={CORDOVA_BOUNDS}
                 maxBoundsViscosity={1.0}
                 style={{ height: '100%', width: '100%' }}
-                scrollWheelZoom={interactive}
-                dragging={interactive}
-                zoomControl={interactive}
-                keyboard={interactive}
-                doubleClickZoom={interactive}
-                touchZoom={interactive}
-                boxZoom={interactive}
+                scrollWheelZoom={false}
+                dragging={navigable}
+                zoomControl={navigable}
+                keyboard={navigable}
+                doubleClickZoom={navigable}
+                touchZoom={navigable}
+                boxZoom={navigable}
             >
                 <TileLayer
+                    ref={tileLayerRef}
+                    eventHandlers={{ tileerror: () => setTilesFailed(true) }}
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
@@ -286,12 +309,26 @@ export function LocationMap({
 
                 <SyncMapCenter latitude={initialLat} longitude={initialLng} />
 
+                {hasValidCoords && (
+                    <Circle
+                        center={[initialLat, initialLng]}
+                        radius={INCIDENT_REFERENCE_RADIUS_METERS}
+                        className="incident-reference-radius"
+                        interactive={false}
+                        pathOptions={{ color: '#dc2626', weight: 2, fillColor: '#dc2626', fillOpacity: 0.12 }}
+                    />
+                )}
                 <LocationMarker
-                    position={[initialLat, initialLng]}
+                    position={hasValidCoords ? [initialLat, initialLng] : null}
                     onLocationChange={onLocationChange}
                     interactive={interactive}
                     onOutOfScopeClick={triggerOutOfScopeWarning}
+                    nearbyLabel={nearbyLabel}
                 />
+                {nearbyPins.map(pin => <Marker key={pin.incidentId} position={[pin.latitude, pin.longitude]} icon={defaultIcon} title="Nearby submitted report">
+                    <Tooltip permanent direction="top" offset={[0, -42]} className="nearby-map-tooltip"><MarkerLabel>Nearby report · {pin.distanceMeters} m</MarkerLabel></Tooltip>
+                    <Popup><button type="button" className="min-h-11 px-3 text-sm font-semibold underline" onClick={() => onNearbyReport?.(pin.incidentId)}>Review nearby report</button></Popup>
+                </Marker>)}
             </MapContainer>
         </div>
     );

@@ -315,8 +315,8 @@ export const incidentServiceStatusesForTab = (
  * GET /api/incidents/v1/:id
  * Fetches details for a single incident.
  */
-export const getIncidentById = async (id: string): Promise<Incident> => {
-  const response = await apiClient.get<SingleIncidentResponse>(`/incidents/v1/${id}`);
+export const getIncidentById = async (id: string, signal?: AbortSignal): Promise<Incident> => {
+  const response = await apiClient.get<SingleIncidentResponse>(`/incidents/v1/${id}`, { signal });
   return response.data.data.incident;
 };
 

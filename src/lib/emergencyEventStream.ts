@@ -4,7 +4,7 @@ import { adminAccountSnapshot } from '@/lib/adminAccountSnapshot';
 import { createEmergencyTransport, type EmergencyTransport } from '@/lib/emergencyTransport';
 
 export type EmergencyConnectionState = 'connecting' | 'live' | 'recovering' | 'offline' | 'signed-out';
-type Listener = { refresh: () => void; state?: (state: EmergencyConnectionState) => void };
+type Listener = { refresh: () => void; nearby?: () => void; state?: (state: EmergencyConnectionState) => void };
 const streams = new Map<string, { subscribe: (listener: Listener) => () => void }>();
 
 // Events are invalidation hints, never authority to sound an emergency alarm.
@@ -37,6 +37,8 @@ export function subscribeEmergencyStream(listener: Listener) {
         if (!canConnect() || started !== lifecycle) { next.close(); return; }
         source = next;
         for (const name of ['incident.created', 'incident.updated', 'incident.verified', 'dispatch.updated', 'task.updated', 'alert.created']) next.addEventListener(name, refresh);
+        // A peer report is never an ordinary citizen event or alarm trigger.
+        next.addEventListener('nearby.changed', () => { if (valid()) listeners.forEach(item => item.nearby?.()); });
         next.onopen = () => {
           if (!valid() || source !== next) { next.close(); return; }
           attempts = 0; broadcast('live'); refresh();

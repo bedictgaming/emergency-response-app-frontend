@@ -36,7 +36,7 @@ async function stats(page: Page) {
 for (const width of [390, 1365]) {
   test(`preliminary estimate cannot submit; fresh shared fix stays locked at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 }); await setup(page);
-    let writes = 0; page.on('request', request => { if (request.url().includes('/api/') && request.method() === 'POST') writes++; });
+    let writes = 0; page.on('request', request => { if (request.url().includes('/api/') && request.method() === 'POST' && !request.url().endsWith('/nearby-detection')) writes++; });
     await page.goto('/dashboard');
     await expect(page.getByText(/Preliminary estimate only/)).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('preliminary-location.png') });

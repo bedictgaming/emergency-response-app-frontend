@@ -78,7 +78,12 @@ for (const size of sizes) for (const path of routes) {
     await page.evaluate(() => document.fonts.ready);
     await check(page, path);
     if (path.includes('-dashboard')) {
-      await expect(page.getByRole('button', { name: 'View Map', exact: true })).toBeVisible();
+      const map = page.getByRole('group', { name: 'Reported emergency location', exact: true });
+      await map.scrollIntoViewIfNeeded();
+      await expect(map.locator('.leaflet-container')).toBeVisible();
+      await expect(map.locator('.incident-reference-radius')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'View Map', exact: true })).toHaveCount(0);
+      await check(page, 'Inline incident map');
       await expect(page.getByRole('button', { name: 'Analytics', exact: true })).toBeVisible();
     }
     if (path === '/admin/operations') {
