@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { installQuietEventStream, waitForQuietEventStream } from './helpers/quiet-event-stream';
 
 test('login and signup use an equal-width segmented control', async ({ page }) => {
   await page.goto('/login');
@@ -1098,6 +1099,8 @@ test('admin data polling stops when its session is removed', async ({ page }) =>
 });
 
 test('logout during an in-flight admin recheck cannot restore the dashboard', async ({ page }) => {
+  // This tests the access-boundary focus check, not a transport-error recheck racing it.
+  await installQuietEventStream(page);
   await page.addInitScript(() => {
     localStorage.setItem('user', JSON.stringify({ id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true }));
   });
@@ -1118,6 +1121,7 @@ test('logout during an in-flight admin recheck cannot restore the dashboard', as
 
   await page.goto('/admin/main-dashboard');
   await expect(page.getByText('Main Admin Dashboard', { exact: true })).toBeVisible();
+  await waitForQuietEventStream(page);
   delayNextCheck = true;
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await recheck;
