@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { installQuietEventStream } from './helpers/quiet-event-stream';
+import { installQuietEventStream, waitForQuietEventStream, waitForInitialLiveReads } from './helpers/quiet-event-stream';
+const initialReads = new WeakMap<Page, { completed: number }>();
 
 function monthly(month: number, count: number) {
   return { month, year: 2026, resolvedThisMonth: count, totalReportedThisMonth: count,
@@ -8,6 +9,7 @@ function monthly(month: number, count: number) {
 }
 
 async function setup(page: Page, onMonth?: (route: Route) => Promise<void>) {
+  const reads = { completed: 0 }; initialReads.set(page, reads);
   await installQuietEventStream(page);
   await page.clock.setFixedTime(new Date('2026-10-01T07:00:00Z'));
   const user = { id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true };
@@ -19,11 +21,11 @@ async function setup(page: Page, onMonth?: (route: Route) => Promise<void>) {
     if (path === '/api/events/v1/stream') return route.fulfill({
       contentType: 'text/event-stream', body: 'event: connected\ndata: {"ok":true}\n\n',
     });
-    if (path === '/api/analytics/v1/dashboard') return route.fulfill({ json: { data: {
+    if (path === '/api/analytics/v1/dashboard') { await route.fulfill({ json: { data: {
       incidentsByBarangay: { totalIncidents: 14, rankings: [], topArea: null },
       incidentsByType: { totalIncidents: 14, distribution: [], topType: null },
       resolvedSummary: monthly(10, 0),
-    } } });
+    } } }); reads.completed++; return; }
     if (path === '/api/analytics/v1/resolved-summary') {
       if (onMonth) return onMonth(route);
       const month = Number(url.searchParams.get('month'));
@@ -46,7 +48,9 @@ async function setup(page: Page, onMonth?: (route: Route) => Promise<void>) {
 for (const surface of ['drawer', 'page'] as const) {
   async function open(page: Page) {
     await page.goto(surface === 'page' ? '/admin/barangay-history' : '/admin/main-dashboard');
+    await waitForQuietEventStream(page);
     if (surface === 'drawer') await page.getByRole('button', { name: 'Barangay History Log' }).click();
+    await waitForInitialLiveReads(page, () => initialReads.get(page)!.completed, surface === 'page' ? 2 : 1);
     const card = page.locator('[aria-label="Monthly verified resolution summary"]');
     await expect(card.getByText('October 2026 · 0 of 0 verified reports (0%).')).toBeVisible();
     return card;

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { installQuietEventStream } from './helpers/quiet-event-stream';
+import { installQuietEventStream, waitForQuietEventStream, waitForInitialLiveReads } from './helpers/quiet-event-stream';
+const initialReads = new WeakMap<Page, { completed: number }>();
 
 async function setup(page: Page, department = 'MAIN', historical = { totalHistorical: 8, totalResolvedAllTime: 8 }) {
   await installQuietEventStream(page);
@@ -7,6 +8,7 @@ async function setup(page: Page, department = 'MAIN', historical = { totalHistor
   const user = { id: `synthetic-${department}`, role: 'ADMIN', department, isMainAdmin: department === 'MAIN' };
   await page.addInitScript(current => localStorage.setItem('user', JSON.stringify(current)), user);
   const requests: URL[] = [];
+  const reads = { completed: 0 }; initialReads.set(page, reads);
   const resolution = (month: number) => ({
     month, year: 2026, totalReportedThisMonth: 4, resolvedThisMonth: 4,
     activeThisMonth: 0, resolutionRate: 100, ...historical,
@@ -22,11 +24,11 @@ async function setup(page: Page, department = 'MAIN', historical = { totalHistor
     if (path === '/api/events/v1/stream') return route.fulfill({
       contentType: 'text/event-stream', body: 'event: connected\ndata: {"ok":true}\n\n',
     });
-    if (path === '/api/analytics/v1/dashboard') return route.fulfill({ json: { data: {
+    if (path === '/api/analytics/v1/dashboard') { await route.fulfill({ json: { data: {
       incidentsByBarangay: { totalIncidents: 8, topArea: area, rankings: [area] },
       incidentsByType: { totalIncidents: 8, topType: type, distribution: [type] },
       resolvedSummary: resolution(10),
-    } } });
+    } } }); reads.completed++; return; }
     if (path === '/api/analytics/v1/resolved-summary') return route.fulfill({ json: { data: resolution(Number(url.searchParams.get('month'))) } });
     if (path === '/api/barangays/v1') return route.fulfill({ json: { data: { barangays: [] } } });
     if (path === '/api/incidents/v1/review-flags') return route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
@@ -44,7 +46,9 @@ async function setup(page: Page, department = 'MAIN', historical = { totalHistor
 
 async function open(page: Page, surface: 'drawer' | 'page', department = 'MAIN') {
   await page.goto(surface === 'page' ? '/admin/barangay-history' : department === 'MAIN' ? '/admin/main-dashboard' : '/admin/fire-dashboard');
+  await waitForQuietEventStream(page);
   if (surface === 'drawer') await page.getByRole('button', { name: 'Barangay History Log', exact: true }).click();
+  await waitForInitialLiveReads(page, () => initialReads.get(page)!.completed, surface === 'page' ? 2 : 1);
   const scope = surface === 'drawer' ? page.getByRole('dialog', { name: 'Barangay Incident History Log' }) : page.locator('main');
   const card = scope.locator('[aria-label="Monthly verified resolution summary"]');
   await expect(card.getByText('October 2026 · 4 of 4 verified reports (100%).')).toBeVisible();
