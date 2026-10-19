@@ -12,6 +12,19 @@ const publicEnv = {
   NEXT_PUBLIC_PREVIEW_ONLY: 'false',
   NEXT_PUBLIC_STAGING_TEST: 'false',
 };
+
+test('transport publication permits explicit SSE canary then explicit WebSocket default without relaxing origin or mode gates', () => {
+  const canary = { ...publicEnv, NEXT_PUBLIC_EMERGENCY_TRANSPORT: 'sse', NEXT_PUBLIC_EMERGENCY_CANARY: 'true' };
+  const websocket = { ...publicEnv, NEXT_PUBLIC_EMERGENCY_TRANSPORT: 'socket.io', NEXT_PUBLIC_EMERGENCY_CANARY: 'false' };
+  assert.deepEqual(deploymentFailures(canary), []);
+  assert.deepEqual(deploymentFailures(websocket), []);
+  for (const patch of [
+    { NEXT_PUBLIC_EMERGENCY_TRANSPORT: 'polling' }, { NEXT_PUBLIC_EMERGENCY_TRANSPORT: 'wss://foreign.invalid' },
+    { NEXT_PUBLIC_EMERGENCY_CANARY: 'TRUE' }, { NEXT_PUBLIC_EMERGENCY_CANARY: '' },
+    { NEXT_PUBLIC_EMERGENCY_TRANSPORT: 'socket.io', NEXT_PUBLIC_EMERGENCY_CANARY: 'true' },
+    { NEXT_PUBLIC_API_URL: 'https://foreign.invalid' }, { NEXT_PUBLIC_PREVIEW_ONLY: 'true' },
+  ]) assert.ok(deploymentFailures({ ...canary, ...patch }).length);
+});
 test('accepts explicit public and protected-validation first-party modes', () => {
   assert.deepEqual(deploymentFailures(publicEnv), []);
   assert.deepEqual(deploymentFailures({ ...publicEnv, NEXT_PUBLIC_PUBLIC_LAUNCH: 'false', NEXT_PUBLIC_PRODUCTION_VALIDATION: 'true', NEXT_PUBLIC_PREVIEW_ONLY: 'true' }), []);

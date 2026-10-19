@@ -12,6 +12,7 @@ jobs:
       NEXT_PUBLIC_PUBLIC_LAUNCH: 'false'
       NEXT_PUBLIC_PREVIEW_ONLY: 'false'
       NEXT_PUBLIC_STAGING_TEST: 'false'
+      NEXT_PUBLIC_EMERGENCY_CANARY: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,6 +37,10 @@ jobs:
       - run: npm run test:e2e -- e2e/socket-events.spec.ts --workers=2
         env:
           NEXT_PUBLIC_EMERGENCY_TRANSPORT: socket.io
+      - run: npm run test:e2e -- e2e/socket-events.spec.ts --workers=2
+        env:
+          NEXT_PUBLIC_EMERGENCY_TRANSPORT: sse
+          NEXT_PUBLIC_EMERGENCY_CANARY: 'true'
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

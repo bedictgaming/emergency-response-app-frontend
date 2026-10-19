@@ -1,7 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { socketEmergencyTransport, createEmergencyTransport } from '../src/lib/emergencyTransport.ts';
+import { socketEmergencyTransport, createEmergencyTransport, emergencyTransportSelection } from '../src/lib/emergencyTransport.ts';
+
+test('canary is an explicit WebSocket opt-in, never an origin or SSE downgrade override', () => {
+  assert.deepEqual(emergencyTransportSelection(undefined, false, undefined, '?__realtime=socket.io'), { transport: 'sse', diagnostics: false });
+  assert.deepEqual(emergencyTransportSelection('sse', false, 'false', '?__realtime=socket.io'), { transport: 'sse', diagnostics: false });
+  assert.deepEqual(emergencyTransportSelection('sse', false, 'true', '?__realtime=socket.io'), { transport: 'socket.io', diagnostics: true });
+  assert.deepEqual(emergencyTransportSelection('sse', false, 'true'), { transport: 'sse', diagnostics: false });
+  for (const search of ['?__realtime=sse', '?__realtime=socket.io&__realtime=sse', '?__realtime=wss://foreign.invalid', '?__realtime=invalid']) {
+    assert.deepEqual(emergencyTransportSelection('sse', false, 'true', search), { transport: 'sse', diagnostics: false });
+    assert.deepEqual(emergencyTransportSelection('socket.io', false, 'false', search), { transport: 'socket.io', diagnostics: false });
+  }
+  assert.deepEqual(emergencyTransportSelection('socket.io', false, 'false', '?__realtime=socket.io'), { transport: 'socket.io', diagnostics: true });
+  assert.deepEqual(emergencyTransportSelection(undefined, true, undefined), { transport: 'socket.io', diagnostics: false });
+});
+
+test('invalid transport or canary configuration fails closed', () => {
+  assert.throws(() => emergencyTransportSelection('invalid', false, 'true', '?__realtime=socket.io'), /Unsupported emergency transport/);
+  assert.throws(() => emergencyTransportSelection('sse', false, 'invalid'), /Unsupported emergency canary/);
+});
 
 function fixture() {
   const socket = new EventEmitter(); let starts = 0, closes = 0;

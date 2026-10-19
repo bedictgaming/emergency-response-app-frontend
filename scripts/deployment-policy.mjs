@@ -26,6 +26,9 @@ export function deploymentBuildEnvironment(env) {
 // mode from Vercel's production target or silently supply missing mode flags.
 export function deploymentFailures(env, { allowStaging = false } = {}) {
   const failures = [];
+  if (env.NEXT_PUBLIC_EMERGENCY_TRANSPORT !== undefined && !['sse', 'socket.io'].includes(env.NEXT_PUBLIC_EMERGENCY_TRANSPORT)) failures.push('Invalid emergency transport.');
+  if (env.NEXT_PUBLIC_EMERGENCY_CANARY !== undefined && !['true', 'false'].includes(env.NEXT_PUBLIC_EMERGENCY_CANARY)) failures.push('Invalid emergency transport canary flag.');
+  if (env.NEXT_PUBLIC_EMERGENCY_CANARY === 'true' && env.NEXT_PUBLIC_EMERGENCY_TRANSPORT !== 'sse') failures.push('Canary publication requires explicit SSE for ordinary users.');
   const gatewayStaging = env.EMERGENCY_STAGING_GATEWAY === 'true';
   if (env.EMERGENCY_STAGING_GATEWAY !== undefined && !['true', 'false'].includes(env.EMERGENCY_STAGING_GATEWAY)) failures.push('Invalid staging gateway flag.');
   if (gatewayStaging && (!allowStaging || !stagingGatewayOrigin(env) || env.NEXT_PUBLIC_STAGING_TEST !== 'true')) failures.push('Staging gateway requires explicit preview identity and staging mode.');
