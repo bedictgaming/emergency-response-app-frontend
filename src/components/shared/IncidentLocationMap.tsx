@@ -29,6 +29,8 @@ export function IncidentLocationMap({ latitude, longitude, operationalIncidentId
   const detection = useNearbyDetection(operationalIncidentId ? { kind: 'department', incidentId: operationalIncidentId } : null, inViewport);
   const displayedLatitude = detection.result?.center?.latitude ?? latitude;
   const displayedLongitude = detection.result?.center?.longitude ?? longitude;
+  const reviewPins = detection.result?.items?.filter(pin => detection.result?.reviewIncidentIds === undefined
+    || detection.result.reviewIncidentIds.includes(pin.incidentId)) ?? [];
   const valid = typeof latitude === 'number' && typeof longitude === 'number'
     && isWithinCordovaMapBounds(latitude, longitude);
 
@@ -57,11 +59,11 @@ export function IncidentLocationMap({ latitude, longitude, operationalIncidentId
       {operationalIncidentId && <NearbyDetectionStatus detection={detection} />}
       {nearViewport
         ? <LocationMap latitude={displayedLatitude!} longitude={displayedLongitude!} navigable height="260px"
-            nearbyPins={detection.result?.items} onNearbyReport={setReviewId} />
+            nearbyPins={detection.result?.items} reviewIncidentIds={detection.result?.reviewIncidentIds} onNearbyReport={setReviewId} />
         : <LoadingPlaceholder label="Incident map loads when visible" layout="map" className="h-[260px]" />}
       <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">{operationalIncidentId ? '100 m nearby detection around the selected report' : '100 m around the reported pin · visual reference only'} · not the affected area or GPS accuracy. Cordova outline is approximate.</p>
-      {detection.result?.items?.length ? <ul className="mt-2 space-y-1" aria-label="Authorized nearby reports">
-        {detection.result.items.map(pin => <li key={pin.incidentId}><button type="button" className="min-h-11 rounded-lg px-2 text-left text-sm font-semibold text-red-700 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-red-600" onClick={() => setReviewId(pin.incidentId)}>Review nearby report · {pin.services.join(' / ')} · {pin.distanceMeters} m</button></li>)}
+      {reviewPins.length ? <ul className="mt-2 space-y-1" aria-label="Authorized nearby reports">
+        {reviewPins.map(pin => <li key={pin.incidentId}><button type="button" className="min-h-11 rounded-lg px-2 text-left text-sm font-semibold text-red-700 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-red-600" onClick={() => setReviewId(pin.incidentId)}>Review nearby report · {pin.services.join(' / ')} · {pin.distanceMeters} m</button></li>)}
       </ul> : null}
       {operationalIncidentId && <NearbyReportDialog incidentId={reviewId} onClose={() => setReviewId(null)} />}
     </div>

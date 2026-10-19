@@ -79,13 +79,15 @@ export function EmergencyReportsList({
         {reports.map((report) => {
           const category = categoryConfig[report.category] ?? categoryConfig.other;
           const Icon = category.icon;
+          const intakePending = report.nearbyIntake?.filter(item => item.status === 'PENDING') ?? [];
+          const rejectedByDepartment = report.nearbyIntake?.length && report.nearbyIntake.every(item => item.status === 'REJECTED');
           const status = report.status === 'cancelled'
-            ? { label: 'Cancelled by Main Admin', icon: Clock3, className: 'border-slate-300 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100' }
+            ? { label: rejectedByDepartment ? 'Rejected by department' : 'Cancelled by Main Admin', icon: Clock3, className: 'border-slate-300 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100' }
             : report.status === 'resolved'
             ? { label: 'Resolved', icon: CheckCircle2, className: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300' }
             : report.status === 'in-progress'
               ? { label: 'Coordination in progress', icon: Clock3, className: 'border-slate-300 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100' }
-              : { label: 'Report submitted', icon: Clock3, className: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300' };
+              : { label: intakePending.length ? 'Pending department review' : 'Report submitted', icon: Clock3, className: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300' };
           const StatusIcon = status.icon;
           const services = report.requestedServices?.length
             ? report.requestedServices.map((service) => service === 'HAZARD' ? 'Hazard' : service.charAt(0) + service.slice(1).toLowerCase()).join(', ')
@@ -131,6 +133,7 @@ export function EmergencyReportsList({
               <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-800 dark:text-slate-200">
                 {report.description}
               </p>
+              {intakePending.length > 0 && <p className="mt-3 text-sm text-slate-700 dark:text-slate-300">Awaiting nearby-report review: {intakePending.map(item => item.service).join(', ')}. Your report and photo have been received; this is not confirmation that responders have been dispatched.</p>}
               <p className="mt-3 flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden="true" />
                 <span className="break-words">{report.location}</span>

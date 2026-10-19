@@ -1,6 +1,7 @@
 import apiClient from '@/lib/apiClient';
 import type { ResponseService, IncidentStatus } from './incidentService';
 export interface IncidentAttention {
+  pendingNearbyReview?: boolean;
   incidentId: string; version: number; scope: 'MAIN' | ResponseService;
   title: string; description?: string; reportedAt: string; status: IncidentStatus;
   type?: { typeName: string }; location?: { address?: string; locationName?: string }; reporter?: { name?: string };

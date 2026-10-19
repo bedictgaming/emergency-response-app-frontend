@@ -5,7 +5,7 @@ import { isWithinCordovaMapBounds } from '@/lib/cordovaBoundary';
 export type NearbyDetectionInput = { kind: 'citizen'; latitude: number; longitude: number; services: ResponseService[] }
   | { kind: 'department'; incidentId: string };
 export interface NearbyMapPin { incidentId: string; latitude: number; longitude: number; status: IncidentStatus; services: ResponseService[]; distanceMeters: number }
-export interface NearbyDetectionResult { radiusMeters: 100; active: boolean; nearby: boolean | null; complete: boolean; items?: NearbyMapPin[]; center?: { latitude: number; longitude: number } }
+export interface NearbyDetectionResult { radiusMeters: 100; active: boolean; nearby: boolean | null; complete: boolean; items?: NearbyMapPin[]; reviewIncidentIds?: string[]; center?: { latitude: number; longitude: number } }
 export async function detectNearby(input: NearbyDetectionInput, signal: AbortSignal): Promise<NearbyDetectionResult> {
   const response = await apiClient.post('/incidents/v1/nearby-detection', input, { signal });
   const result = response.data?.data as NearbyDetectionResult | undefined;
@@ -18,5 +18,7 @@ export async function detectNearby(input: NearbyDetectionInput, signal: AbortSig
       || !isWithinCordovaMapBounds(pin.latitude, pin.longitude) || !Number.isFinite(pin.distanceMeters)
       || pin.distanceMeters < 0 || pin.distanceMeters > 100 || !Array.isArray(pin.services)
       || !['OPEN', 'ACTIVE', 'RESPONDING'].includes(pin.status))) throw new Error('Nearby result unavailable');
+  if (result.reviewIncidentIds !== undefined && (!Array.isArray(result.reviewIncidentIds) || result.reviewIncidentIds.length > 200
+    || result.reviewIncidentIds.some(id => typeof id !== 'string' || !result.items!.some(pin => pin.incidentId === id)))) throw new Error('Nearby review result unavailable');
   return result;
 }

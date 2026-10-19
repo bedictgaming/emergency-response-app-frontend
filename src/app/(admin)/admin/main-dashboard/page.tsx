@@ -27,6 +27,7 @@ import { CompactEvidencePhoto } from "@/components/shared/SecureEvidencePhoto";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 import IncidentReviewActions from "@/components/admin/IncidentReviewActions";
 import IncidentReviewQueue from "@/components/admin/IncidentReviewQueue";
+import { NearbyReviewQueue } from '@/components/admin/NearbyReviewQueue';
 import IncidentVerificationLabel from "@/components/admin/IncidentVerificationLabel";
 
 export default function MainDashboard() {
@@ -242,6 +243,7 @@ export default function MainDashboard() {
 
                 {/* Report Section */}
                 <IncidentReviewQueue revision={reviewRevision} onChanged={loadIncidents} />
+                <NearbyReviewQueue onChanged={loadIncidents} />
                 <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-2.5">
                         <h2 className="text-xl font-bold">All report records</h2>

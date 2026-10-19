@@ -103,7 +103,9 @@ export function HelpAndStatus({
             <>
               <p className="text-sm font-semibold text-slate-950 dark:text-white">{categoryLabels[latestReport.category]} emergency</p>
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Submitted {formatReportTime(latestReport.timestamp)}</p>
-              <p className="mt-2 text-sm text-slate-800 dark:text-slate-200">{statusLabels[latestReport.status]}</p>
+              <p className="mt-2 text-sm text-slate-800 dark:text-slate-200">{latestReport.status === 'pending' && latestReport.nearbyIntake?.some(item => item.status === 'PENDING')
+                ? 'Pending department review' : latestReport.status === 'cancelled' && latestReport.nearbyIntake?.length && latestReport.nearbyIntake.every(item => item.status === 'REJECTED')
+                  ? 'Rejected by department' : statusLabels[latestReport.status]}</p>
               {reportsLoadError && <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">Last loaded status; refresh unavailable.</p>}
               <button
                 type="button"

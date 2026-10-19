@@ -41,6 +41,11 @@ jobs:
         env:
           NEXT_PUBLIC_EMERGENCY_TRANSPORT: sse
           NEXT_PUBLIC_EMERGENCY_CANARY: 'true'
+      - run: npm run test:e2e -- e2e/nearby-intake.spec.ts --workers=2
+        env:
+          NEXT_PUBLIC_NEARBY_REVIEW_ENABLED: 'true'
+          NEXT_PUBLIC_EMERGENCY_TRANSPORT: socket.io
+          NEXT_PUBLIC_EMERGENCY_CANARY: 'false'
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

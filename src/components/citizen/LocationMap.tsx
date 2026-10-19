@@ -37,6 +37,7 @@ interface LocationMapProps {
     nearbyPins?: NearbyMapPin[];
     nearbyLabel?: string;
     onNearbyReport?: (id: string) => void;
+    reviewIncidentIds?: string[];
 }
 
 function MapEffects() {
@@ -198,7 +199,7 @@ export function LocationMap({
     navigable = true,
     zoom = 16,
     height = '300px',
-    nearbyPins = [], nearbyLabel, onNearbyReport
+    nearbyPins = [], nearbyLabel, onNearbyReport, reviewIncidentIds
 }: LocationMapProps) {
     const [scopeWarning, setScopeWarning] = useState(false);
     const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -329,7 +330,9 @@ export function LocationMap({
                 />
                 {nearbyPins.map(pin => <Marker key={pin.incidentId} position={[pin.latitude, pin.longitude]} icon={defaultIcon} title="Nearby submitted report">
                     <Tooltip permanent direction="top" offset={[0, -42]} className="nearby-map-tooltip"><MarkerLabel>Nearby report · {pin.distanceMeters} m</MarkerLabel></Tooltip>
-                    <Popup><button type="button" className="min-h-11 px-3 text-sm font-semibold underline" onClick={() => onNearbyReport?.(pin.incidentId)}>Review nearby report</button></Popup>
+                    <Popup>{reviewIncidentIds === undefined || reviewIncidentIds.includes(pin.incidentId)
+                      ? <button type="button" className="min-h-11 px-3 text-sm font-semibold underline" onClick={() => onNearbyReport?.(pin.incidentId)}>Review nearby report</button>
+                      : <span>Nearby submitted report — not awaiting your intake review.</span>}</Popup>
                 </Marker>)}
             </MapContainer>
         </div>

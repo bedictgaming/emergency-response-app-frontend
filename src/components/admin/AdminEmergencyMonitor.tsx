@@ -24,6 +24,7 @@ import { useEmergencyEvents } from "@/hooks/useEmergencyEvents";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 import { saveAdminSoundPreference } from "@/lib/adminSoundPreference";
 import { NewReportAlertGate } from '@/lib/newReportAlertGate';
+import { NearbyReportDialog } from './NearbyReportDialog';
 
 export default function AdminEmergencyMonitor({ responseService }: { responseService?: ResponseService }) {
   const [sirenState, setSirenState] = useState(sirenManager.getState());
@@ -39,6 +40,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
   const [queueError, setQueueError] = useState('');
   const [ackError, setAckError] = useState('');
   const [acknowledging, setAcknowledging] = useState(false);
+  const [nearbyReview, setNearbyReview] = useState<{ incidentId: string; identity: string } | null>(null);
   const [connection, setConnection] = useState<EmergencyConnectionState>('connecting');
   const newIncidentAlert = queue.find(item => attentionKey(item) === selected) ?? queue[0];
   const incomingCount = queue.length;
@@ -177,6 +179,10 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
 
   const handleAcknowledgeAlert = async () => {
     if (!newIncidentAlert || acknowledging || mainMonitoring) return;
+    if (newIncidentAlert.pendingNearbyReview) {
+      setNearbyReview({ incidentId: newIncidentAlert.incidentId, identity: `${adminAccountSnapshot()}:${localStorage.getItem('emergency-logout-epoch')}` });
+      setDialogOpen(false); return;
+    }
     const item = newIncidentAlert, account = adminAccountSnapshot();
     // Cancel a gesture's pending audio unlock immediately, before the network
     // acknowledgement settles. The visual item remains until server success.
@@ -472,7 +478,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
                   className="flex-1 rounded-xl bg-destructive px-4 py-3 text-xs font-semibold text-destructive-foreground flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   <CheckCircle className="w-4 h-4" />
-                  <span>{acknowledging ? 'Saving acknowledgement…' : 'Acknowledge this report'}</span>
+                  <span>{acknowledging ? 'Saving acknowledgement…' : newIncidentAlert.pendingNearbyReview ? 'Review pending nearby report' : 'Acknowledge this report'}</span>
                 </button>}
               </div>
               <p role="status" className="text-xs text-muted-foreground">{alertsMuted ? 'Alert sound is muted. The report remains outstanding; new reports can still sound.' : enablingSound ? 'Enabling alert sound…' : isSirenPlaying ? 'Alert sound is playing.' : hasPendingSound ? 'Alert sound is not playing. Check your browser’s sound settings if needed.' : 'No new report is waiting to sound. Outstanding reports remain in the queue.'}</p>
@@ -483,6 +489,8 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
         </div>,
         document.body
       )}
+      <NearbyReportDialog incidentId={typeof window !== 'undefined' && nearbyReview?.identity === `${adminAccountSnapshot()}:${localStorage.getItem('emergency-logout-epoch')}` ? nearbyReview.incidentId : null}
+        onClose={() => { setNearbyReview(null); void checkIncomingIncidents(); }} />
     </>
   );
 }

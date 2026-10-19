@@ -51,6 +51,7 @@ const mapIncidentToReport = (inc: Incident): EmergencyReport => {
         id: inc.incidentId,
         category,
         requestedServices: inc.requestedServices,
+        nearbyIntake: inc.nearbyIntake,
         description: desc || inc.title,
         reporterName: inc.reporter?.name || 'Citizen Reporter',
         contactNumber: contact,

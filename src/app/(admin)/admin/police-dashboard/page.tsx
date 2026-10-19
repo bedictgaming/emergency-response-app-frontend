@@ -27,6 +27,7 @@ import IncidentPager from "@/components/admin/IncidentPager";
 import { CompactEvidencePhoto } from "@/components/shared/SecureEvidencePhoto";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 import IncidentReviewActions from "@/components/admin/IncidentReviewActions";
+import { NearbyReviewQueue } from '@/components/admin/NearbyReviewQueue';
 
 export default function PoliceAdminDashboard() {
     const isAuthorized = useAdminGuard("POLICE");
@@ -215,6 +216,7 @@ export default function PoliceAdminDashboard() {
                 </div>
 
                 {/* Report Section */}
+                <NearbyReviewQueue onChanged={loadIncidents} />
                 <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
                     <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                         <h2 className="text-xl font-bold">Police Emergency Reports</h2>
