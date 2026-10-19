@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
+import { installQuietEventStream } from './helpers/quiet-event-stream';
 
 async function setup(page: Page, department = 'MAIN', historical = { totalHistorical: 8, totalResolvedAllTime: 8 }) {
+  await installQuietEventStream(page);
   await page.clock.setFixedTime(new Date('2026-10-14T08:00:00Z'));
   const user = { id: `synthetic-${department}`, role: 'ADMIN', department, isMainAdmin: department === 'MAIN' };
   await page.addInitScript(current => localStorage.setItem('user', JSON.stringify(current)), user);

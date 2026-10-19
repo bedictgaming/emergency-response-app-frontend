@@ -2,7 +2,9 @@
 
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { adminAccountSnapshot } from '@/lib/adminAccountSnapshot';
 import {
   BarChart3,
   TrendingUp,
@@ -93,10 +95,16 @@ export default function AnalyticsDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const requestRevision = useRef(0);
 
-  const loadAnalytics = async () => {
+  const loadAnalytics = useCallback(async () => {
+    if (!isAuthorized) return;
+    const revision = ++requestRevision.current;
+    const account = adminAccountSnapshot(), logout = localStorage.getItem('emergency-logout-epoch');
+    const current = () => revision === requestRevision.current && account === adminAccountSnapshot() && logout === localStorage.getItem('emergency-logout-epoch');
     try {
       const data = await getDashboardAnalytics();
+      if (!current()) return;
       if (!data) throw new Error("Analytics unavailable");
       setError("");
       if (data) {
@@ -104,20 +112,22 @@ export default function AnalyticsDashboard() {
         setLastUpdated(new Date());
       }
     } catch (err) {
+      if (!current()) return;
       void err;
       setError("Analytics unavailable. Previously loaded totals may be out of date.");
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (current()) { setIsLoading(false); setIsRefreshing(false); }
     }
-  };
+  }, [isAuthorized]);
+
+  useLiveRefresh(loadAnalytics, isAuthorized);
 
   useEffect(() => {
+    const requests = requestRevision;
     if (!isAuthorized) return;
     loadAnalytics();
-    const interval = setInterval(loadAnalytics, 30000);
-    return () => clearInterval(interval);
-  }, [isAuthorized]);
+    return () => { requests.current++; };
+  }, [isAuthorized, loadAnalytics]);
 
   if (!isAuthorized) return null;
 

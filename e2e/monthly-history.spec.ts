@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { installQuietEventStream } from './helpers/quiet-event-stream';
 
 function monthly(month: number, count: number) {
   return { month, year: 2026, resolvedThisMonth: count, totalReportedThisMonth: count,
@@ -7,6 +8,7 @@ function monthly(month: number, count: number) {
 }
 
 async function setup(page: Page, onMonth?: (route: Route) => Promise<void>) {
+  await installQuietEventStream(page);
   await page.clock.setFixedTime(new Date('2026-10-01T07:00:00Z'));
   const user = { id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true };
   await page.addInitScript(current => localStorage.setItem('user', JSON.stringify(current)), user);

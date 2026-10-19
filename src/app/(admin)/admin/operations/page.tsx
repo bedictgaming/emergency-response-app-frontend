@@ -2,7 +2,9 @@
 
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState, useRef } from 'react';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { adminAccountSnapshot } from '@/lib/adminAccountSnapshot';
 import Link from 'next/link';
 import apiClient from '@/lib/apiClient';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
@@ -32,9 +34,13 @@ export default function OperationsPage() {
   const [editor, setEditor] = useState<{ key: string; row?: Row } | null>(null);
   const [deleting, setDeleting] = useState<{ key: string; row: Row } | null>(null);
   const [search, setSearch] = useState('');
+  const requestRevision = useRef(0);
 
   const load = useCallback(async () => {
     if (!authorized) return;
+    const revision = ++requestRevision.current;
+    const account = adminAccountSnapshot(), logout = localStorage.getItem('emergency-logout-epoch');
+    const current = () => revision === requestRevision.current && account === adminAccountSnapshot() && logout === localStorage.getItem('emergency-logout-epoch');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     setRole(user.role);
     const keys = ['tasks', 'incidents'];
@@ -43,12 +49,17 @@ export default function OperationsPage() {
         const response = await apiClient.get<{ data: Record<string, Row[]> }>(`/${key}/v1/`);
         return [key, response.data.data[key] || []] as const;
       }));
+      if (!current()) return;
       setRecords(Object.fromEntries(rows));
       setError('');
-    } catch (err) { setError(message(err)); }
-    finally { setLoading(false); }
+    } catch (err) { if (current()) setError(message(err)); }
+    finally { if (current()) setLoading(false); }
   }, [authorized]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const requests = requestRevision;
+    void load(); return () => { requests.current++; };
+  }, [load]);
+  useLiveRefresh(load, authorized);
 
   const incidentOptions = (records.incidents || []).filter(row => row.verificationStatus === 'VERIFIED' && !['CLOSED', 'RESOLVED', 'CANCELLED'].includes(text(row, 'status'))).map(row => ({ value: text(row, 'incidentId'), label: text(row, 'title') }));
   const sections: Section[] = [

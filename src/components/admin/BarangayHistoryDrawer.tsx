@@ -31,6 +31,7 @@ import {
 import { getDashboardAnalytics } from "@/lib/services/analyticsService";
 import MonthlyResolutionCard from "./MonthlyResolutionCard";
 import HistoryAnalyticsScopeNote from "./HistoryAnalyticsScopeNote";
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 
 interface BarangayHistoryDrawerProps {
   isOpen: boolean;
@@ -51,31 +52,39 @@ export default function BarangayHistoryDrawer({
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBarangayId, setSelectedBarangayId] = useState<string>("ALL");
+  const requestRevision = useRef(0);
 
   const history = useIncidentHistory({ search: searchQuery, barangayId: selectedBarangayId === "ALL" ? undefined : selectedBarangayId }, isOpen);
   useModalIsolation(isOpen, panelRef, onClose);
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (background = false) => {
+    const revision = ++requestRevision.current;
     const account = adminAccountSnapshot();
-    setIsLoading(true);
+    const logout = localStorage.getItem('emergency-logout-epoch');
+    const current = () => revision === requestRevision.current && adminAccountSnapshot() === account && localStorage.getItem('emergency-logout-epoch') === logout;
+    if (!background) setIsLoading(true);
     try {
       const analyticsData = await getDashboardAnalytics();
-      if (adminAccountSnapshot() !== account) return;
+      if (!current()) return;
       if (!analyticsData) throw new Error("Analytics unavailable");
       setAnalytics(analyticsData);
       setAnalyticsError("");
     } catch (error) {
+      if (!current()) return;
       void error;
       setAnalyticsError("Analytics unavailable. Previously loaded totals may be out of date.");
     } finally {
-      setIsLoading(false);
+      if (current()) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    const requests = requestRevision;
     if (isOpen) {
       loadData();
     }
+    return () => { requests.current++; };
   }, [isOpen, loadData]);
+  useLiveRefresh(() => loadData(true), isOpen);
 
   useEffect(() => {
     const account = adminAccountSnapshot();

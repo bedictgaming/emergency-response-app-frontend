@@ -2,7 +2,9 @@
 
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { adminAccountSnapshot } from '@/lib/adminAccountSnapshot';
 import {
   Users,
   Shield,
@@ -33,6 +35,7 @@ export default function AdminUsersPage() {
   const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [userPage, setUserPage] = useState(1);
   const USERS_PER_PAGE = 3;
+  const requestRevision = useRef(0);
 
   const showToast = (text: string, type: "success" | "error" = "success") => {
     setToastMsg({ text, type });
@@ -40,23 +43,31 @@ export default function AdminUsersPage() {
   };
 
   const loadUsers = useCallback(async () => {
+    if (!isAuthorized) return;
+    const revision = ++requestRevision.current;
+    const account = adminAccountSnapshot(), logout = localStorage.getItem('emergency-logout-epoch');
+    const current = () => revision === requestRevision.current && account === adminAccountSnapshot() && logout === localStorage.getItem('emergency-logout-epoch');
     try {
       const data = await getAllUsers({
         ...(roleFilter && { role: roleFilter }),
         ...(searchQuery.trim() && { search: searchQuery.trim() }),
       });
-      setUsers(data);
+      if (current()) setUsers(data);
     } catch (err) {
+      if (!current()) return;
       console.error("Failed to load users:", err);
       showToast("Failed to load user list. Check connection.", "error");
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (current()) { setIsLoading(false); setIsRefreshing(false); }
     }
-  }, [roleFilter, searchQuery]);
+  }, [roleFilter, searchQuery, isAuthorized]);
+
+  useLiveRefresh(loadUsers, isAuthorized, true);
 
   useEffect(() => {
-    loadUsers();
+    const requests = requestRevision;
+    void loadUsers();
+    return () => { requests.current++; };
   }, [loadUsers]);
 
   // Reset to page 1 when filters change

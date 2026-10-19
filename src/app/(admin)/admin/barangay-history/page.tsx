@@ -4,7 +4,7 @@ import { HeaderFrame } from '@/components/shared/HeaderFrame';
 
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 
-import { useState, useEffect, useCallback, useId } from "react";
+import { useState, useEffect, useCallback, useId, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   MapPin,
@@ -39,6 +39,7 @@ import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 import { useAdminGuard } from "@/hooks/useAdminGuard";
 import MonthlyResolutionCard from "@/components/admin/MonthlyResolutionCard";
 import HistoryAnalyticsScopeNote from "@/components/admin/HistoryAnalyticsScopeNote";
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 
 export default function BarangayHistoryPage() {
   const router = useRouter();
@@ -48,6 +49,7 @@ export default function BarangayHistoryPage() {
   const [barangays, setBarangays] = useState<BarangayItem[]>([]);
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const requestRevision = useRef(0);
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -57,30 +59,37 @@ export default function BarangayHistoryPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("ALL");
 
   const history = useIncidentHistory({ search: searchQuery, barangayId: selectedBarangayId === "ALL" ? undefined : selectedBarangayId, typeName: selectedType === "ALL" ? undefined : selectedType, status: selectedStatus === "ALL" ? undefined : selectedStatus as import("@/types/barangay-history").IncidentStatus, period: selectedPeriod === "ALL" ? undefined : selectedPeriod as "THIS_MONTH" | "LAST_30_DAYS" }, isAuthorized);
-  const loadAllData = useCallback(async () => {
+  const loadAllData = useCallback(async (background = false) => {
+    const revision = ++requestRevision.current;
     const account = adminAccountSnapshot();
-    setIsLoading(true);
+    const logout = localStorage.getItem('emergency-logout-epoch');
+    const current = () => revision === requestRevision.current && adminAccountSnapshot() === account && localStorage.getItem('emergency-logout-epoch') === logout;
+    if (!background) setIsLoading(true);
     try {
       const [analyticsData, barangaysData] = await Promise.all([
         getDashboardAnalytics(),
         getBarangays({ throwOnError: true }),
       ]);
-      if (adminAccountSnapshot() !== account) return;
+      if (!current()) return;
       if (!analyticsData) throw new Error("Analytics unavailable");
       setAnalytics(analyticsData);
       setAnalyticsError("");
       setBarangays(barangaysData);
     } catch (error) {
+      if (!current()) return;
       void error;
       setAnalyticsError("Analytics unavailable. Previously loaded totals may be out of date.");
     } finally {
-      setIsLoading(false);
+      if (current()) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    const requests = requestRevision;
     if (isAuthorized) void loadAllData();
+    return () => { requests.current++; };
   }, [loadAllData, isAuthorized]);
+  useLiveRefresh(() => loadAllData(true), isAuthorized);
 
   useEffect(() => {
     if (!isAuthorized) return;

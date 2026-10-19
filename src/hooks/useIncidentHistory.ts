@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getIncidentHistory, type IncidentHistoryFilters, type IncidentsApiResponse } from "@/lib/services/incidentHistoryService";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 
 export function useIncidentHistory(filters: IncidentHistoryFilters, enabled: boolean) {
   const key = JSON.stringify(filters);
@@ -11,7 +12,12 @@ export function useIncidentHistory(filters: IncidentHistoryFilters, enabled: boo
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshId, setRefreshId] = useState(0);
+  const backgroundRefresh = useRef(false);
+  const refresh = useCallback(() => { backgroundRefresh.current = false; setRefreshId(id => id + 1); }, []);
+  const refreshLive = useCallback(() => { backgroundRefresh.current = true; setRefreshId(id => id + 1); }, []);
+  useLiveRefresh(refreshLive, enabled);
   const previousKey = useRef(key);
+  const previousPage = useRef(page);
   useEffect(() => {
     let active = true;
     if (!enabled) return;
@@ -23,8 +29,11 @@ export function useIncidentHistory(filters: IncidentHistoryFilters, enabled: boo
       active = false; setData(null); setLoading(false); setError('Account changed. Reload history from your authorized dashboard.');
     };
     window.addEventListener('storage', accountChanged);
+    const background = backgroundRefresh.current && previousKey.current === key && previousPage.current === page;
+    backgroundRefresh.current = false; previousPage.current = page;
     if (previousKey.current !== key) { setData(null); previousKey.current = key; }
-    setLoading(true);
+    // A live reread must not disable a focused paging control or reset focus.
+    if (!background) setLoading(true);
     setError("");
     const timer = setTimeout(() => {
       void getIncidentHistory({ ...JSON.parse(key), page }).then(result => {
@@ -38,7 +47,7 @@ export function useIncidentHistory(filters: IncidentHistoryFilters, enabled: boo
   const visibleData = typeof window !== 'undefined' && data?.account === adminAccountSnapshot() && data.logout === localStorage.getItem('emergency-logout-epoch') ? data : null;
   return {
     incidents: visibleData?.incidents ?? [], pagination: visibleData?.pagination, loading, error,
-    refresh: useCallback(() => setRefreshId(id => id + 1), []),
+    refresh,
     setPage: (value: number) => setSelection({ key, page: value }),
   };
 }

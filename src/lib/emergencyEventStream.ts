@@ -1,10 +1,11 @@
-import { API_ORIGIN, ensureFreshSession, isDefinitiveAuthFailure } from '@/lib/apiClient';
-import { getMe } from '@/lib/services/authService';
+import { API_ORIGIN, ensureFreshSession, isDefinitiveAuthFailure, markSessionEnded } from '@/lib/apiClient';
+import { accountHome } from '@/lib/authorization';
+import { getMeFresh } from '@/lib/services/authService';
 import { adminAccountSnapshot } from '@/lib/adminAccountSnapshot';
 import { createEmergencyTransport, type EmergencyTransport } from '@/lib/emergencyTransport';
 
 export type EmergencyConnectionState = 'connecting' | 'live' | 'recovering' | 'offline' | 'signed-out';
-type Listener = { refresh: () => void; nearby?: () => void; state?: (state: EmergencyConnectionState) => void };
+type Listener = { refresh: () => void; users?: () => void; nearby?: () => void; state?: (state: EmergencyConnectionState) => void };
 const streams = new Map<string, { subscribe: (listener: Listener) => () => void }>();
 
 // Events are invalidation hints, never authority to sound an emergency alarm.
@@ -39,6 +40,8 @@ export function subscribeEmergencyStream(listener: Listener) {
         for (const name of ['incident.created', 'incident.updated', 'incident.verified', 'dispatch.updated', 'task.updated', 'alert.created']) next.addEventListener(name, refresh);
         // A peer report is never an ordinary citizen event or alarm trigger.
         next.addEventListener('nearby.changed', () => { if (valid()) listeners.forEach(item => item.nearby?.()); });
+        // User administration is not an emergency or a siren trigger.
+        next.addEventListener('users.changed', () => { if (valid()) listeners.forEach(item => item.users?.()); });
         next.onopen = () => {
           if (!valid() || source !== next) { next.close(); return; }
           attempts = 0; broadcast('live'); refresh();
@@ -48,8 +51,26 @@ export function subscribeEmergencyStream(listener: Listener) {
           close(); broadcast(navigator.onLine ? 'recovering' : 'offline');
           if (!canConnect() || checking) return;
           checking = true;
-          void getMe().catch(error => {
-            if (valid() && isDefinitiveAuthFailure(error)) { stopped = true; broadcast('signed-out'); }
+          const generation = localStorage.getItem('emergency-session-generation');
+          const sameSession = () => valid() && generation === localStorage.getItem('emergency-session-generation');
+          void getMeFresh().then(user => {
+            if (!sameSession()) return;
+            const cached = JSON.parse(localStorage.getItem('user') ?? 'null');
+            // A stream check cannot adopt a different account. Keep the normal
+            // account boundary/explicit switch flow in charge of that change.
+            if (cached?.id !== user.id) { stopped = true; broadcast('signed-out'); return; }
+            if (cached?.role !== user.role || (cached?.department ?? null) !== (user.department ?? null) || Boolean(cached?.isMainAdmin) !== Boolean(user.isMainAdmin)) {
+              stopped = true;
+              localStorage.setItem('user', JSON.stringify(user));
+              window.location.replace(accountHome(user));
+            }
+          }).catch(error => {
+            if (sameSession() && isDefinitiveAuthFailure(error)) {
+              stopped = true; broadcast('signed-out');
+              localStorage.removeItem('user'); localStorage.removeItem('accessToken'); localStorage.removeItem('refreshToken');
+              markSessionEnded();
+              window.location.replace('/');
+            }
           }).finally(() => { checking = false; retry(); });
         };
         next.start();

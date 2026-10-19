@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
+import { installQuietEventStream } from './helpers/quiet-event-stream';
 async function setup(page: Page) {
+  await installQuietEventStream(page);
   const user = { id: 'synthetic-admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true };
   await page.addInitScript(current => localStorage.setItem('user', JSON.stringify(current)), user);
   const records = Array.from({ length: 52 }, (_, index) => ({ incidentId: `synthetic-${index}`, title: index === 51 ? 'Oldest matching record' : `History record ${index}`, severityLevel: 'LOW', status: index === 51 ? 'RESPONDING' : 'CLOSED', reportedAt: '2026-09-30T16:00:00Z', type: { typeName: 'Fire Outbreak' }, barangay: null, location: {}, incidentUnits: index === 51 ? [{ unit: { unitName: 'Synthetic Fire unit' } }] : [] }));
