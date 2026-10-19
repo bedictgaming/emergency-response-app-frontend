@@ -9,6 +9,20 @@ const FORWARDED = ['cookie', 'authorization', 'origin', 'referer', 'sec-fetch-si
   'x-er-gateway-ip', 'x-er-gateway-time', 'x-er-gateway-nonce', 'x-er-gateway-origin', 'x-er-gateway-signature'];
 const LIMITS = Object.freeze({ handshake: 8_000, lifetime: 60_000, connections: 256, buffer: 16_384 });
 
+/** Absence-only rejection, never authorization or JWT validation. Engine.IO's
+ * upgrade response destroys a denied socket, which an upstream edge reports as
+ * 502. Missing credentials can be denied explicitly before opening that socket. */
+export function hasAccessCredential(headers) {
+  const [scheme, token] = (headers.authorization ?? '').split(' ');
+  if (scheme?.toLowerCase() === 'bearer' && token?.trim()) return true;
+  return (headers.cookie ?? '').split(';').some(part => {
+    const equals = part.indexOf('=');
+    if (equals < 0 || part.slice(0, equals).trim() !== 'accessToken') return false;
+    const value = part.slice(equals + 1).trim();
+    return Boolean(value && value !== '""');
+  });
+}
+
 /** Verify transport attestation, NOT login. Backend still consumes the nonce,
  * authenticates the cookie, and rechecks the current session/account/RBAC. */
 export function bridgeRequest(request, { secret, audience, upstream }, now = Date.now()) {
@@ -72,6 +86,9 @@ export function createWebSocketBridge({ environment = () => process.env,
         || !/^[+/0-9A-Za-z]{22}==$/.test(request.headers['sec-websocket-key'] ?? '')
         || request.headers['sec-websocket-protocol']) throw new Error('Denied');
     } catch { deny(socket, 403); return; }
+    // A signed request still needs a credential. Presence never grants a 101:
+    // the unchanged backend verifies any supplied token/session/account.
+    if (!hasAccessCredential(attested.headers)) { deny(socket, 401); return; }
     if (active.size >= limits.connections) { deny(socket, 503); return; }
     let upstream, downstream, ended = false, timer;
     const finish = (status = 503) => {

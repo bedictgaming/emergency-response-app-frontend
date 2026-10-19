@@ -5,24 +5,32 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import WebSocket, { WebSocketServer } from 'ws';
 import { signGatewayRequest } from './sign-request.mjs';
-import { bridgeRequest, createWebSocketBridge, SOCKET_PATH } from './websocket-bridge.mjs';
+import { bridgeRequest, createWebSocketBridge, hasAccessCredential, SOCKET_PATH } from './websocket-bridge.mjs';
 
 const secret = 'synthetic-bridge-test-secret-not-a-credential';
 const audience = 'emergency-response-staging-v1';
 const path = SOCKET_PATH + '/?EIO=4&transport=websocket';
 const origin = 'https://example.invalid';
 function signed(url = path, changes = {}, now = Date.now()) {
-  const request = new Request(origin + url, { headers: { origin, cookie: 'synthetic-session', 'sec-fetch-site': 'same-origin', ...changes } });
+  const request = new Request(origin + url, { headers: { origin, cookie: 'accessToken=synthetic-session', 'sec-fetch-site': 'same-origin', ...changes } });
   return { method: 'GET', url, headers: Object.fromEntries(signGatewayRequest(request, { secret, audience, ip: '192.0.2.10', now })) };
 }
 const policy = { secret, audience, upstream: 'https://upstream.invalid' };
+
+test('credential presence is absence-only and does not trust/parse/authorize a token', () => {
+  for (const cookie of ['', 'theme=dark', 'accessToken=', 'otherAccessToken=x', 'accessToken=""']) assert.equal(hasAccessCredential({ cookie }), false);
+  for (const cookie of ['accessToken=synthetic', 'theme=dark; accessToken=synthetic', 'accessToken = encoded%2Evalue']) assert.equal(hasAccessCredential({ cookie }), true);
+  assert.equal(hasAccessCredential({ authorization: 'Bearer synthetic' }), true);
+  assert.equal(hasAccessCredential({ authorization: 'Basic synthetic' }), false);
+  assert.equal(hasAccessCredential({ authorization: 'Bearer ' }), false);
+});
 
 test('bridge preserves the exact HMAC path, credentials and approved upstream only', () => {
   const request = signed(); request.headers['x-forwarded-for'] = 'forged';
   request.headers.host = 'evil.invalid'; request.headers['sec-websocket-key'] = 'synthetic';
   const result = bridgeRequest(request, policy);
   assert.equal(result.url.href, 'wss://upstream.invalid' + path);
-  assert.equal(result.headers.cookie, 'synthetic-session');
+  assert.equal(result.headers.cookie, 'accessToken=synthetic-session');
   assert.equal(result.headers['x-er-gateway-signature'], request.headers['x-er-gateway-signature']);
   for (const name of ['host', 'x-forwarded-for', 'sec-websocket-key']) assert.equal(result.headers[name], undefined);
 });
@@ -65,7 +73,7 @@ async function fixture(t, { limits, denyStatus, stalled = false, echo = true } =
     try {
       bridgeRequest(request, policy);
       const nonce = request.headers['x-er-gateway-nonce'];
-      if (request.headers.cookie !== 'synthetic-session') status = 401;
+      if (request.headers.cookie !== 'accessToken=synthetic-session') status = 401;
       else if (nonces.has(nonce)) status = 403;
       nonces.add(nonce);
     } catch { status = 403; }
@@ -150,7 +158,18 @@ test('backend receives original nonce and remains authoritative for session/repl
   const client = fx.connect(row); await once(client, 'open');
   assert.equal(fx.received[0].headers['x-er-gateway-nonce'], row.headers['x-er-gateway-nonce']);
   assert.equal(await rejected(fx.connect(row)), 403);
-  assert.equal(await rejected(fx.connect(signed(path, { cookie: 'not-a-session' }))), 401);
+  assert.equal(await rejected(fx.connect(signed(path, { cookie: 'accessToken=not-a-session' }))), 401);
+});
+
+test('signed but credential-free upgrades receive 401 before opening any backend socket', async t => {
+  const fx = await fixture(t);
+  for (const cookie of ['', 'theme=dark', 'accessToken=', 'accessToken=""']) {
+    assert.equal(await rejected(fx.connect(signed(path, { cookie }))), 401);
+  }
+  assert.equal(fx.received.length, 0);
+  // A present but invalid credential still goes to the backend, never 101.
+  assert.equal(await rejected(fx.connect(signed(path, { cookie: 'accessToken=invalid' }))), 401);
+  assert.equal(fx.received.length, 1);
 });
 
 test('connection capacity and handshake timeout fail closed', async t => {
