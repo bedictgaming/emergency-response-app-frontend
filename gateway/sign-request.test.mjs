@@ -51,3 +51,25 @@ test('runtime policy binds production and staging destinations to their deployme
     { ...prod, API_GATEWAY_UPSTREAM: prod.API_GATEWAY_UPSTREAM + '?target=other' },
   ]) assert.throws(() => gatewayTarget(invalid));
 });
+
+test('only the exact Socket.IO paths continue signed into a native Function; other HTTP still rewrites', () => {
+  const keys = ['VERCEL', 'VERCEL_ENV', 'API_GATEWAY_UPSTREAM', 'API_GATEWAY_AUDIENCE', 'API_GATEWAY_SECRET'];
+  const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  try {
+    Object.assign(process.env, { VERCEL: '1', VERCEL_ENV: 'preview',
+      API_GATEWAY_UPSTREAM: 'https://api-staging-staging-86d9.up.railway.app',
+      API_GATEWAY_AUDIENCE: audience, API_GATEWAY_SECRET: secret });
+    for (const path of ['/api/events/v1/socket.io', '/api/events/v1/socket.io/', '/api/auth/v1/me', '/api/events/v1/socket.io/other']) {
+      const request = new Request('https://example.invalid' + path + '?EIO=4&transport=websocket', {
+        headers: { origin: 'https://example.invalid', 'x-real-ip': '192.0.2.10', 'x-er-gateway-signature': 'forged' },
+      });
+      const result = proxy(request);
+      const native = path === '/api/events/v1/socket.io' || path === '/api/events/v1/socket.io/';
+      assert.equal(result.headers.get('x-middleware-next'), native ? '1' : null);
+      assert.equal(Boolean(result.headers.get('x-middleware-rewrite')), !native);
+      assert.notEqual(result.headers.get('x-middleware-request-x-er-gateway-signature'), 'forged');
+      assert.match(result.headers.get('x-middleware-request-x-er-gateway-signature'), /^[a-f0-9]{64}$/);
+      assert.equal(result.headers.get('cache-control'), 'no-store');
+    }
+  } finally { for (const key of keys) { if (saved[key] === undefined) delete process.env[key]; else process.env[key] = saved[key]; } }
+});

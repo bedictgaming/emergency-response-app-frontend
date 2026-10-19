@@ -1,5 +1,5 @@
 import { ipAddress } from '@vercel/functions/headers';
-import { rewrite } from '@vercel/functions/middleware';
+import { next, rewrite } from '@vercel/functions/middleware';
 import { signGatewayRequest } from './sign-request.mjs';
 import { gatewayTarget } from './runtime-policy.mjs';
 
@@ -11,6 +11,12 @@ export default function proxy(request) {
     const incoming = new URL(request.url);
     const headers = signGatewayRequest(request, { secret: process.env.API_GATEWAY_SECRET,
       audience: target.audience, ip: ipAddress(request) });
+    // Native Functions preserve the upgrade; an external HTTP rewrite does not
+    // prove a WebSocket handshake. All other API routes keep their existing path.
+    if (incoming.pathname === '/api/events/v1/socket.io'
+      || incoming.pathname === '/api/events/v1/socket.io/') {
+      return next({ request: { headers }, headers: { 'Cache-Control': 'no-store' } });
+    }
     const upstream = new URL(target.upstream);
     upstream.pathname = incoming.pathname;
     upstream.search = incoming.search;

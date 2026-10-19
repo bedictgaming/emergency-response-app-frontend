@@ -5,6 +5,7 @@
   "outputDirectory": "out",
   "cleanUrls": true,
   "proxy": { "entrypoint": "gateway/proxy.js", "matcher": "/api/:path*" },
+  "functions": { "api/events/v1/socket.io.js": { "maxDuration": 75 } },
   "headers": [
     {
       "source": "/(.*)",
