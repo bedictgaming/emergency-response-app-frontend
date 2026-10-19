@@ -1,4 +1,5 @@
 import { createWebSocketBridge } from '../../../gateway/websocket-bridge.mjs';
 
-// Server-only native Function. Next's browser app remains a static export.
+// Explicit ESM prevents a CommonJS require of the ESM-only bridge.
+// Next's browser app remains a static export.
 export default createWebSocketBridge();

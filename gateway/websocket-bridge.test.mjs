@@ -184,6 +184,12 @@ test('ordinary HTTP does not open upstream and all live configs bound native fun
   assert.equal(fx.received.length, 0);
   for (const name of ['vercel.json', 'vercel.public.json', 'vercel.production-validation.json']) {
     const config = JSON.parse(readFileSync(new URL('../' + name, import.meta.url)));
-    assert.deepEqual(config.functions, { 'api/events/v1/socket.io.js': { maxDuration: 75 } });
+    assert.deepEqual(config.functions, { 'api/events/v1/socket.io.mjs': { maxDuration: 75 } });
   }
+});
+
+test('native function is an explicit ESM server export, never a CommonJS require of .mjs', async () => {
+  const { default: server } = await import('../api/events/v1/socket.io.mjs');
+  assert.equal(typeof server.listen, 'function'); assert.equal(server.listenerCount('upgrade'), 1);
+  assert.equal(server.listening, false); server.close();
 });
