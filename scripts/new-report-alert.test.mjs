@@ -43,3 +43,17 @@ test('reloading or switching account starts an independent quiet baseline, with 
   const second = new NewReportAlertGate(); assert.equal(second.observe([fresh()], baseline).size, 0);
   assert.equal(second.observe([fresh('next')], baseline).size, 1);
 });
+
+test('nearby B stays quiet through acknowledgment, response start, reconnect and reappearance', () => {
+  const gate = new NewReportAlertGate(); gate.observe([], baseline);
+  assert.equal(gate.observe([{ ...fresh('B'), pendingNearbyReview: true }], baseline).size, 0);
+  gate.observe([], baseline);
+  for (const version of [2, 3, 4]) assert.equal(gate.observe([{ ...fresh('B'), pendingNearbyReview: false, version }], baseline).size, 0);
+});
+
+test('quiet B never suppresses a distinct normal new report A', () => {
+  const gate = new NewReportAlertGate(); gate.observe([], baseline);
+  const items = [{ ...fresh('B'), pendingNearbyReview: true }, fresh('A')];
+  assert.deepEqual([...gate.observe(items, baseline)], ['A']);
+  assert.deepEqual([...gate.observe(items, baseline)], []);
+});

@@ -90,6 +90,20 @@ export const updateUserStatus = async (id: string, status: UserStatus): Promise<
   return response.data.data.user;
 };
 
+export interface UserSafetyRecord {
+  enabled: boolean;
+  confirmedFalseCount: number;
+  threshold: number;
+  events: Array<{ action: string; createdAt: string; metadata: { incidentId?: string; confirmed?: boolean; reasonCode?: string } | null }>;
+  recentReports: Array<{ incidentId: string | null; createdAt: string; ipAddress: string | null; userAgent: string | null }>;
+}
+export async function getUserSafety(id: string): Promise<UserSafetyRecord> {
+  return (await apiClient.get<{ data: UserSafetyRecord }>(`/users/v1/${encodeURIComponent(id)}/violations`)).data.data;
+}
+export async function requestUserPasswordReset(id: string): Promise<string> {
+  return (await apiClient.post<{ message: string }>(`/users/v1/${encodeURIComponent(id)}/password-reset`, {})).data.message;
+}
+
 /**
  * DELETE /api/users/v1/:id
  * Delete / deactivate a user account

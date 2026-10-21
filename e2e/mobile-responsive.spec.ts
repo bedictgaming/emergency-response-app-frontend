@@ -82,7 +82,7 @@ for (const size of sizes) for (const path of routes) {
       await map.scrollIntoViewIfNeeded();
       await expect(map.locator('.leaflet-container')).toBeVisible();
       await expect(map.locator('.incident-reference-radius')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'View Map', exact: true })).toHaveCount(0);
+      await expect(map.getByRole('button', { name: 'View map', exact: true })).toBeVisible();
       await check(page, 'Inline incident map');
       await expect(page.getByRole('button', { name: 'Analytics', exact: true })).toBeVisible();
     }

@@ -1,0 +1,15 @@
+# All-feature release candidate — 21 October 2026
+
+Candidate only; this document is not evidence of production deployment.
+
+Source is the approved matching development frontend over e77fd8fb, assembled through an exact 43-file source manifest outside Git. Owner deletions, generated test output, local tsconfig additions, private configuration and OneDrive launchers are excluded.
+
+Included: quiet later-report blue dot and attached report/contact/photo/actions, controlled in-system expanded Leaflet map, explicit Start responding after acknowledgement, account-safety controls/history, opt-in volatile exact-reported-GPS online-citizen dots over the existing authenticated Socket.IO transport, fresh account/session/report updates and new-report-only sirens. Existing permission/identity privacy boundaries remain required. The draft privacy notice names Cordova Public College and the owner's public monitored email. Only the landing-hero Call 911 is replaced with Privacy notice; independent hotline controls remain.
+
+Security remediation overrides follow-redirects 1.16.1 and uses a private local Next 16.3.8 lint-plugin fork to remove its vulnerable root-glob dependency. All upstream rule/config bytes and effective application rules are preserved and independently tested; see vendor/eslint-plugin-next/LOCAL-CHANGES.md, UPSTREAM.json and its original license. The version is explicitly local, not an official upstream patch. install-links=true and the explicit local dependency/override are required for reproducible npm ci. A narrow .gitattributes rule preserves authenticated vendor bytes across Windows/Linux. No existing audit policy or lint rule is weakened.
+
+Fresh clean install, full lint/types, six fork/provenance/rule-enforcement contracts, seven audit-policy contracts, 123 existing contracts and zero-advisory original audit gate pass locally. Full exact-source hosted CI, all browser/export/build and feature-opt-in suites, candidate/live checks and matching backend activation remain required. Mocked browsers do not certify provider delivery, physical GPS accuracy or actual-user UAT.
+
+Reports/photos/GPS deletion policy remains a draft requiring review; do not activate raw-context capture/deletion as part of visual deployment. Presence requires explicit versioned opt-in and verified one-process/one-replica backend topology, not automatic hidden sharing. No IMEI/SMS purchase/paid upgrade or coverage expansion is included. Keep provider secrets out of public bundles and caches.
+
+See the workspace MASTER_PROMPT.md and SECURITY_REMEDIATION_20261021.md for canonical engineering invariants and failed-attempt history. Deployment receipts must independently attribute actual source archives/SHAs and candidate/live checks; this file is not a production acceptance receipt.

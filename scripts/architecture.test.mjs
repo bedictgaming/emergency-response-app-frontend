@@ -23,7 +23,7 @@ test('route groups preserve the exact public URL inventory', () => {
     const parts = relative(resolve(root, 'src/app'), file).replaceAll('\\', '/').split('/');
     return '/' + parts.slice(0, -1).filter(part => !/^\(.*\)$/.test(part)).join('/');
   }).sort();
-  assert.deepEqual(routes, ['/', '/admin/alerts', '/admin/analytics', '/admin/barangay-history', '/admin/drrmo-dashboard', '/admin/fire-dashboard', '/admin/main-dashboard', '/admin/medical-dashboard', '/admin/operations', '/admin/police-dashboard', '/admin/users', '/dashboard', '/login', '/settings']);
+  assert.deepEqual(routes, ['/', '/admin/alerts', '/admin/analytics', '/admin/barangay-history', '/admin/drrmo-dashboard', '/admin/fire-dashboard', '/admin/main-dashboard', '/admin/medical-dashboard', '/admin/operations', '/admin/police-dashboard', '/admin/users', '/dashboard', '/login', '/privacy', '/settings']);
   assert.equal(new Set(routes).size, routes.length);
   assert.ok(existsSync(resolve(root, 'src/app/layout.tsx')));
   assert.ok(existsSync(resolve(root, 'src/app/not-found.tsx')));

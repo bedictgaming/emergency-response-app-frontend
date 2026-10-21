@@ -6,8 +6,8 @@ import {
   ArrowUpRight,
   Camera,
   CheckCircle2,
+  FileText,
   MapPin,
-  PhoneCall,
   Radio,
   ShieldCheck,
 } from 'lucide-react';
@@ -56,13 +56,13 @@ export function LandingHero() {
                 <ArrowUpRight className="h-5 w-5 transition-transform duration-200 motion-safe:group-hover:translate-x-0.5 motion-safe:group-hover:-translate-y-0.5 motion-safe:group-focus-visible:translate-x-0.5 motion-safe:group-focus-visible:-translate-y-0.5" aria-hidden="true" />
               </span>
             </Link>
-            <a
-              href="tel:911"
+            <Link
+              href="/privacy"
               className="motion-press inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-6 text-sm font-semibold text-slate-900 transition-colors hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:bg-slate-900 dark:focus-visible:ring-offset-slate-950"
             >
-              <PhoneCall className="h-4 w-4 text-red-600 dark:text-red-400" aria-hidden="true" />
-              Call 911
-            </a>
+              <FileText className="h-4 w-4 text-red-600 dark:text-red-400" aria-hidden="true" />
+              Privacy notice
+            </Link>
           </div>
         </div>
 

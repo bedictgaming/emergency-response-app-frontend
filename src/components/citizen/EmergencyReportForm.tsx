@@ -12,6 +12,8 @@ import { isReportGpsFresh, useReportGps } from '../../hooks/useReportGps';
 import { IncidentCameraCapture } from './IncidentCameraCapture';
 import { useNearbyDetection } from '@/hooks/useNearbyDetection';
 import { NearbyDetectionStatus } from '@/components/shared/NearbyDetectionStatus';
+import type { CitizenPresence } from '@/hooks/useCitizenPresence';
+import { CitizenPresenceControls } from './CitizenPresenceControls';
 
 const LocationMap = dynamic(() => import('./LocationMap').then(mod => mod.LocationMap), {
   ssr: false,
@@ -121,6 +123,7 @@ const getIcon = (iconName: string) => {
 };
 
 interface EmergencyReportFormProps {
+    presence?: CitizenPresence;
     submitting?: boolean;
     onSubmit: (report: {
         submissionId: string;
@@ -141,6 +144,7 @@ interface EmergencyReportFormProps {
 }
 
 export function EmergencyReportForm({
+    presence,
     submitting = false,
     onSubmit,
     onCancel,
@@ -631,9 +635,10 @@ export function EmergencyReportForm({
                         </span>
                     </div>
                     {gpsFix && isGpsInCordova && (
-                        <LocationMap latitude={currentLatitude} longitude={currentLongitude} interactive={false} height="240px" nearbyLabel={nearby.result?.nearby ? 'Similar report within 100 m' : undefined} />
+                        <LocationMap latitude={currentLatitude} longitude={currentLongitude} interactive={false} height="240px" onlinePresence={presence?.layer} nearbyLabel={nearby.result?.nearby ? 'Similar report within 100 m' : undefined} />
                     )}
                     {nearbyReady && <NearbyDetectionStatus detection={nearby} />}
+                    <CitizenPresenceControls presence={presence} compact />
                     <p className="text-base sm:text-sm text-muted-foreground">
                         Report only an emergency at your current location. You cannot move this pin. If GPS is wrong or the emergency is elsewhere, <a href="tel:911" className="font-semibold underline underline-offset-4">call 911</a>.
                     </p>

@@ -135,7 +135,8 @@ test('JavaScript-disabled export retains services and emergency actions', async 
     const strip = page.getByRole('region', { name: 'Response services', exact: true });
     await expect(strip.getByRole('listitem')).toHaveText(names);
     await expect(strip.locator('ul[aria-hidden=true]')).toBeHidden();
-    await expect(page.getByRole('region', { name: /Report an emergency/ }).getByRole('link', { name: 'Call 911' })).toHaveAttribute('href', 'tel:911');
+    await expect(page.getByRole('region', { name: /Report an emergency/ }).getByRole('link', { name: 'Privacy notice' })).toHaveAttribute('href', '/privacy');
+    await expect(page.locator('header').getByRole('link', { name: 'Call 911' })).toHaveAttribute('href', 'tel:911');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally {
     await context.close();

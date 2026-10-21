@@ -18,7 +18,7 @@ export interface EmergencyCategoryConfig {
 }
 
 export interface EmergencyReport {
-  nearbyIntake?: Array<{ service: ResponseService; status: 'PENDING' | 'ACKNOWLEDGED' | 'REJECTED' }>;
+  nearbyIntake?: Array<{ service: ResponseService; status: 'PENDING' | 'ACKNOWLEDGED' | 'REJECTED'; responseStarted?: boolean }>;
   id: string;
   category: EmergencyCategory;
   requestedServices?: ResponseService[];

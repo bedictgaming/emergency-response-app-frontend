@@ -23,6 +23,7 @@ async function fixture(page: Page, department: string | null, valid = true, dark
     Object.assign(window, { EventSource: Stream });
     Object.defineProperty(navigator.geolocation, 'getCurrentPosition', { configurable: true, value: () => {} });
   }, { user, dark });
+  await page.routeWebSocket('**/api/events/v1/socket.io/**', peer => peer.close());
   await page.route('**/api/**', route => {
     if (!['GET', 'HEAD'].includes(route.request().method())) return route.fulfill({ status: 403, json: { message: 'Read-only map fixture' } });
     return route.fulfill({ json: { data: { user, incidents: [incident], items: [], hasMore: false, enabled: false,
@@ -31,7 +32,7 @@ async function fixture(page: Page, department: string | null, valid = true, dark
   });
   await page.route(/^https:\/\//, route => route.request().url().includes('tile.openstreetmap.org')
     ? route.fulfill({ contentType: 'image/svg+xml', body: tile }) : route.abort());
-  return { googleRequests };
+  return { googleRequests, incident };
 }
 
 for (const width of [390, 1280]) {
@@ -48,7 +49,11 @@ for (const width of [390, 1280]) {
       await expect(card.getByRole('link', { name: 'OpenStreetMap' })).toBeVisible();
       await expectZoomAndPan(page, card.locator('.leaflet-container'));
       await expect(card.getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: /view map/i })).toHaveCount(0);
+      const viewMap = card.getByRole('button', { name: 'View map', exact: true });
+      await expect(viewMap).toBeVisible();
+      const buttonBounds = await viewMap.boundingBox();
+      expect(buttonBounds!.height).toBeGreaterThanOrEqual(44);
+      expect(buttonBounds!.width).toBeGreaterThanOrEqual(44);
       await expect(page.locator('a[href*="google.com/maps"],iframe')).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       expect(googleRequests).toEqual([]);
@@ -56,6 +61,27 @@ for (const width of [390, 1280]) {
         await expect(card.locator('.leaflet-tile-loaded').first()).toBeVisible();
         await card.screenshot({ path: info.outputPath('inline-map.png'), animations: 'disabled' });
       }
+      const urlBefore = page.url();
+      await viewMap.click();
+      const viewer = page.getByRole('dialog', { name: 'Incident map', exact: true });
+      await expect(viewer).toBeVisible();
+      await expect(viewer.getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
+      await expect(viewer.locator('.incident-reference-radius')).toBeVisible();
+      await expect(page.locator('.leaflet-container')).toHaveCount(1);
+      const viewerBounds = await viewer.boundingBox();
+      expect(viewerBounds!.x).toBeGreaterThanOrEqual(0);
+      expect(viewerBounds!.x + viewerBounds!.width).toBeLessThanOrEqual(width);
+      await expectZoomAndPan(page, viewer.locator('.leaflet-container'));
+      expect(page.url()).toBe(urlBefore);
+      expect(page.context().pages()).toHaveLength(1);
+      await expect(page.locator('a[href*="google.com/maps"],iframe')).toHaveCount(0);
+      expect(googleRequests).toEqual([]);
+      if (department === 'MAIN') await viewer.screenshot({ path: info.outputPath('in-app-map.png'), animations: 'disabled' });
+      await page.keyboard.press('Escape');
+      await expect(viewer).toHaveCount(0);
+      await expect(viewMap).toBeFocused();
+      await expect(card.locator('.incident-reference-radius')).toBeVisible();
+      await expect(page.locator('.leaflet-container')).toHaveCount(1);
     });
   }
 }
@@ -81,7 +107,15 @@ for (const dark of [false, true]) {
     }
     await expect(card.getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
     await expectZoomAndPan(page, card.locator('.leaflet-container'));
-    await expect(page.getByRole('button', { name: /show map|view map|hide map/i })).toHaveCount(0);
+    await card.getByRole('button', { name: 'View map', exact: true }).click();
+    const viewer = page.getByRole('dialog', { name: 'Incident map', exact: true });
+    await expect(viewer.locator('.incident-reference-radius')).toBeVisible();
+    await expect(viewer.locator('.leaflet-marker-icon')).toHaveCount(1);
+    await expect(viewer.getByText('10.252191, 123.949475', { exact: true })).toBeVisible();
+    expect(page.context().pages()).toHaveLength(1);
+    if (dark) await viewer.screenshot({ path: info.outputPath('citizen-in-app-map.png'), animations: 'disabled' });
+    await viewer.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(viewer).toHaveCount(0);
     await expect(page.locator('a[href*="google.com/maps"]')).toHaveCount(0);
     await expect(card.locator('.leaflet-tile-loaded').first()).toBeVisible();
     await card.screenshot({ path: info.outputPath('citizen-map.png'), animations: 'disabled' });
@@ -94,6 +128,7 @@ for (const department of [null, 'MEDICAL']) {
     await page.goto(department ? '/admin/medical-dashboard' : '/dashboard');
     await expect(page.getByText('Map unavailable: this report has no valid recorded coordinates.')).toBeVisible();
     await expect(page.locator('.leaflet-marker-icon,.incident-reference-radius')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'View map', exact: true })).toHaveCount(0);
   });
 }
 
@@ -190,3 +225,87 @@ test.describe('touch map navigation', () => {
     await session.detach();
   });
 });
+
+test('the open map viewer is removed when the admin session ends', async ({ page }) => {
+  await fixture(page, 'MEDICAL');
+  await page.goto('/admin/medical-dashboard');
+  const card = page.getByRole('group', { name: 'Reported emergency location', exact: true });
+  await card.scrollIntoViewIfNeeded();
+  await card.getByRole('button', { name: 'View map', exact: true }).click();
+  const viewer = page.getByRole('dialog', { name: 'Incident map', exact: true });
+  await expect(viewer.locator('.incident-reference-radius')).toBeVisible();
+  await page.route('**/api/**', route => route.fulfill({ status: 401, json: { message: 'Synthetic signed-out fixture' } }));
+  await page.evaluate(() => {
+    localStorage.removeItem('user');
+    localStorage.setItem('emergency-logout-epoch', 'synthetic-map-ended');
+    window.dispatchEvent(new StorageEvent('storage', { key: 'emergency-logout-epoch', newValue: 'synthetic-map-ended' }));
+  });
+  await expect(viewer).toHaveCount(0);
+  await expect(page.locator('.incident-reference-radius,.nearby-report-dot')).toHaveCount(0);
+});
+
+for (const width of [390, 1280]) for (const department of ['MEDICAL', 'MAIN']) {
+  test(`${department} flag stays above the inline map at ${width}px`, async ({ page }, info) => {
+    // Do not rely on the report-card entrance animation creating a temporary
+    // stacking context. Reduced-motion users need the same dialog protection.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width, height: 900 });
+    const { incident } = await fixture(page, department);
+    const sourceUrl = 'http://localhost:8000/api/attachments/v1/layer-photo/content';
+    await page.route('**/api/incidents/v1/map-incident', route => route.fulfill({ json: { data: { incident: {
+      ...incident, attachments: [{ attachmentId: 'layer-photo', fileUrl: sourceUrl, fileType: 'image/png', fileName: 'synthetic-layer-photo.png' }],
+    } } } }));
+    await page.route('**/api/attachments/v1/layer-photo/access-url', route => route.fulfill({ json: {
+      data: { url: 'https://res.cloudinary.com/map-layer-fixture/layer.svg', expiresInSeconds: 60 },
+    } }));
+    await page.route('https://res.cloudinary.com/map-layer-fixture/**', route => route.fulfill({ contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#e9eee9"/><text x="40" y="300" font-size="32">SYNTHETIC LAYER TEST PHOTO</text></svg>',
+    }));
+    await page.goto(`/admin/${department.toLowerCase()}-dashboard`);
+    const card = page.getByRole('group', { name: 'Reported emergency location', exact: true });
+    const map = card.locator('.leaflet-container');
+    // The inline map is lazy: reveal its card before locating the map itself.
+    await card.scrollIntoViewIfNeeded();
+    await map.scrollIntoViewIfNeeded();
+    await expect(map.locator('.incident-reference-radius')).toBeVisible();
+    await expect(card.getByRole('group', { name: 'Incident location map', exact: true })).toHaveCSS('isolation', 'isolate');
+    const trigger = page.getByRole('button', { name: department === 'MAIN' ? 'Review / manage report' : 'Flag suspected false report', exact: true });
+    await trigger.click();
+    const review = page.getByRole('dialog', { name: department === 'MAIN' ? 'Review and manage report' : 'Flag a suspected false report', exact: true });
+    await expect(review.getByRole('button', { name: 'View photo →', exact: true })).toBeVisible();
+    // A visibility assertion alone misses Leaflet panes drawn above the dialog.
+    const coverage = () => map.evaluate(element => {
+      const box = element.getBoundingClientRect();
+      let checked = 0;
+      const uncovered: { x: number; y: number; tag: string }[] = [];
+      for (const fx of [0.1, 0.3, 0.5, 0.7, 0.9]) for (const fy of [0.1, 0.5, 0.9]) {
+        const x = box.x + box.width * fx, y = box.y + box.height * fy;
+        if (x <= 0 || y <= 0 || x >= innerWidth || y >= innerHeight) continue;
+        checked++;
+        const top = document.elementFromPoint(x, y);
+        if (!top?.closest('.motion-dialog-backdrop')) uncovered.push({ x, y, tag: top?.tagName ?? 'NONE' });
+      }
+      return { checked, uncovered };
+    });
+    await page.screenshot({ path: info.outputPath('map-behind-review.png'), animations: 'disabled' });
+    await expect.poll(async () => (await coverage()).uncovered).toEqual([]);
+    expect((await coverage()).checked).toBeGreaterThan(0);
+    if (department !== 'MAIN') {
+      const reason = review.getByLabel('Why do you suspect this report is false?', { exact: true });
+      await reason.fill('Synthetic display check only; do not submit this review.');
+      await expect(reason).toHaveValue('Synthetic display check only; do not submit this review.');
+    }
+    await review.getByRole('button', { name: 'View photo →', exact: true }).click();
+    const photo = page.getByRole('dialog', { name: 'Report photo', exact: true });
+    await expect(photo.getByAltText('Report evidence for review')).toBeVisible();
+    await expect.poll(() => photo.getByAltText('Report evidence for review').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+    await page.screenshot({ path: info.outputPath('photo-above-review-and-map.png'), animations: 'disabled' });
+    await page.keyboard.press('Escape');
+    await expect(photo).toHaveCount(0);
+    await expect(review).toBeVisible();
+    await review.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(review).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await expect(card.locator('.incident-reference-radius')).toBeVisible();
+  });
+}

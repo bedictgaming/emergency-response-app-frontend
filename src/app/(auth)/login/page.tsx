@@ -33,8 +33,8 @@ export default function LoginRoute() {
       <footer className="border-t border-slate-200 bg-white py-6 dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto max-w-7xl px-4 text-center text-xs text-slate-500 dark:text-slate-400 sm:px-6 lg:px-8">
           <p>
-            © {new Date().getFullYear()} Municipal Government of Cordova, Cebu.
-            All operational rights reserved.
+            Cordova Public College capstone project team.
+            Demonstration only; not an official College or LGU emergency service.
           </p>
           <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
             For immediate danger, call the national emergency hotline at 911.

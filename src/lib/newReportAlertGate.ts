@@ -1,4 +1,4 @@
-type Report = { incidentId: string; reportedAt: string };
+type Report = { incidentId: string; reportedAt: string; pendingNearbyReview?: boolean };
 
 // A presentation-only gate, not acknowledgement or authorization. The server's
 // first successful observation establishes a quiet baseline, including older
@@ -19,7 +19,7 @@ export class NewReportAlertGate {
     for (const item of items) {
       // Status/version changes, disappearing/reappearing rows and catch-up
       // pagination are not new citizen submissions. Never use the device clock.
-      if (!this.seen.has(item.incidentId) && Date.parse(item.reportedAt) > this.baseline) arrived.add(item.incidentId);
+      if (!item.pendingNearbyReview && !this.seen.has(item.incidentId) && Date.parse(item.reportedAt) > this.baseline) arrived.add(item.incidentId);
       this.seen.add(item.incidentId);
     }
     return arrived;

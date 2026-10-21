@@ -25,6 +25,7 @@ import { isDefinitiveAuthFailure, markSessionEnded } from '@/lib/apiClient';
 import { HeaderFrame } from '../shared/HeaderFrame';
 import { EmergencyLogo } from '../shared/EmergencyLogo';
 import { CitizenNearbyMap } from './CitizenNearbyMap';
+import { useCitizenPresence } from '@/hooks/useCitizenPresence';
 
 const mapIncidentToReport = (inc: Incident): EmergencyReport => {
     const typeName = inc.type?.typeName?.toLowerCase() || '';
@@ -70,6 +71,7 @@ const CITIZEN_REPORTS_PER_PAGE = 3;
 export function Dashboard() {
     const router = useRouter();
     const [user, setUser] = useState<User | null>(null);
+    const presence = useCitizenPresence(user?.role === 'USER' ? user.id : undefined);
     const [reports, setReports] = useState<EmergencyReport[]>([]);
     const [reportPage, setReportPage] = useState(1);
     const [reportToFocus, setReportToFocus] = useState<string | null>(null);
@@ -626,7 +628,7 @@ export function Dashboard() {
                 />
 
                 {/* Reports List */}
-                {user && <CitizenNearbyMap />}
+                {user && <CitizenNearbyMap presence={presence} />}
                 {!reportsLoaded ? (
                     <section aria-label="Your reports" className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
                         <h2 className="text-xl font-bold text-slate-950 dark:text-white">Your reports</h2>
@@ -695,6 +697,7 @@ export function Dashboard() {
                     </p>}
 
                     <EmergencyReportForm
+                        presence={presence}
                         submitting={isSubmittingReport}
                         onSubmit={handleReportSubmit}
                         onCancel={() => handleReportDialogChange(false)}

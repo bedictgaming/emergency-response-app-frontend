@@ -1,0 +1,2 @@
+# Preserve authenticated upstream lint-rule bytes on Windows and Linux.
+vendor/eslint-plugin-next/** text eol=lf

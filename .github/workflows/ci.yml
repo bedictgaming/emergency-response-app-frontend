@@ -21,6 +21,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - run: node --test scripts/next-root-glob.test.mjs
       - run: npx tsc --noEmit
       - run: npm run test:deployment
       - run: npm run test:gateway
@@ -44,6 +45,12 @@ jobs:
       - run: npm run test:e2e -- e2e/nearby-intake.spec.ts --workers=2
         env:
           NEXT_PUBLIC_NEARBY_REVIEW_ENABLED: 'true'
+          NEXT_PUBLIC_EMERGENCY_TRANSPORT: socket.io
+          NEXT_PUBLIC_EMERGENCY_CANARY: 'false'
+      - run: npm run test:e2e -- e2e/citizen-presence.spec.ts --workers=2
+        env:
+          NEXT_PUBLIC_NEARBY_REVIEW_ENABLED: 'true'
+          NEXT_PUBLIC_CITIZEN_PRESENCE_ENABLED: 'true'
           NEXT_PUBLIC_EMERGENCY_TRANSPORT: socket.io
           NEXT_PUBLIC_EMERGENCY_CANARY: 'false'
       - uses: actions/upload-artifact@v4

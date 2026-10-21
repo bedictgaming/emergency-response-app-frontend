@@ -145,6 +145,11 @@ export default function AccountSettings() {
           </form>}
           <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm"><Link href="/login?session=manual" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring">Forgot password?</Link><Button variant="outline" className="min-h-11" disabled={busy} onClick={() => { setError(''); setAttempt(value => value + 1); }}>Reload Settings</Button></div>
         </>}
+      <section aria-labelledby="settings-privacy" className="mt-8 border-t border-border pt-6">
+        <h2 id="settings-privacy" className="text-lg font-semibold">Privacy and demo information</h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">Cordova Public College capstone project team. Read the draft notice for data access, optional GPS sharing, retention limits and the project contact. This is not an official emergency service.</p>
+        <Link href="/privacy" className="mt-2 inline-flex min-h-11 items-center rounded-md font-semibold underline underline-offset-4 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">Privacy notice (draft)</Link>
+      </section>
       <p className="mt-8 text-sm text-muted-foreground">For immediate danger, <a href="tel:911" className="font-semibold underline underline-offset-4">call 911</a>.</p>
     </main>
   </div>;

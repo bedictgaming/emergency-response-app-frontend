@@ -23,6 +23,9 @@ const eslintConfig = defineConfig([
     "test-results/**",
     "playwright-report/**",
     "next-env.d.ts",
+    // This exact upstream third-party plugin was previously in node_modules.
+    // Its unchanged rules are byte-verified; project lint scope is unchanged.
+    "vendor/eslint-plugin-next/**",
   ]),
 ]);
 

@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 
 for (const width of [320, 375, 390, 768, 1024, 1365, 1440]) {
   for (const theme of ['light', 'dark'] as const) {
-    test(`Hero 01 preserves emergency actions at ${width}px in ${theme}`, async ({ page }) => {
+    test(`Hero preserves reporting and privacy actions at ${width}px in ${theme}`, async ({ page }, info) => {
       await page.setViewportSize({ width, height: width < 768 ? 667 : 900 });
       await page.addInitScript(theme => localStorage.setItem('emergency-response-theme', theme), theme);
       await page.goto('/');
@@ -25,10 +25,14 @@ for (const width of [320, 375, 390, 768, 1024, 1365, 1440]) {
       const heading = hero.getByRole('heading', { level: 1 });
       await expect(heading).toHaveAccessibleName('Report an emergency. Share the details responders need.');
       const report = hero.getByRole('link', { name: 'Report an emergency', exact: true });
-      const call = hero.getByRole('link', { name: 'Call 911', exact: true });
+      const privacy = hero.getByRole('link', { name: 'Privacy notice', exact: true });
       await expect(report).toHaveAttribute('href', '/login');
-      await expect(call).toHaveAttribute('href', 'tel:911');
-      for (const action of [report, call]) {
+      await expect(privacy).toHaveAttribute('href', '/privacy');
+      await expect(hero.getByRole('link', { name: 'Call 911', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('complementary', { name: 'Capstone demonstration notice' })).toHaveCount(0);
+      // Only the pictured hero action changes; the header's urgent-help link stays.
+      await expect(page.locator('header').getByRole('link', { name: 'Call 911', exact: true })).toHaveAttribute('href', 'tel:911');
+      for (const action of [report, privacy]) {
         await expect(action).toBeVisible();
         const box = await action.boundingBox();
         expect(box).not.toBeNull();
@@ -45,6 +49,10 @@ for (const width of [320, 375, 390, 768, 1024, 1365, 1440]) {
         for (const line of await heading.locator(':scope > span').all()) {
           expect(await line.evaluate(el => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight))).toBeLessThan(1.1);
         }
+      }
+      if ([390, 1440].includes(width)) {
+        await page.mouse.click(2, 2); await page.evaluate(() => window.scrollTo(0, 0));
+        await page.screenshot({ path: info.outputPath(`privacy-action-${width}-${theme}.png`), animations: 'disabled' });
       }
       if (process.env.HERO_CAPTURE === 'true' && [390, 1365, 1440].includes(width)) {
         await page.locator('body').click({ position: { x: 2, y: 2 } });
@@ -74,8 +82,18 @@ test('hero is immediately readable with JavaScript disabled', async ({ browser }
   const hero = page.getByRole('region', { name: /Report an emergency/ });
   await expect(hero.getByRole('heading', { level: 1 })).toBeVisible();
   await expect(hero.getByRole('link', { name: 'Report an emergency', exact: true })).toBeVisible();
-  await expect(hero.getByRole('link', { name: 'Call 911', exact: true })).toBeVisible();
+  await expect(hero.getByRole('link', { name: 'Privacy notice', exact: true })).toHaveAttribute('href', '/privacy');
   await context.close();
+});
+
+test('hero privacy action opens the draft in the same tab without a repeated header bar', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('region', { name: /Report an emergency/ }).getByRole('link', { name: 'Privacy notice', exact: true }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByRole('heading', { name: 'Privacy notice', exact: true })).toBeVisible();
+  await expect(page.getByText('Cordova Public College capstone project team', { exact: true })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Capstone demonstration notice' })).toHaveCount(0);
+  expect(page.context().pages()).toHaveLength(1);
 });
 
 test('reduced-motion hero does not move or hide its reporting action', async ({ page }) => {

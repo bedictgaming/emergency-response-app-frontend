@@ -92,7 +92,7 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
       const logoutAtStart = localStorage.getItem('emergency-logout-epoch');
       const revision = queueRevisionRef.current;
       try {
-        const page = await getIncidentAttention(responseService);
+        const receivedPage = await getIncidentAttention(responseService);
         if (!isMountedRef.current || revision !== queueRevisionRef.current || adminAccountSnapshot() !== accountAtStart || localStorage.getItem('emergency-logout-epoch') !== logoutAtStart) return;
         const identity = `${accountAtStart}:${logoutAtStart}:${responseService ?? 'MAIN'}`;
         if (gateIdentityRef.current !== identity) {
@@ -102,8 +102,11 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
           setHasPendingSound(false);
           audioActionRef.current++; sirenManager.stopSiren(); setDialogOpen(false);
         }
+        // Observe quiet B too, so its later acknowledgment/admission can never
+        // be mistaken for a fresh arrival. It remains visible in nearby intake.
+        const arrived = reportGateRef.current.observe(receivedPage.items, receivedPage.observedAt);
+        const page = { ...receivedPage, items: receivedPage.items.filter(item => item.pendingNearbyReview !== true) };
         const keys = new Set(page.items.map(attentionKey));
-        const arrived = reportGateRef.current.observe(page.items, page.observedAt);
         pendingSoundKeysRef.current = new Set([...pendingSoundKeysRef.current].filter(key => keys.has(key)));
         activeSoundKeysRef.current = new Set([...activeSoundKeysRef.current].filter(key => keys.has(key)));
         mutedKeysRef.current = new Set([...mutedKeysRef.current].filter(key => keys.has(key)));

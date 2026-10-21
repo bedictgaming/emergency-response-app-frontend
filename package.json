@@ -41,6 +41,7 @@
     "ws": "8.21.3"
   },
   "devDependencies": {
+    "@next/eslint-plugin-next": "file:vendor/eslint-plugin-next",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -50,5 +51,9 @@
     "eslint-config-next": "^16.3.6",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "follow-redirects": "1.16.1",
+    "@next/eslint-plugin-next": "$@next/eslint-plugin-next"
   }
 }

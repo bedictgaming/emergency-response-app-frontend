@@ -52,6 +52,14 @@ test('close removes callbacks before disconnect so teardown cannot trigger a rec
   transport.close(); socket.emit('emergency.event', { type: 'incident.updated' });
   assert.equal(callbacks, 0); assert.equal(counts().closes, 1);
 });
+
+test('presence packets invalidate only their own subscriber, never incident arrivals', () => {
+  const { socket, transport } = fixture(); let reports = 0, presence = 0;
+  transport.addEventListener('incident.created', () => reports++);
+  transport.addEventListener('presence.changed', () => presence++);
+  socket.emit('emergency.event', { type: 'presence.changed' });
+  assert.equal(reports, 0); assert.equal(presence, 1);
+});
 test('explicit SSE remains credentialed, without tokens or private data in the URL', async () => {
   const previous = process.env.NEXT_PUBLIC_EMERGENCY_TRANSPORT, priorSource = globalThis.EventSource;
   const sources = [];

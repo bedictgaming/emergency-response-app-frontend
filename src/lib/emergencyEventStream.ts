@@ -5,7 +5,7 @@ import { adminAccountSnapshot } from '@/lib/adminAccountSnapshot';
 import { createEmergencyTransport, type EmergencyTransport } from '@/lib/emergencyTransport';
 
 export type EmergencyConnectionState = 'connecting' | 'live' | 'recovering' | 'offline' | 'signed-out';
-type Listener = { refresh: () => void; users?: () => void; nearby?: () => void; state?: (state: EmergencyConnectionState) => void };
+type Listener = { refresh: () => void; users?: () => void; nearby?: () => void; presence?: () => void; state?: (state: EmergencyConnectionState) => void };
 const streams = new Map<string, { subscribe: (listener: Listener) => () => void }>();
 
 // Events are invalidation hints, never authority to sound an emergency alarm.
@@ -40,6 +40,8 @@ export function subscribeEmergencyStream(listener: Listener) {
         for (const name of ['incident.created', 'incident.updated', 'incident.verified', 'dispatch.updated', 'task.updated', 'alert.created']) next.addEventListener(name, refresh);
         // A peer report is never an ordinary citizen event or alarm trigger.
         next.addEventListener('nearby.changed', () => { if (valid()) listeners.forEach(item => item.nearby?.()); });
+        // Online citizens are not incident arrivals, alarms or report data.
+        next.addEventListener('presence.changed', () => { if (valid()) listeners.forEach(item => item.presence?.()); });
         // User administration is not an emergency or a siren trigger.
         next.addEventListener('users.changed', () => { if (valid()) listeners.forEach(item => item.users?.()); });
         next.onopen = () => {

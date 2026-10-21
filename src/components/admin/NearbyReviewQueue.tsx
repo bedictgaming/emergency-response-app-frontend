@@ -36,18 +36,20 @@ function Queue({ onChanged }: { onChanged: () => Promise<void> }) {
   const current = result?.identity === identity && result.page === page && result.status === status ? result : null;
   if (current?.value?.enabled === false) return null;
   return <section aria-label="Nearby report intake" className="mb-6 rounded-xl border border-border bg-card p-5 text-foreground">
-    <h2 className="text-lg font-bold">Nearby reports awaiting department review</h2>
-    <p className="mt-1 max-w-prose text-sm text-muted-foreground">Later similar submissions within 100 m are retained here before entering the regular queue. Nearby does not mean fake. Review the evidence before deciding.</p>
+    <h2 className="text-lg font-bold">{current?.value?.requiresResponseStart ? 'Nearby report review and response' : 'Nearby reports awaiting department review'}</h2>
+    <p className="mt-1 max-w-prose text-sm text-muted-foreground">Later similar submissions within 100 m are retained here before entering the regular queue. Nearby does not mean fake. Review the evidence before deciding.{current?.value?.requiresResponseStart && ' These reviews update here without an emergency siren or automatic popup. After acknowledgment, choose Start response to enter Responding.'}</p>
     <label className="mt-4 flex flex-wrap items-center gap-3 text-sm">Review status
       <select value={status} onChange={event => { setStatus(event.target.value as NearbyReviewStatus); setPage(1); }} className="min-h-11 rounded-lg border border-border bg-card px-3 focus-visible:outline-2 focus-visible:outline-ring">
-        <option value="PENDING">Pending department review</option><option value="ACKNOWLEDGED">Acknowledged</option><option value="REJECTED">Rejected — retained records</option>
+        <option value="PENDING">Pending department review</option><option value="ACKNOWLEDGED">{current?.value?.requiresResponseStart ? 'Acknowledged / response status' : 'Acknowledged'}</option><option value="REJECTED">Rejected — retained records</option>
       </select>
     </label>
+    {current?.value?.requiresResponseStart && <p role="status" aria-live="polite" className="mt-3 text-sm font-semibold">{current.value.items.length}{current.value.hasMore ? '+' : ''} {status === 'PENDING' ? 'pending nearby reviews' : status === 'ACKNOWLEDGED' ? 'acknowledged reviews' : 'rejected reviews'} on this page.</p>}
     {!current && <p role="status" className="mt-4 text-sm">Loading nearby report reviews…</p>}
     {current?.error && <p role="alert" className="mt-4 text-sm">Review queue unavailable. Reports remain retained. <button type="button" onClick={() => void load()} className="min-h-11 underline underline-offset-4">Retry review queue</button></p>}
     {current?.value?.items.length === 0 && <p className="mt-4 text-sm text-muted-foreground">No {status.toLowerCase()} nearby reviews on this page.</p>}
     <ul className="mt-4 divide-y divide-border">{current?.value?.items.map(item => <li key={item.reviewId} className="flex flex-wrap items-center justify-between gap-3 py-3">
-      <div className="min-w-0"><h3 className="break-words font-semibold">{item.incident.title}</h3><p className="text-sm text-muted-foreground">{item.service} · {item.status === 'PENDING' ? 'Pending department review' : item.status === 'REJECTED' ? 'Rejected by department' : 'Acknowledged'}</p></div>
+      <div className="min-w-0"><h3 className="break-words font-semibold">{item.incident.title}</h3><p className="text-sm text-muted-foreground">{item.service} · {item.status === 'PENDING' ? 'Pending department review' : item.status === 'REJECTED' ? 'Rejected by department'
+        : current.value?.requiresResponseStart ? item.responseStarted ? 'Response started' : 'Acknowledged — waiting to respond' : 'Acknowledged'}</p></div>
       <button type="button" onClick={() => setSelected({ incidentId: item.incidentId, identity })} className="min-h-11 rounded-lg border border-border px-3 text-sm font-semibold hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring">Review nearby report</button>
     </li>)}</ul>
     {(page > 1 || current?.value?.hasMore) && <nav aria-label="Nearby review pages" className="mt-4 flex items-center gap-4 text-sm">

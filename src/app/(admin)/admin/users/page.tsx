@@ -3,6 +3,7 @@
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { UserSafetyPanel } from '@/components/admin/UserSafetyPanel';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { adminAccountSnapshot } from '@/lib/adminAccountSnapshot';
 import {
@@ -34,6 +35,7 @@ export default function AdminUsersPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [userPage, setUserPage] = useState(1);
+  const [safetyUser, setSafetyUser] = useState<string | null>(null);
   const USERS_PER_PAGE = 3;
   const requestRevision = useRef(0);
 
@@ -80,6 +82,7 @@ export default function AdminUsersPage() {
     const start = (userPage - 1) * USERS_PER_PAGE;
     return users.slice(start, start + USERS_PER_PAGE);
   }, [users, userPage, USERS_PER_PAGE]);
+  const selectedSafetyUser = paginatedUsers.find(user => user.id === safetyUser);
 
   // Clamp page when the total shrinks
   useEffect(() => {
@@ -357,6 +360,8 @@ export default function AdminUsersPage() {
                         {/* Actions */}
                         <td className="px-5 py-4">
                           <div className="flex items-center justify-end gap-2">
+                            <button type="button" aria-expanded={safetyUser === user.id} onClick={() => setSafetyUser(safetyUser === user.id ? null : user.id)}
+                              className="min-h-11 rounded-lg border border-gray-300 px-3 text-xs font-semibold text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-purple-700">Account safety</button>
                             <select
                               id={`admin-user-role-${user.id}`}
                               name={`admin-user-role-${user.id}`}
@@ -420,6 +425,8 @@ export default function AdminUsersPage() {
               </table>
             </div>
           )}
+
+          {selectedSafetyUser && <div className="p-4 sm:p-5"><UserSafetyPanel key={selectedSafetyUser.id} user={selectedSafetyUser} onClose={() => setSafetyUser(null)} /></div>}
 
           {/* Pagination */}
           {!isLoading && userTotalPages > 1 && (

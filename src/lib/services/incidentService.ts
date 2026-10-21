@@ -66,7 +66,7 @@ export interface ReporterInfo {
 }
 
 export interface Incident {
-  nearbyIntake?: Array<{ service: ResponseService; status: 'PENDING' | 'ACKNOWLEDGED' | 'REJECTED' }>;
+  nearbyIntake?: Array<{ service: ResponseService; status: 'PENDING' | 'ACKNOWLEDGED' | 'REJECTED'; responseStarted?: boolean }>;
   nearbyReportWarning?: 'POSSIBLE_DUPLICATE' | 'UNAVAILABLE';
   incidentId: string;
   title: string;

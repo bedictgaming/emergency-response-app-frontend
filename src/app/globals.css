@@ -467,6 +467,14 @@ select {
 .incident-location-pin { background: transparent; border: 0; }
 .leaflet-tooltip.nearby-map-tooltip { width: max-content; max-width: 160px; border: 0; background: transparent; padding: 0; box-shadow: none; white-space: normal; }
 .leaflet-tooltip.nearby-map-tooltip::before { display: none; }
+.nearby-report-popup .leaflet-popup-content { margin: 16px; font: inherit; }
+.nearby-report-popup .leaflet-popup-content p { margin: 0.65rem 0; }
+.nearby-report-popup .leaflet-popup-content-wrapper { border-radius: 12px; }
+.leaflet-container .nearby-report-popup a.leaflet-popup-close-button { width: 44px; height: 44px; line-height: 44px; color: inherit; }
+.nearby-report-popup .leaflet-popup-close-button:focus-visible { outline: 2px solid #dc2626; outline-offset: -4px; }
+/* Avoid controls covering the focused report on small maps. No pane or global
+   modal z-indices change; zoom controls return as soon as the report closes. */
+.nearby-report-open .leaflet-control-zoom { visibility: hidden; }
 .leaflet-control-zoom a { min-width: 44px; min-height: 44px; line-height: 44px !important; }
 .leaflet-control-zoom a:focus-visible,
 .leaflet-marker-icon:focus-visible { outline: 2px solid #dc2626; outline-offset: 3px; }

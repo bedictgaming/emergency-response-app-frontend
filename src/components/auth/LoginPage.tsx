@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { AlertCircle, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import type { AxiosError } from 'axios';
 import { getMe, login, signup } from '@/lib/services/authService';
@@ -458,9 +459,10 @@ export function LoginPage({ embedded = false }: LoginPageProps) {
           </div>
         </Tabs>
 
-        {/* Footer Terms */}
+        {/* A readable draft, not agreement to unavailable terms. */}
         <p className="mt-5 px-4 text-center text-xs leading-5 text-muted-foreground">
-          By continuing, you agree to our Terms of Service and Privacy Policy
+          Read how this capstone demo handles data in our{' '}
+          <Link href="/privacy" className="inline-flex min-h-11 items-center rounded-md font-semibold underline underline-offset-4 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">Privacy notice (draft)</Link>.
         </p>
       </div>
     );
