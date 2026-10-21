@@ -1,2 +1,4 @@
 # Preserve authenticated upstream lint-rule bytes on Windows and Linux.
 vendor/eslint-plugin-next/** text eol=lf
+# This authenticated upstream comment contains one trailing space; retain its bytes.
+vendor/eslint-plugin-next/dist/utils/node-attributes.js whitespace=-blank-at-eol
