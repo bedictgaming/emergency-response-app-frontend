@@ -177,10 +177,19 @@ for (const department of ['FIRE', 'MEDICAL', 'POLICE', 'DRRMO']) test(`${departm
   await expect(zoomControls).toHaveCSS('visibility', 'hidden');
   await expect(zoomControls).toBeHidden();
   await expect(map.getByText('Acknowledged · waiting to respond', { exact: false })).toHaveCount(0);
-  const bounds = await map.getByRole('group', { name: 'Incident location map', exact: true }).boundingBox();
-  const box = await map.locator('.nearby-report-popup').boundingBox();
-  expect(box!.x).toBeGreaterThanOrEqual(bounds!.x); expect(box!.x + box!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width);
-  expect(box!.y).toBeGreaterThanOrEqual(bounds!.y); expect(box!.y + box!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height);
+  // Leaflet auto-pans after the async report/expanded-card layout. Measure both
+  // rectangles in the same frame and await that layout with the existing
+  // assertion deadline; retain all four exact, zero-tolerance boundaries.
+  await expect.poll(() => map.evaluate(element => {
+    const bounds = element.querySelector('[role="group"][aria-label="Incident location map"]')?.getBoundingClientRect();
+    const box = element.querySelector('.nearby-report-popup')?.getBoundingClientRect();
+    return {
+      left: !!bounds && !!box && box.left >= bounds.left,
+      right: !!bounds && !!box && box.right <= bounds.right,
+      top: !!bounds && !!box && box.top >= bounds.top,
+      bottom: !!bounds && !!box && box.bottom <= bounds.bottom,
+    };
+  })).toEqual({ left: true, right: true, top: true, bottom: true });
   if (department === 'FIRE' || department === 'MEDICAL') await map.screenshot({ path: info.outputPath(`report-popup-${width}.png`), animations: 'disabled' });
   await popup.getByRole('button', { name: 'Flag suspected false report', exact: true }).click();
   await expect(popup.getByRole('button', { name: 'Send review request' })).toBeDisabled();
