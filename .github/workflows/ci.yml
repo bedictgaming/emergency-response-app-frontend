@@ -29,6 +29,7 @@ jobs:
       - run: npm run test:push
       - run: npm run test:architecture
       - run: npm run test:realtime
+      - run: node --experimental-strip-types --test scripts/citizen-presence-locations.test.mjs
       - run: npm run test:seo
       - run: node --test scripts/dependency-audit-policy.test.mjs
       - run: node scripts/check-dependency-audit.mjs
@@ -53,6 +54,13 @@ jobs:
           NEXT_PUBLIC_CITIZEN_PRESENCE_ENABLED: 'true'
           NEXT_PUBLIC_EMERGENCY_TRANSPORT: socket.io
           NEXT_PUBLIC_EMERGENCY_CANARY: 'false'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: presence-export-screenshots
+          path: test-results/**/online-*.png
+          if-no-files-found: ignore
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

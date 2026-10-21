@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { validatePresenceSnapshot, presencePositionsForMap } from '../src/lib/citizenPresenceLocations.ts';
 const empty = { precision: 'exact-gps-v1', radiusMeters: 100, expiresInSeconds: 30, positions: [] };
 const position = { latitude: 10.251123456, longitude: 123.949123456, accuracy: 15 };
@@ -32,4 +33,12 @@ test('does not move a captured report pin or mis-anchor presence after GPS movem
   const layer = { latitude: 10.251, longitude: 123.949, positions: [position] };
   assert.deepEqual(presencePositionsForMap(undefined, 10.251, 123.949), []);
   assert.deepEqual(presencePositionsForMap(layer, 10.252, 123.949), []);
+});
+
+test('GPS dots set their SVG class at Leaflet creation, not through a later style update', async () => {
+  const map = await readFile(new URL('../src/components/citizen/LocationMap.tsx', import.meta.url), 'utf8');
+  const marker = map.match(/<CircleMarker\b([\s\S]*?)\/>/)?.[1];
+  assert.ok(marker, 'Presence must retain its real CircleMarker');
+  assert.match(marker, /\bclassName="citizen-presence-dot"/);
+  assert.doesNotMatch(marker, /pathOptions=\{\{[^}]*className/);
 });

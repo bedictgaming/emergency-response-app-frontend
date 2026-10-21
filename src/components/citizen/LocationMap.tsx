@@ -424,7 +424,8 @@ export function LocationMap({
                 <Pane name="citizen-presence" style={{ zIndex: 610, pointerEvents: 'none' }}>
                     {hasValidCoords && presencePositionsForMap(onlinePresence, initialLat, initialLng).map((position, index) => <CircleMarker
                         key={`online-${index}`} center={[position.latitude, position.longitude]} radius={10} interactive={false}
-                        pathOptions={{ className: 'citizen-presence-dot', color: '#fff', weight: 2, fillColor: '#0089ff', fillOpacity: 1 }} />)}
+                        className="citizen-presence-dot"
+                        pathOptions={{ color: '#fff', weight: 2, fillColor: '#0089ff', fillOpacity: 1 }} />)}
                 </Pane>
                 {nearbyPins.map(pin => {
                     const reviewable = reviewIncidentIds?.includes(pin.incidentId) === true;
