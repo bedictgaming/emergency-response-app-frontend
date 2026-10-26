@@ -1,0 +1,39 @@
+name: Hosted candidate validation
+on:
+  push:
+    branches: [release/hosted-validation-20261026]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Public asset target; all private API and sockets stay synthetic
+        type: choice
+        options: [candidate, production]
+        default: candidate
+permissions:
+  contents: read
+jobs:
+  hosted-public-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      HOSTED_MODE: ${{ inputs.mode || (startsWith(github.event.head_commit.message, 'Validate promoted canonical ') && 'production' || 'candidate') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Exact candidate assertions, no private production writes
+        run: node .ci/hosted-candidate.mjs "$HOSTED_MODE"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hosted-validation-${{ env.HOSTED_MODE }}
+          path: .hosted-validation/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7

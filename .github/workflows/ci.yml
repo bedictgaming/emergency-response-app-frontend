@@ -1,5 +1,9 @@
 name: Frontend checks
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches-ignore: [release/hosted-validation-20261026]
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 env:
