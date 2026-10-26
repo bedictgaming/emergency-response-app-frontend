@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { waitForInitialLiveReads } from './helpers/quiet-event-stream';
+import { installSyntheticEventStream } from './helpers/synthetic-event-stream';
 const initialReads = new WeakMap<Page, { completed: number; connected: boolean; writes: number }>();
 test.use({ serviceWorkers: 'block' });
 
@@ -10,16 +11,8 @@ function monthly(month: number, count: number) {
 }
 
 async function setup(page: Page, onMonth?: (route: Route) => Promise<void>) {
-  const reads = { completed: 0, connected: false, writes: 0 }; initialReads.set(page, reads);
-  // The application now prefers Socket.IO. Intercept that transport rather than
-  // waiting forever for the retired primary-SSE fixture or contacting real WS.
-  await page.addInitScript(() => Object.defineProperty(window, 'EventSource', { configurable: true, value: undefined }));
-  await page.routeWebSocket('**/api/events/v1/socket.io/**', peer => {
-    peer.onMessage(message => {
-      if (message === '40') { peer.send('40{"sid":"monthly-synthetic-namespace"}'); reads.connected = true; }
-    });
-    peer.send('0{"sid":"monthly-synthetic-engine","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1024}');
-  });
+  const transport = await installSyntheticEventStream(page, 'monthly-synthetic-namespace');
+  const reads = { completed: 0, get connected() { return transport.state.joined; }, writes: 0 }; initialReads.set(page, reads);
   await page.clock.setFixedTime(new Date('2026-10-01T07:00:00Z'));
   const user = { id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true };
   await page.addInitScript(current => localStorage.setItem('user', JSON.stringify(current)), user);

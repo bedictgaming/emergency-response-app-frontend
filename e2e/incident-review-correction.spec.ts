@@ -9,6 +9,9 @@ async function fixture(page: Page, denied?: number) {
   const user = { id: 'synthetic-main', role: 'ADMIN', department: 'MAIN', isMainAdmin: true };
   await page.addInitScript(value => localStorage.setItem('user', JSON.stringify(value)), user);
   let confirmed = true;
+  const reviewFlag = () => ({ reviewFlagId: flagId, incidentId, department: 'FIRE', status: confirmed ? 'CONFIRMED' : 'DISMISSED',
+    reason: 'The initial information suggested a training report.', reviewNotes: confirmed ? 'The original mistaken confirmation.' : explanation,
+    createdAt: version, updatedAt: confirmed ? version : '2026-10-12T00:01:00.000Z' });
   const corrections: unknown[] = [];
   const operationalWrites: string[] = [];
   const report = () => ({
@@ -17,7 +20,7 @@ async function fixture(page: Page, denied?: number) {
     reportedAt: version, updatedAt: version, reportedBy: 'synthetic-citizen',
     type: { typeName: 'Fire' }, location: { locationName: 'Synthetic location' }, reporter: { name: 'Synthetic Citizen' },
     attachments: [], incidentUnits: [], serviceResponses: [{ service: 'FIRE', status: 'RESPONDING' }],
-    reviewFlags: confirmed ? [{ reviewFlagId: flagId, incidentId, department: 'FIRE', status: 'CONFIRMED', reason: 'The initial information suggested a training report.', reviewNotes: 'The original mistaken confirmation.', createdAt: version, updatedAt: version }] : [],
+    reviewFlags: [reviewFlag()],
   });
   await page.route('**/api/**', route => {
     const request = route.request(), path = new URL(request.url()).pathname;
@@ -31,13 +34,20 @@ async function fixture(page: Page, denied?: number) {
     }
     if (request.method() !== 'GET') operationalWrites.push(`${request.method()} ${path}`);
     if (path.includes('/incidents/v1/')) {
-      if (path.endsWith('/review-flags')) return route.fulfill({ json: { data: { flags: report().reviewFlags.map(flag => ({ ...flag, incident: report() })), pagination: { page: 1, limit: 20, total: confirmed ? 1 : 0, pages: confirmed ? 1 : 0 } } } });
+      if (path.endsWith('/review-flags')) {
+        const reviewed = new URL(request.url()).searchParams.get('view') === 'reviewed';
+        const flags = reviewed ? report().reviewFlags.map(flag => ({ ...flag, incident: report() })) : [];
+        return route.fulfill({ json: { data: { view: reviewed ? 'reviewed' : 'pending', departmentReviewEnabled: false, canReview: true, flags,
+          pagination: { page: 1, limit: 20, total: flags.length, pages: flags.length ? 1 : 0 } } } });
+      }
       return route.fulfill({ json: { data: { incidents: [report()], incident: report() } } });
     }
     return route.fulfill({ json: { data: { alerts: [], items: [] } } });
   });
   await page.goto('/admin/main-dashboard');
-  await page.locator('section[aria-labelledby="report-review-queue"]').getByRole('button', { name: 'Review / manage report' }).click();
+  const queue = page.getByRole('region', { name: 'Report review queue' });
+  await queue.getByRole('tab', { name: 'Reviewed / Flag history', exact: true }).click();
+  await queue.getByRole('button', { name: 'View reviewed report', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('button', { name: 'Correct mistaken confirmation' })).toBeVisible();
   return { dialog, corrections, operationalWrites };
@@ -59,11 +69,18 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     await expect(dialog).toContainText('original decision and your correction remain in the audit log');
     await page.screenshot({ path: test.info().outputPath(`correction-form-${viewport.width}.png`), fullPage: true });
     await submit.click();
-    // A queue-owned dialog unmounts when its corrected flag leaves the queue.
-    // Verify the retained report after that refresh, not an ephemeral notice.
-    await expect(page.getByText('No pending or confirmed review flags.')).toBeVisible();
+    // Correction keeps the completed assessment and its explanation. The open
+    // review is protected from queue refresh until the operator closes it.
+    await expect(dialog.getByRole('status')).toContainText('Correction saved');
+    await expect(dialog).toContainText('Current status: RESPONDING');
+    await expect(dialog.getByRole('button', { name: 'Correct mistaken confirmation' })).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(dialog).toHaveCount(0);
-    await page.getByRole('button', { name: 'Review / manage report' }).first().click();
+    const queue = page.getByRole('region', { name: 'Report review queue' });
+    await expect(queue).toContainText('Suspicion dismissed');
+    await expect(queue).toContainText(explanation);
+    await expect(queue).toContainText('1 completed assessments');
+    await queue.getByRole('button', { name: 'View reviewed report', exact: true }).click();
     await expect(dialog).toContainText('Current status: RESPONDING');
     await expect(dialog.getByRole('button', { name: 'Correct mistaken confirmation' })).toHaveCount(0);
     expect(corrections).toEqual([{ reviewNotes: explanation, expectedUpdatedAt: version }]);

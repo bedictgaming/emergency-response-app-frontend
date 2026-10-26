@@ -130,12 +130,22 @@ test('one dismissed flag cannot hide another confirmation, and long notes remain
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
-test('an unavailable refresh does not clear a confirmed review or close response work', async ({ page }) => {
+test('an unavailable list fails closed and recovery retains the assessment without closing response work', async ({ page }) => {
   const state = await fixture(page, 'FIRE', [notice('CONFIRMED', 1)]);
+  await expect(page.getByRole('button', { name: 'Mark as Resolved', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Shared report review' })).toContainText('Confirmed false by Main Admin');
   state.fail(true); const reads = state.reads(); await liveUpdate(page);
   await expect.poll(state.reads).toBeGreaterThan(reads);
+  await expect(page.getByText('Report list could not be refreshed. Retry to load the selected view.', { exact: true })).toBeVisible();
+  // A partial foreign assessment does not close the incident. An unavailable
+  // list, however, must not leave an actionable stale Resolve control behind.
+  await expect(page.getByRole('button', { name: 'Mark as Resolved' })).toHaveCount(0);
+  state.fail(false);
+  await page.getByRole('button', { name: 'Retry report list', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Shared report review' })).toContainText('Confirmed false by Main Admin');
-  await expect(page.getByRole('button', { name: 'Mark as Resolved' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Mark as Resolved', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Flag suspected false report', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('Current status: RESPONDING');
   expect(state.writes).toEqual([]);
 });
 

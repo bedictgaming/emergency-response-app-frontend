@@ -2,17 +2,17 @@ name: Frontend checks
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
+env:
+  NEXT_PUBLIC_API_URL: http://127.0.0.1:3100
+  NEXT_PUBLIC_PRODUCTION_VALIDATION: 'false'
+  NEXT_PUBLIC_PUBLIC_LAUNCH: 'false'
+  NEXT_PUBLIC_PREVIEW_ONLY: 'false'
+  NEXT_PUBLIC_STAGING_TEST: 'false'
+  NEXT_PUBLIC_EMERGENCY_CANARY: 'false'
 jobs:
   local-contracts:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    env:
-      NEXT_PUBLIC_API_URL: http://127.0.0.1:3100
-      NEXT_PUBLIC_PRODUCTION_VALIDATION: 'false'
-      NEXT_PUBLIC_PUBLIC_LAUNCH: 'false'
-      NEXT_PUBLIC_PREVIEW_ONLY: 'false'
-      NEXT_PUBLIC_STAGING_TEST: 'false'
-      NEXT_PUBLIC_EMERGENCY_CANARY: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,38 +34,85 @@ jobs:
       - run: npm run test:seo
       - run: node --test scripts/dependency-audit-policy.test.mjs
       - run: node scripts/check-dependency-audit.mjs
+  browser-contracts:
+    name: browser-${{ matrix.suite }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: ordinary-1
+            transport: sse
+            nearby: 'false'
+            presence: 'false'
+            canary: 'false'
+          - suite: ordinary-2
+            transport: sse
+            nearby: 'false'
+            presence: 'false'
+            canary: 'false'
+          - suite: websocket
+            transport: socket.io
+            nearby: 'false'
+            presence: 'false'
+            canary: 'false'
+          - suite: sse-canary
+            transport: sse
+            nearby: 'false'
+            presence: 'false'
+            canary: 'true'
+          - suite: nearby
+            transport: socket.io
+            nearby: 'true'
+            presence: 'false'
+            canary: 'false'
+          - suite: presence-review
+            transport: socket.io
+            nearby: 'true'
+            presence: 'true'
+            canary: 'false'
+    env:
+      NEXT_PUBLIC_EMERGENCY_TRANSPORT: ${{ matrix.transport }}
+      NEXT_PUBLIC_NEARBY_REVIEW_ENABLED: ${{ matrix.nearby }}
+      NEXT_PUBLIC_CITIZEN_PRESENCE_ENABLED: ${{ matrix.presence }}
+      NEXT_PUBLIC_EMERGENCY_CANARY: ${{ matrix.canary }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- --workers=2
+      - name: Complete ordinary suite, shard 1 of 2
+        if: matrix.suite == 'ordinary-1'
+        run: npm run test:e2e -- --workers=2 --shard=1/2
+      - name: Complete ordinary suite, shard 2 of 2
+        if: matrix.suite == 'ordinary-2'
+        run: npm run test:e2e -- --workers=2 --shard=2/2
       - run: node scripts/check-seo-export.mjs .next-e2e private
-      - run: npm run test:e2e -- e2e/socket-events.spec.ts --workers=2
-        env:
-          NEXT_PUBLIC_EMERGENCY_TRANSPORT: socket.io
-      - run: npm run test:e2e -- e2e/socket-events.spec.ts --workers=2
-        env:
-          NEXT_PUBLIC_EMERGENCY_TRANSPORT: sse
-          NEXT_PUBLIC_EMERGENCY_CANARY: 'true'
-      - run: npm run test:e2e -- e2e/nearby-intake.spec.ts --workers=2
-        env:
-          NEXT_PUBLIC_NEARBY_REVIEW_ENABLED: 'true'
-          NEXT_PUBLIC_EMERGENCY_TRANSPORT: socket.io
-          NEXT_PUBLIC_EMERGENCY_CANARY: 'false'
-      - run: npm run test:e2e -- e2e/citizen-presence.spec.ts --workers=2
-        env:
-          NEXT_PUBLIC_NEARBY_REVIEW_ENABLED: 'true'
-          NEXT_PUBLIC_CITIZEN_PRESENCE_ENABLED: 'true'
-          NEXT_PUBLIC_EMERGENCY_TRANSPORT: socket.io
-          NEXT_PUBLIC_EMERGENCY_CANARY: 'false'
+        if: startsWith(matrix.suite, 'ordinary-')
+      - name: Explicit WebSocket and SSE-canary transport contracts
+        if: matrix.suite == 'websocket' || matrix.suite == 'sse-canary'
+        run: npm run test:e2e -- e2e/socket-events.spec.ts --workers=2
+      - name: Nearby intake contracts
+        if: matrix.suite == 'nearby'
+        run: npm run test:e2e -- e2e/nearby-intake.spec.ts --workers=2
+      - name: Presence, private review and history over explicit WebSocket
+        if: matrix.suite == 'presence-review'
+        run: npm run test:e2e -- e2e/citizen-presence.spec.ts e2e/citizen-review-notifications.spec.ts e2e/history-pagination.spec.ts e2e/monthly-history.spec.ts --workers=2
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: presence-export-screenshots
+          name: browser-screenshots-${{ matrix.suite }}
           path: test-results/**/online-*.png
           if-no-files-found: ignore
           retention-days: 7
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: browser-failures
+          name: browser-failures-${{ matrix.suite }}
           path: test-results
           retention-days: 7
       # API mocks and local export only; never use live deployment credentials.

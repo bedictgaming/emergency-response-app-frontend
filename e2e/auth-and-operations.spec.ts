@@ -143,7 +143,7 @@ test('main admin paginates 14 All and Resolved reports across three pages', asyn
 
   await page.route('**/api/incidents/v1/**', route => {
     const url = new URL(route.request().url());
-    if (url.pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
+    if (url.pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: { view: url.searchParams.get('view'), flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
     requestedUrls.push(url);
     const currentPage = Number(url.searchParams.get('page') ?? '1');
     const firstReport = (currentPage - 1) * 5 + 1;
@@ -269,7 +269,7 @@ for (const department of ['FIRE', 'MEDICAL', 'POLICE', 'DRRMO'] as const) {
     await page.getByRole('button', { name: 'Responding (6)', exact: true }).click();
     await expect(cards).toHaveCount(5);
     await expect(pager).toContainText('Showing 1-5 of 6 reports');
-    const listRequests = requestedUrls.filter(url => url.searchParams.has('page'));
+    const listRequests = requestedUrls.filter(url => url.pathname.replace(/\/$/, '') === '/api/incidents/v1' && url.searchParams.has('page'));
     expect(listRequests.length).toBeGreaterThan(0);
     for (const url of listRequests) {
       expect(url.searchParams.get('limit')).toBe('5');
@@ -294,7 +294,7 @@ test('main verified totals match history without hiding rejected review records'
     status: 200, contentType: 'text/event-stream', body: 'event: connected\ndata: {"ok":true}\n\n',
   }));
   await page.route('**/api/incidents/v1/**', route => new URL(route.request().url()).pathname.endsWith('/review-flags')
-    ? route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } })
+    ? route.fulfill({ json: { data: { view: new URL(route.request().url()).searchParams.get('view'), flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } })
     : route.fulfill({ json: { data: {
     incidents: [{
       incidentId: 'rejected-record', title: 'Rejected report retained for review', description: 'Synthetic review record',
@@ -359,7 +359,7 @@ test('main report cards explain verification independently of response status', 
   await page.route('**/api/incidents/v1/**', route => {
     if (route.request().method() !== 'GET') mutations.push(route.request().method());
     if (new URL(route.request().url()).pathname.endsWith('/review-flags')) {
-      return route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
+      return route.fulfill({ json: { data: { view: new URL(route.request().url()).searchParams.get('view'), flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
     }
     return route.fulfill({ json: { data: {
       incidents: ['VERIFIED', 'PENDING', 'REJECTED', undefined].map((verificationStatus, index) => ({
@@ -400,7 +400,7 @@ test('missing verified aggregates never display all-record totals as verified', 
     status: 200, contentType: 'text/event-stream', body: 'event: connected\ndata: {"ok":true}\n\n',
   }));
   await page.route('**/api/incidents/v1/**', route => new URL(route.request().url()).pathname.endsWith('/review-flags')
-    ? route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } })
+    ? route.fulfill({ json: { data: { view: new URL(route.request().url()).searchParams.get('view'), flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } })
     : route.fulfill({ json: { data: {
       incidents: [], pagination: { page: 1, limit: 5, total: 15, pages: 3 },
       summary: { total: 15, active: 0, responding: 0, resolved: 15 },
@@ -735,15 +735,18 @@ test('police dashboard recovers after an incident-list outage', async ({ page })
       monitorRequests += 1;
       return route.fulfill({ json: { data: { items: [], hasMore: false } } });
     }
+    if (url.pathname.replace(/\/$/, '') !== '/api/incidents/v1') return route.fulfill({ json: { data: {
+      view: url.searchParams.get('view'), enabled: false, departmentReviewEnabled: false, flags: [], items: [], hasMore: false, pagination: { page: 1, limit: 20, total: 0, pages: 0 },
+    } } });
     policeRequests += 1;
     if (policeRequests <= 2) return route.fulfill({ status: 504, json: { message: 'Temporary database delay' } });
     return route.fulfill({ json: { data: { incidents: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
   });
 
   await page.goto('/admin/police-dashboard');
-  await expect(page.getByRole('alert').getByText('Police emergencies could not be refreshed.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('alert').getByText('Report list could not be refreshed. Retry to load the selected view.', { exact: true })).toBeVisible();
   expect(monitorRequests).toBeGreaterThan(0);
-  await page.getByRole('button', { name: 'Try again' }).click();
+  await page.getByRole('button', { name: 'Retry report list', exact: true }).click();
   await expect(page.locator('main').getByRole('alert')).toHaveCount(0);
   expect(policeRequests).toBeGreaterThanOrEqual(3);
 });
@@ -856,6 +859,9 @@ test('failed police reads do not immediately retry queued same-view refreshes', 
     if (url.pathname.endsWith('/attention')) {
       return route.fulfill({ json: { data: { items: [], hasMore: false } } });
     }
+    if (url.pathname.replace(/\/$/, '') !== '/api/incidents/v1') return route.fulfill({ json: { data: {
+      view: url.searchParams.get('view'), enabled: false, departmentReviewEnabled: false, flags: [], items: [], hasMore: false, pagination: { page: 1, limit: 20, total: 0, pages: 0 },
+    } } });
     pageReads += 1;
     if (delayNextRead) {
       delayNextRead = false;
@@ -874,10 +880,10 @@ test('failed police reads do not immediately retry queued same-view refreshes', 
   await readWasStarted;
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   releaseRead();
-  await expect(page.getByRole('alert').getByText('Police emergencies could not be refreshed.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('alert').getByText('Report list could not be refreshed. Retry to load the selected view.', { exact: true })).toBeVisible();
   await page.waitForTimeout(300);
   expect(pageReads).toBe(2);
-  await page.getByRole('button', { name: 'Try again' }).click();
+  await page.getByRole('button', { name: 'Retry report list', exact: true }).click();
   await expect(page.locator('main').getByRole('alert')).toHaveCount(0);
   expect(pageReads).toBe(3);
 });
@@ -1065,7 +1071,7 @@ test('admin data polling stops when its session is removed', async ({ page }) =>
   }));
   await page.route('**/api/incidents/v1/**', route => {
     incidentRequests += 1;
-    if (new URL(route.request().url()).pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: { flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
+    if (new URL(route.request().url()).pathname.endsWith('/review-flags')) return route.fulfill({ json: { data: { view: new URL(route.request().url()).searchParams.get('view'), flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
     return route.fulfill({ json: { data: { incidents: [] } } });
   });
   await page.route('**/api/events/v1/stream', route => route.fulfill({
@@ -1078,7 +1084,7 @@ test('admin data polling stops when its session is removed', async ({ page }) =>
   await expect(page.getByText('Main Admin Dashboard', { exact: true })).toBeVisible();
   await expect.poll(() => incidentRequests).toBeGreaterThan(0);
   // Wait for the new queue's initial read before measuring requests after logout.
-  await expect(page.getByText('No pending or confirmed review flags.')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Report review queue' }).getByText('No pending review flags.', { exact: true })).toBeVisible();
 
   const requestsBeforeLogout = await page.evaluate(() => {
     const before = (window as unknown as Window & { __adminIncidentSends: number }).__adminIncidentSends;

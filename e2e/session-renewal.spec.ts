@@ -15,7 +15,7 @@ async function authorize(context: BrowserContext, user = citizen, check?: () => 
   });
   await context.route('**/api/incidents/v1/**', route => {
     check?.();
-    return route.fulfill({ json: { data: { incidents: [], flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
+    return route.fulfill({ json: { data: { view: new URL(route.request().url()).searchParams.get('view'), incidents: [], flags: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } } } });
   });
   await context.route('**/api/events/v1/stream', route => {
     check?.();
@@ -87,7 +87,7 @@ test('returning to an idle admin tab renews before its next profile check', asyn
   await setHint(context, String(Date.now() + 780_000));
   await page.goto('/admin/main-dashboard');
   await expect(page.getByText('Main Admin Dashboard', { exact: true })).toBeVisible();
-  await expect(page.getByText('No pending or confirmed review flags.')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Report review queue' }).getByText('No pending review flags.', { exact: true })).toBeVisible();
   await setHint(context);
   expired = true;
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));

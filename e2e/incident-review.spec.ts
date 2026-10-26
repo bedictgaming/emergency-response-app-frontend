@@ -58,7 +58,12 @@ test('main admin reviews, closes and deliberately deletes a report with a reason
   const deletes: unknown[] = [];
   await page.route('**/api/incidents/v1/**', route => {
     const req = route.request();
-    if (req.url().includes('/review-flags') && req.method() === 'GET') return route.fulfill({ json: { data: { flags: removed ? [] : [{ ...flag, incident: report }], pagination: { page: 1, limit: 20, total: removed ? 0 : 1, pages: removed ? 0 : 1 } } } });
+    if (req.url().includes('/review-flags') && req.method() === 'GET') {
+      const view = new URL(req.url()).searchParams.get('view');
+      const matches = !removed && (view === 'pending' ? flag.status === 'PENDING' : flag.status !== 'PENDING');
+      return route.fulfill({ json: { data: { view, departmentReviewEnabled: false, canReview: true,
+        flags: matches ? [{ ...flag, incident: report }] : [], pagination: { page: 1, limit: 20, total: matches ? 1 : 0, pages: matches ? 1 : 0 } } } });
+    }
     if (req.method() === 'PATCH') {
       expect(req.postDataJSON()).toEqual({ status: 'CONFIRMED', reviewNotes: 'Confirmed by contacting the test operator.', expectedUpdatedAt: flag.updatedAt });
       flag = { ...flag, status: 'CONFIRMED', reviewNotes: 'Confirmed by contacting the test operator.' };
@@ -112,5 +117,5 @@ test('main admin reviews, closes and deliberately deletes a report with a reason
   await dialog.getByRole('button', { name: 'Permanently delete report' }).click();
   await expect(dialog).toHaveCount(0);
   expect(deletes).toEqual([{ reason: 'Confirmed false report after reviewing the caller details.', confirmation: 'DELETE' }]);
-  await expect(page.getByText('No pending or confirmed review flags.')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Report review queue' }).getByText('No pending review flags.', { exact: true })).toBeVisible();
 });

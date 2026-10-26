@@ -247,6 +247,7 @@ export default function MedicalAdminDashboard() {
                             type="button"
                             aria-pressed={activeTab === tab.name}
                             onClick={() => {
+                                if (activeTab === tab.name && page === 1) return;
                                 selectedView.current = `${tab.name}:1`;
                                 setPage(1);
                                 setActiveTab(tab.name);

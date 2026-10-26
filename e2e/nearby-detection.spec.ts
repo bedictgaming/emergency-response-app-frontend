@@ -92,8 +92,8 @@ for (const department of ['MAIN', 'FIRE', 'MEDICAL', 'POLICE', 'DRRMO']) {
     await map.scrollIntoViewIfNeeded();
     await expect(map.getByText('No similar active submitted reports detected within 100 m.', { exact: true })).toBeVisible();
     state.present = true; await emit(page, 'incident.created');
-    await expect(map.getByText('Nearby report · 33 m', { exact: true })).toBeVisible();
-    const label = await map.getByText('Nearby report · 33 m', { exact: true }).boundingBox();
+    await expect(map.getByText('Nearby report · 33 m from Report A', { exact: true })).toBeVisible();
+    const label = await map.getByText('Nearby report · 33 m from Report A', { exact: true }).boundingBox();
     expect(label!.width).toBeGreaterThan(80); expect(label!.height).toBeLessThan(64);
     await expect(map.locator('.leaflet-marker-icon')).toHaveCount(2);
     expect(state.bodies.every(body => Object.keys(body).sort().join(',') === 'incidentId,kind' && body.incidentId === anchorId)).toBe(true);
@@ -103,7 +103,7 @@ for (const department of ['MAIN', 'FIRE', 'MEDICAL', 'POLICE', 'DRRMO']) {
     await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
     if (department === 'MAIN' || department === 'FIRE') await map.screenshot({ path: info.outputPath('department-nearby.png'), animations: 'disabled' });
     state.present = false; await emit(page, 'incident.updated');
-    await expect(map.getByText('Nearby report · 33 m', { exact: true })).toHaveCount(0);
+    await expect(map.getByText('Nearby report · 33 m from Report A', { exact: true })).toHaveCount(0);
     await expect(map.locator('.leaflet-marker-icon')).toHaveCount(1);
   });
 }

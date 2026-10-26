@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { captureIncidentPhoto, installFakeIncidentCamera } from './helpers/incident-camera';
+import { submittedIncident } from './helpers/report-submission';
 
 // UI response handling only. Real counting/races are tested on native PostgreSQL.
 async function fixture(page: Page, outcome: 'ordinary'|'restricted'|'other-account'|'new-session' = 'restricted') {
@@ -30,7 +31,7 @@ async function fixture(page: Page, outcome: 'ordinary'|'restricted'|'other-accou
         localStorage.setItem('emergency-session-generation','new-session');
       },outcome);
       created=true;
-      return route.fulfill({status:201,json:{data:{incident:{incidentId:'accepted-third',reportedBy:'sequence-citizen'},...(outcome!=='ordinary'&&{accountDeactivated:true})}}});
+      return route.fulfill({status:201,json:{data:{incident:{...submittedIncident,reportedBy:'sequence-citizen'},...(outcome!=='ordinary'&&{accountDeactivated:true})}}});
     }
     if(path==='/api/incidents/v1'&&req.method()==='GET') {if(created)readsAfterCreate++;return route.fulfill({json:{data:{incidents:[]}}});}
     return route.fulfill({json:{data:{barangays:[],types:[],alerts:[]}}});
@@ -71,7 +72,12 @@ test('ordinary accepted report keeps the account and normal list refresh',async(
 for(const outcome of ['other-account','new-session'] as const) test(`late restriction cannot clear a newer ${outcome}`,async({page})=>{
   const calls=await fixture(page,outcome);await draft(page);
   await page.getByRole('button',{name:'Submit Report',exact:true}).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  // The older attempt no longer owns this UI. Ignore its receipt instead of
+  // closing another session's draft or publishing its accepted-restriction UI.
+  await expect(page.getByRole('button',{name:'Submit Report',exact:true})).toBeEnabled();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByText('Report received.',{exact:false})).toHaveCount(0);
+  await expect(page.getByText('Failed to submit incident report',{exact:false})).toHaveCount(0);
   expect(calls.created).toBe(true);expect(calls.readsAfterCreate).toBe(0);
   expect(await page.evaluate(()=>localStorage.getItem('emergency-session-generation'))).toBe('new-session');
   expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('user')!).id)).toBe(outcome==='other-account'?'new-citizen':'sequence-citizen');

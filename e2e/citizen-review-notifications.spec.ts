@@ -1,4 +1,5 @@
-import { expect, test, type Page, type WebSocketRoute } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { installSyntheticEventStream } from './helpers/synthetic-event-stream';
 test.use({ serviceWorkers: 'block' });
 const incidentId = '10000000-0000-4000-8000-000000000001';
 const flagId = '20000000-0000-4000-8000-000000000002';
@@ -6,24 +7,21 @@ const userId = '30000000-0000-4000-8000-000000000003';
 const bell = (page: Page) => page.getByRole('button', { name: 'Report notifications', exact: true });
 const panel = (page: Page) => page.getByRole('dialog', { name: 'Notifications', exact: true });
 async function fixture(page: Page, options: { empty?: boolean; theme?: string; blockedStorage?: boolean } = {}) {
+  const transport = await installSyntheticEventStream(page, 'synthetic-notifications');
   const user = { id: userId, name: 'Synthetic citizen', role: 'USER', status: 'ACTIVE', department: null, isMainAdmin: false };
   const state = { user, items: options.empty ? [] : [{ id: flagId, incidentId, reportTitle: 'Synthetic own report <script>plain text only</script>',
     department: 'FIRE', status: 'PENDING', updatedAt: '2026-10-23T00:00:00.000Z' }],
-    error: false, detailError: false, wrongOwner: false, hold: false, joined: false, hasMore: false,
-    reads: 0, details: 0, writes: 0, peers: [] as WebSocketRoute[], release: (() => {}) as () => void };
+    error: false, detailError: false, wrongOwner: false, hold: false, hasMore: false,
+    get joined() { return transport.state.joined; }, get connections() { return transport.state.connections; },
+    reads: 0, details: 0, writes: 0, peers: transport.state.peers, release: (() => {}) as () => void };
   await page.addInitScript(({ user, theme, blockedStorage }) => {
     if (!localStorage.getItem('user')) localStorage.setItem('user', JSON.stringify(user));
     localStorage.setItem('emergency-response-theme', theme || 'light');
-    Object.defineProperty(window, 'EventSource', { configurable: true, value: undefined });
     if (blockedStorage) {
       const original = Storage.prototype.setItem;
       Storage.prototype.setItem = function(key, value) { if (key.startsWith('citizen-review-read:')) throw new Error('Synthetic storage full'); original.call(this, key, value); };
     }
   }, { user, theme: options.theme, blockedStorage: options.blockedStorage });
-  await page.routeWebSocket('**/api/events/v1/socket.io/**', peer => {
-    state.peers.push(peer); peer.onMessage(message => { if (message === '40') { peer.send('40{"sid":"synthetic-notifications"}'); state.joined = true; } });
-    peer.send('0{"sid":"synthetic-engine","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1024}');
-  });
   await page.route(/https:\/\/.*tile.*\//, route => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#e5e7eb"/></svg>' }));
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname.replace(/\/$/, '');
@@ -47,8 +45,7 @@ async function fixture(page: Page, options: { empty?: boolean; theme?: string; b
     return route.fulfill({ json: { data: { enabled: false, items: [], alerts: [], complete: true, nearby: false, radiusMeters: 100 } } });
   });
   return { state, emit: async () => {
-    await expect.poll(() => state.joined).toBe(true);
-    for (const peer of state.peers) peer.send(`42["emergency.event",{"type":"incident.updated","entityId":"${incidentId}"}]`);
+    await transport.emit('incident.updated', { entityId: incidentId });
   } };
 }
 for (const [width, theme] of [[1280, 'light'], [375, 'dark'], [1280, 'dark'], [375, 'light']] as const) test(`private review bell, actions and readable layout at ${width}px ${theme}`, async ({ page }, info) => {
@@ -109,7 +106,7 @@ test('committed live hint refreshes latest assessment without page reload or fal
   await expect(panel(page)).toContainText('Suspicion dismissed'); await expect(panel(page)).toContainText('does not automatically reopen'); expect(state.writes).toBe(0);
 });
 
-for (const department of ['FIRE', 'MEDICAL', 'POLICE', 'DRRMO']) test(`${department}: a first flag updates the closed bell over WebSocket without refresh`, async ({ page }) => {
+for (const department of ['FIRE', 'MEDICAL', 'POLICE', 'DRRMO']) test(`${department}: a first flag updates the closed bell over the selected authenticated transport without refresh`, async ({ page }) => {
   const { state, emit } = await fixture(page, { empty: true });
   let navigations = 0; page.on('framenavigated', frame => { if (frame === page.mainFrame()) navigations++; });
   await page.goto('/dashboard'); await expect(bell(page)).toContainText('0 unread review updates');
@@ -134,9 +131,9 @@ test('reconnect automatically catches a saved flag while the citizen was offline
   const loadedNavigation = navigations;
   await context.setOffline(true); await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
   state.items = [{ id: flagId, incidentId, reportTitle: 'Synthetic flag saved while disconnected', department: 'FIRE', status: 'PENDING', updatedAt: '2026-10-25T01:00:00.000Z' }];
-  const sockets = state.peers.length;
+  const connections = state.connections;
   await context.setOffline(false);
-  await expect.poll(() => state.peers.length).toBeGreaterThan(sockets);
+  await expect.poll(() => state.connections).toBeGreaterThan(connections);
   await expect(bell(page)).toContainText('1 unread review updates', { timeout: 5000 });
   expect(navigations).toBe(loadedNavigation); expect(state.writes).toBe(0);
 });

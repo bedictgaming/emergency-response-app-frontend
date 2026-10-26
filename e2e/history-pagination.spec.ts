@@ -1,4 +1,5 @@
-import { expect, test, type Page, type WebSocketRoute } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { installSyntheticEventStream } from './helpers/synthetic-event-stream';
 
 test.use({ serviceWorkers: 'block' });
 const admin = { id: 'synthetic-history-admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true };
@@ -11,18 +12,12 @@ const records = Array.from({ length: 6 }, (_, index) => ({
   type: { typeName: 'Medical Emergency' }, barangay: { name: 'Bangbang' }, location: {},
 }));
 async function setup(page: Page) {
-  const peers: WebSocketRoute[] = [], closed = new Set<WebSocketRoute>();
+  const transport = await installSyntheticEventStream(page, 'synthetic-history-namespace');
   const state = { records: [] as typeof records, calls: [] as URL[], writes: 0, holdReads: null as Promise<void> | null,
-    emit() { for (const peer of peers) if (!closed.has(peer)) peer.send('42["emergency.event",{"type":"incident.updated"}]'); } };
+    emit: () => transport.emit() };
   await page.addInitScript(user => {
     localStorage.setItem('user', JSON.stringify(user));
-    Object.defineProperty(window, 'EventSource', { configurable: true, value: undefined });
   }, admin);
-  await page.routeWebSocket('**/api/events/v1/socket.io/**', peer => {
-    peers.push(peer); peer.onClose(() => closed.add(peer));
-    peer.onMessage(message => { if (message === '40') peer.send('40{"sid":"synthetic-history-namespace"}'); });
-    peer.send('0{"sid":"synthetic-history-engine","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1024}');
-  });
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url()), path = url.pathname.replace(/\/$/, '');
     if (route.request().method() !== 'GET') { state.writes++; return route.fulfill({ status: 403 }); }
@@ -73,7 +68,7 @@ for (const surface of ['page', 'drawer'] as const) for (const width of [375, 128
     await expect(nav).toContainText('Records 1–5 of 5 · Page 1 of 1');
     await expect(titles).toHaveCount(5);
     await expect(nav.getByRole('button', { name: 'Next page', exact: true })).toBeDisabled();
-    state.records = [...records]; state.emit();
+    state.records = [...records]; await state.emit();
     await expect(nav).toContainText('Records 1–5 of 6 · Page 1 of 2');
     await expect(titles.first()).toHaveText('Report 01'); await expect(titles.last()).toHaveText('Report 05');
     const next = nav.getByRole('button', { name: 'Next page', exact: true });
@@ -126,7 +121,7 @@ for (const surface of ['page', 'drawer'] as const) for (const width of [375, 128
     await expect(nav).toContainText('Records 1–5 of 6 · Page 1 of 2');
     await nav.getByRole('button', { name: 'Next page', exact: true }).click();
     await expect(nav).toContainText('Page 2 of 2');
-    state.records = records.slice(0, 1); state.emit();
+    state.records = records.slice(0, 1); await state.emit();
     await expect(nav).toContainText('Records 1–1 of 1 · Page 1 of 1');
     await expect(titles).toHaveText(['Report 01']);
     state.records = []; await refresh.click();
