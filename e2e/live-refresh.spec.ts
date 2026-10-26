@@ -45,11 +45,11 @@ async function fixture(page: Page) {
       } } });
     }
     if (path === '/api/incidents/v1') {
-      const historical = url.searchParams.get('limit') === '50';
+      const historical = url.searchParams.get('includeTotal') === 'true';
       if (historical) state.history.push(url);
       return route.fulfill({ json: { data: { incidents: historical ? [{ incidentId: 'tracked', title: state.title, description: 'Synthetic record', status: 'RESPONDING', severityLevel: 'MEDIUM',
         reportedAt: '2026-10-18T00:00:00Z', type: { typeName: 'Fire' }, location: {}, barangay: null, incidentUnits: [] }] : [],
-        pagination: { page: 1, pages: 1, total: historical ? 1 : 0, limit: historical ? 50 : 5 }, summary: { total: 0, active: 0, responding: 0, resolved: 0 }, verifiedSummary: { total: 0, active: 0, responding: 0, resolved: 0 } } } });
+        pagination: { page: 1, pages: 1, total: historical ? 1 : 0, limit: 5 }, summary: { total: 0, active: 0, responding: 0, resolved: 0 }, verifiedSummary: { total: 0, active: 0, responding: 0, resolved: 0 } } } });
     }
     if (path.includes('/attention')) state.attention++;
     return route.fulfill({ json: { data: { enabled: false, items: [], hasMore: false, observedAt: new Date().toISOString(),

@@ -8,6 +8,9 @@ export interface ContinuousPaginationProps {
   value?: number;
   defaultPage?: number;
   onChange?: (page: number) => void;
+  disabled?: boolean;
+  ariaLabel?: string;
+  showWhenSinglePage?: boolean;
 }
 
 interface PageButtonProps {
@@ -53,6 +56,9 @@ export const ContinuousPagination: FC<ContinuousPaginationProps> = ({
   value,
   defaultPage = 1,
   onChange,
+  disabled = false,
+  ariaLabel = 'Report pages',
+  showWhenSinglePage = false,
 }) => {
   const isControlled = value !== undefined;
   const [internalPage, setInternalPage] = useState(defaultPage);
@@ -60,21 +66,21 @@ export const ContinuousPagination: FC<ContinuousPaginationProps> = ({
   const visiblePages = useMemo(() => getVisiblePages(active, totalPages), [active, totalPages]);
 
   const paginate = (page: number) => {
-    if (page < 1 || page > totalPages || page === active) return;
+    if (disabled || page < 1 || page > totalPages || page === active) return;
     if (!isControlled) setInternalPage(page);
     onChange?.(page);
   };
 
-  if (totalPages <= 1) return null;
+  if (totalPages <= 1 && !showWhenSinglePage) return null;
 
   return (
-    <nav aria-label="Report pages" className="flex items-center justify-center gap-1.5 text-sm sm:gap-2">
-      <PageButton ariaLabel="Previous page" onClick={() => paginate(active - 1)} disabled={active === 1}>
+    <nav aria-label={ariaLabel} className="flex items-center justify-center gap-1.5 text-sm sm:gap-2">
+      <PageButton ariaLabel="Previous page" onClick={() => paginate(active - 1)} disabled={disabled || active === 1 || totalPages <= 1}>
         <ChevronLeft className="h-5 w-5" aria-hidden="true" />
       </PageButton>
 
       <span className="min-w-24 text-center text-sm font-semibold text-foreground sm:hidden">
-        Page {active} of {totalPages}
+        {totalPages === 0 ? 'No pages' : `Page ${active} of ${totalPages}`}
       </span>
 
       <div className="hidden gap-1.5 sm:flex sm:gap-2">
@@ -99,7 +105,8 @@ export const ContinuousPagination: FC<ContinuousPaginationProps> = ({
               onClick={() => paginate(page)}
               aria-label={`Go to page ${page}`}
               aria-current={isActive ? 'page' : undefined}
-              className={`flex h-11 w-11 items-center justify-center rounded-lg border text-sm font-semibold shadow-sm transition-[background-color,border-color,color,box-shadow] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+              disabled={disabled}
+              className={`flex h-11 w-11 items-center justify-center rounded-lg border text-sm font-semibold shadow-sm transition-[background-color,border-color,color,box-shadow] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 ${
                 isActive
                   ? 'border-primary bg-primary text-primary-foreground'
                   : 'border-border bg-card text-muted-foreground hover:border-muted-foreground/40 hover:bg-muted hover:text-foreground'
@@ -111,7 +118,7 @@ export const ContinuousPagination: FC<ContinuousPaginationProps> = ({
         })}
       </div>
 
-      <PageButton ariaLabel="Next page" onClick={() => paginate(active + 1)} disabled={active === totalPages}>
+      <PageButton ariaLabel="Next page" onClick={() => paginate(active + 1)} disabled={disabled || active >= totalPages}>
         <ChevronRight className="h-5 w-5" aria-hidden="true" />
       </PageButton>
     </nav>

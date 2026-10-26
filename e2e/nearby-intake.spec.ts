@@ -82,7 +82,7 @@ async function fixture(page: Page, department = 'FIRE', distances = { pending: 2
     return route.fulfill({ json: { data: { user, incidents: [report], items: [], hasMore: false, observedAt: new Date().toISOString(),
       enabled: false, flags: [], pagination: { page: 1, limit: 5, total: 1, pages: 1 }, summary: { total: 1, active: 0, responding: 1, resolved: 0 } } } });
   });
-  return state;
+  return Object.assign(state, { emit });
 }
 for (const department of ['FIRE', 'MEDICAL', 'POLICE', 'DRRMO']) test(`${department} reviews and acknowledges the pending follow-up`, async ({ page }, info) => {
   await page.setViewportSize({ width: department === 'FIRE' ? 1280 : 390, height: 900 });
@@ -226,6 +226,55 @@ test('an anchored popup never shows denied report B or action controls', async (
   expect(state.flags).toEqual([]); expect(state.decisions).toEqual([]);
 });
 
+for (const width of [1280, 390]) test(`report B distance is explicitly from A, zoom-independent and event-refreshed (${width}px)`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  const distances = { pending: 84, older: 2 };
+  const state = await fixture(page, 'MEDICAL', distances, true);
+  await page.goto('/admin/medical-dashboard');
+  const map = page.getByRole('group', { name: 'Reported emergency location', exact: true });
+  await map.scrollIntoViewIfNeeded();
+  await expect(map.getByRole('button', { name: 'View report · 84 m from Report A', exact: true })).toBeVisible();
+  await expect(map.getByRole('button', { name: /Review nearby report · MEDICAL · 84 m from Report A/ })).toHaveCount(1);
+  await map.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await map.getByRole('button', { name: 'Zoom out', exact: true }).click();
+  await expect(map.getByRole('button', { name: 'View report · 84 m from Report A', exact: true })).toBeVisible();
+  await map.getByTitle('Review pending nearby report · 84 m', { exact: true }).click();
+  const popup = map.getByRole('region', { name: 'Nearby submitted report', exact: true });
+  const measurement = popup.locator('p').filter({ hasText: 'Distance from Report A:' });
+  await expect(measurement).toHaveText('Distance from Report A: 84 m (straight-line estimate)');
+  const reference = map.locator('path.report-distance-reference');
+  await expect(reference).toHaveCount(1);
+  await expect(reference).toHaveAttribute('stroke-dasharray', '5 5');
+  await expect(reference).not.toHaveClass(/leaflet-interactive/);
+  await expect(reference).toHaveAttribute('d', /^M.+L/);
+  const initialPath = await reference.getAttribute('d');
+  await expect(map.getByText(/Straight-line estimates, rounded to the nearest metre/)).toBeVisible();
+  await expect(popup.getByText('Review this later report before deciding.', { exact: true })).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Acknowledge report', exact: true })).toBeVisible();
+  await expect.poll(() => popup.getByRole('button', { name: 'Acknowledge report', exact: true }).evaluate(button => {
+    const bounds = button.closest('.leaflet-popup-content')!.getBoundingClientRect();
+    const action = button.getBoundingClientRect();
+    return action.top >= bounds.top && action.bottom <= bounds.bottom;
+  })).toBe(true);
+  await map.screenshot({ path: info.outputPath(`distance-from-A-${width}.png`), animations: 'disabled' });
+  // A synthetic server update changes the displayed measurement, without a
+  // page refresh, screen-distance calculation or automatic workflow decision.
+  distances.pending = 20;
+  await state.emit();
+  await expect(measurement).toHaveText('Distance from Report A: 20 m (straight-line estimate)');
+  await expect(map.getByTitle('Review pending nearby report · 20 m', { exact: true })).toBeVisible();
+  await expect(reference).toHaveCount(1);
+  await expect(reference).not.toHaveAttribute('d', initialPath!);
+  distances.pending = 0;
+  await state.emit();
+  await expect(measurement).toHaveText('Distance from Report A: Less than 1 m (straight-line estimate)');
+  await expect(reference).toHaveCount(1);
+  await map.locator('.nearby-report-popup .leaflet-popup-close-button').click();
+  await expect(map.locator('.report-distance-reference')).toHaveCount(0);
+  expect(state.detailIds.every(id => id === follow)).toBe(true);
+  expect(state.decisions).toEqual([]); expect(state.starts).toEqual([]);
+});
+
 test('Main Admin anchored report popup is read-only', async ({ page }) => {
   const state = await fixture(page, 'MAIN', { pending: 2, older: 84 }, true);
   await page.goto('/admin/main-dashboard');
@@ -251,6 +300,13 @@ for (const width of [1280, 390]) test(`anchored report photo returns to its popu
   const popup = map.getByRole('region', { name: 'Nearby submitted report', exact: true });
   await expect(popup.getByRole('heading', { name: 'Later synthetic report B' })).toBeVisible();
   await expect(popup.getByText('00000000000', { exact: true })).toBeVisible();
+  const contactLink = popup.getByRole('link', { name: 'Call report contact 00000000000', exact: true });
+  await expect(contactLink).toHaveAttribute('href', 'tel:00000000000');
+  expect((await contactLink.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await expect(popup.getByRole('link', { name: /00000000001/ })).toHaveCount(0);
+  await contactLink.evaluate(link => link.addEventListener('click', event => { event.preventDefault(); link.setAttribute('data-test-activated', 'true'); }));
+  await contactLink.focus(); await contactLink.press('Enter'); await expect(contactLink).toHaveAttribute('data-test-activated', 'true');
+  await map.screenshot({ path: info.outputPath(`contact-popup-${width}.png`), animations: 'disabled' });
   await expect(popup.getByText('Review this later report before deciding.', { exact: true })).toBeVisible();
   await expect(map.locator('.leaflet-control-zoom')).toHaveCount(1);
   await expect(map.locator('.leaflet-control-zoom')).toHaveCSS('visibility', 'hidden');
@@ -347,10 +403,10 @@ test('original map offers only its pending follow-up, not the older 84m peer', a
   const map = page.getByRole('group', { name: 'Reported emergency location', exact: true });
   await map.scrollIntoViewIfNeeded();
   await expect(map.getByRole('button', { name: /Review nearby report ·/ })).toHaveCount(1);
-  await expect(map.getByRole('button', { name: 'Review nearby report · FIRE · 2 m', exact: true })).toBeVisible();
+  await expect(map.getByRole('button', { name: 'Review nearby report · FIRE · 2 m from Report A', exact: true })).toBeVisible();
   await expect(map.getByRole('button', { name: /Review nearby report · FIRE · 84/ })).toHaveCount(0);
   await expect(map.locator('[data-mapcn-marker-label]')).toHaveCount(1);
-  await expect(map.getByRole('button', { name: 'Pending nearby report · 2 m', exact: true })).toBeVisible();
+  await expect(map.getByRole('button', { name: 'Pending nearby report · 2 m from Report A', exact: true })).toBeVisible();
   await expect(map.getByText('Nearby report · 84 m', { exact: true })).toHaveCount(0);
   const pendingPin = map.getByTitle('Review pending nearby report · 2 m', { exact: true });
   await expect(pendingPin).toHaveClass(/nearby-report-dot-pending/);
@@ -389,7 +445,7 @@ for (const width of [1280, 390]) test(`only the later 84m report has a clickable
   expect((radiusBounds!.y + radiusBounds!.height / 2 - (dotBounds!.y + 22)) / (radiusBounds!.height / 2)).toBeCloseTo(0.84, 1);
   await expect(map.locator('[data-mapcn-marker-label]')).toHaveCount(1);
   await expect(map.getByText('Nearby report · 2 m', { exact: true })).toHaveCount(0);
-  const label = map.getByRole('button', { name: 'Pending nearby report · 84 m', exact: true });
+  const label = map.getByRole('button', { name: 'Pending nearby report · 84 m from Report A', exact: true });
   await expect(label).toBeVisible();
   const mapBounds = await map.getByRole('group', { name: 'Incident location map', exact: true }).boundingBox();
   const labelBounds = await map.locator('[data-mapcn-marker-label]').boundingBox();
@@ -398,7 +454,7 @@ for (const width of [1280, 390]) test(`only the later 84m report has a clickable
   expect(labelBounds!.x).toBeGreaterThanOrEqual(mapBounds!.x);
   expect(labelBounds!.x + labelBounds!.width).toBeLessThanOrEqual(mapBounds!.x + mapBounds!.width);
   await expect(map.getByRole('button', { name: /Review nearby report ·/ })).toHaveCount(1);
-  await expect(map.getByRole('button', { name: 'Review nearby report · MEDICAL · 84 m', exact: true })).toBeVisible();
+  await expect(map.getByRole('button', { name: 'Review nearby report · MEDICAL · 84 m from Report A', exact: true })).toBeVisible();
   await map.screenshot({ path: info.outputPath(`pending-map-${width}.png`), animations: 'disabled' });
   if (width === 1280) await label.click();
   else await map.getByTitle('Review pending nearby report · 84 m', { exact: true }).click();
@@ -545,7 +601,7 @@ for (const width of [1280, 390]) for (const reducedMotion of ['no-preference', '
       if (cycle === 0) { await dot.focus(); await page.keyboard.press('Enter'); } else await dot.click();
       const popup = map.getByRole('region', { name: 'Nearby submitted report', exact: true });
       await expect(expansion).toHaveAttribute('data-expanded', 'true');
-      await expect(expansion).toHaveCSS('height', '420px');
+      await expect(expansion).toHaveCSS('height', '480px');
       await expect(dot).toHaveAttribute('aria-expanded', 'true');
       await expect(popup.getByRole('heading', { name: 'Later synthetic report B', exact: true })).toBeVisible();
       await expect(popup.getByText('00000000000', { exact: true })).toBeVisible();

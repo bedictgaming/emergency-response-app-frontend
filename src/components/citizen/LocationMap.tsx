@@ -5,7 +5,9 @@ import { Ban, Crosshair, MapPinCheck } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { MarkerLabel } from '@/components/ui/mapcn-marker-label';
 import type { NearbyMapPin } from '@/lib/services/nearbyDetectionService';
+import { formatNearbyReportDistance } from '@/lib/reportDistance';
 import { presencePositionsForMap, type CitizenPresenceLayer } from '@/lib/citizenPresenceLocations';
+import type { ReportPinReviewControl } from '@/types/report-pin-review';
 import {
     CORDOVA_CENTER,
     CORDOVA_BOUNDS,
@@ -23,6 +25,15 @@ const defaultIcon = divIcon({
     iconAnchor: [18, 42],
     popupAnchor: [0, -36],
 });
+// Fixed, trusted SVG. The tip remains exactly on the saved GPS coordinate.
+// The 52px target remains keyboard/touch accessible without moving the pin.
+const reviewPin = (flagged: boolean) => divIcon({
+    className: `incident-location-pin report-review-pin${flagged ? ' report-review-pin-flagged' : ''}`,
+    html: '<svg width="52" height="52" viewBox="0 0 52 52" aria-hidden="true"><path d="M22 48S6 32 6 24a16 16 0 1 1 32 0c0 8-16 24-16 24Z" fill="#dc2626" stroke="#fff" stroke-width="2"/><circle cx="22" cy="24" r="6" fill="#fff"/>'
+      + (flagged ? '<circle cx="39" cy="12" r="11" fill="#fef3c7" stroke="#92400e" stroke-width="1.5"/><path d="M35 6v15m0-14c4-3 6 3 10 0v8c-4 3-6-3-10 0" fill="none" stroke="#92400e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' : '') + '</svg>',
+    iconSize: [52, 52], iconAnchor: [22, 48], popupAnchor: [0, -42],
+});
+const reviewPinIcon = reviewPin(false), flaggedReviewPinIcon = reviewPin(true);
 
 // A centred dot marks nearby reports without moving their recorded coordinates.
 // The visible 24px dot has a larger 44px keyboard/click/touch target.
@@ -49,6 +60,7 @@ interface LocationMapProps {
     height?: string;
     nearbyPins?: NearbyMapPin[];
     nearbyLabel?: string;
+    nearbyReferenceLabel?: string;
     onNearbyReport?: (id: string) => void;
     reviewIncidentIds?: string[];
     waitingIncidentIds?: string[];
@@ -56,6 +68,7 @@ interface LocationMapProps {
     onNearbyReportClose?: () => void;
     renderNearbyReport?: (id: string) => ReactNode;
     onlinePresence?: CitizenPresenceLayer;
+    reportPinReview?: ReportPinReviewControl;
 }
 
 function NearbyMapPopup({ pin, onClose, children }: { pin: NearbyMapPin; onClose?: () => void; children: ReactNode }) {
@@ -90,7 +103,7 @@ function NearbyMapPopup({ pin, onClose, children }: { pin: NearbyMapPin; onClose
         if (content) resize.observe(content);
         return () => resize.disconnect();
     }, [content]);
-    return <Popup ref={popup} position={position} className="nearby-report-popup" minWidth={160} maxWidth={width} maxHeight={290}
+    return <Popup ref={popup} position={position} className="nearby-report-popup" minWidth={160} maxWidth={width} maxHeight={320}
         autoPanPadding={[16, 24]} closeOnClick={false} eventHandlers={{
             add: event => (event.target as LeafletPopup).getElement()?.addEventListener('keydown', escape),
             remove: event => { (event.target as LeafletPopup).getElement()?.removeEventListener('keydown', escape); onCloseRef.current?.(); },
@@ -205,12 +218,14 @@ function LocationMarker({
     interactive,
     onOutOfScopeClick,
     nearbyLabel,
+    reportPinReview,
 }: {
     position: [number, number] | null;
     onLocationChange?: (lat: number, lng: number) => void;
     interactive?: boolean;
     onOutOfScopeClick?: () => void;
     nearbyLabel?: string;
+    reportPinReview?: ReportPinReviewControl;
 }) {
     useMapEvents({
         click(e) {
@@ -227,9 +242,31 @@ function LocationMarker({
 
     if (!position) return null;
 
+    const title = reportPinReview ? reportPinReview.flagStatus === 'CONFIRMED' ? 'Review department-confirmed report at this pin'
+      : reportPinReview.flagStatus ? 'Review flagged report at this pin' : 'Review or flag report at this pin' : 'Emergency location pin';
+    const openReview = () => { if (reportPinReview && !reportPinReview.busy) reportPinReview.onOpen(); };
+    const updateMarker = (marker: LeafletMarker | null) => {
+        if (!marker) return;
+        marker.options.title = title;
+        const element = marker.getElement();
+        if (!element) return;
+        element.title = title; element.setAttribute('aria-label', title);
+        if (reportPinReview) {
+            element.setAttribute('aria-haspopup', 'dialog');
+            element.setAttribute('aria-busy', String(reportPinReview.busy));
+            element.setAttribute('aria-disabled', String(reportPinReview.busy));
+            element.setAttribute('data-report-flag-status', reportPinReview.flagStatus ?? 'NONE');
+        } else for (const name of ['aria-haspopup', 'aria-busy', 'aria-disabled', 'data-report-flag-status']) element.removeAttribute(name);
+    };
     return (
-        <Marker position={position} icon={defaultIcon} zIndexOffset={500} alt="Emergency location pin" title="Emergency location pin">
-            <Popup>
+        <Marker position={position} icon={reportPinReview ? reportPinReview.flagStatus ? flaggedReviewPinIcon : reviewPinIcon : defaultIcon} zIndexOffset={500} alt={title} title={title}
+            ref={updateMarker}
+            eventHandlers={reportPinReview ? { add: event => updateMarker(event.target as LeafletMarker), click: openReview, keydown: event => {
+                if (event.originalEvent.key === 'Enter' || event.originalEvent.key === ' ') {
+                    event.originalEvent.preventDefault(); event.originalEvent.stopPropagation(); openReview();
+                }
+            } } : undefined}>
+            {!reportPinReview && <Popup>
                 {interactive ? (
                     <div className="text-center p-1">
                         <span className="inline-block px-2 py-0.5 mb-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full">
@@ -252,7 +289,7 @@ function LocationMarker({
                         </p>
                     </div>
                 )}
-            </Popup>
+            </Popup>}
             {nearbyLabel && <Tooltip permanent direction="top" offset={[0, -42]} className="nearby-map-tooltip"><MarkerLabel>{nearbyLabel}</MarkerLabel></Tooltip>}
         </Marker>
     );
@@ -280,8 +317,8 @@ export function LocationMap({
     navigable = true,
     zoom = 16,
     height = '300px',
-    nearbyPins = [], nearbyLabel, onNearbyReport, reviewIncidentIds, waitingIncidentIds,
-    selectedNearbyReportId, onNearbyReportClose, renderNearbyReport, onlinePresence
+    nearbyPins = [], nearbyLabel, nearbyReferenceLabel, onNearbyReport, reviewIncidentIds, waitingIncidentIds,
+    selectedNearbyReportId, onNearbyReportClose, renderNearbyReport, onlinePresence, reportPinReview
 }: LocationMapProps) {
     const [scopeWarning, setScopeWarning] = useState(false);
     const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -418,6 +455,7 @@ export function LocationMap({
                     interactive={interactive}
                     onOutOfScopeClick={triggerOutOfScopeWarning}
                     nearbyLabel={nearbyLabel}
+                    reportPinReview={reportPinReview}
                 />
                 {/* Keep a close GPS dot visible above the tall own-location pin,
                     without moving either position or intercepting map controls. */}
@@ -427,19 +465,29 @@ export function LocationMap({
                         className="citizen-presence-dot"
                         pathOptions={{ color: '#fff', weight: 2, fillColor: '#0089ff', fillOpacity: 1 }} />)}
                 </Pane>
+                {hasValidCoords && nearbyReferenceLabel && selectedNearbyPin && renderNearbyReport && <Polyline
+                    positions={[[initialLat, initialLng], [selectedNearbyPin.latitude, selectedNearbyPin.longitude]]}
+                    className="report-distance-reference"
+                    interactive={false} pathOptions={{ color: '#0089ff', weight: 2, dashArray: '5 5' }} />}
                 {nearbyPins.map(pin => {
                     const reviewable = reviewIncidentIds?.includes(pin.incidentId) === true;
                     const waiting = reviewable && waitingIncidentIds?.includes(pin.incidentId) === true;
                     const pending = reviewable && !waiting;
                     const openPending = reviewable && onNearbyReport ? () => onNearbyReport(pin.incidentId) : undefined;
-                    const title = waiting ? `Review acknowledged nearby report · ${pin.distanceMeters} m` : pending ? `Review pending nearby report · ${pin.distanceMeters} m` : 'Nearby submitted report';
+                    const distance = formatNearbyReportDistance(pin.distanceMeters) ?? 'Distance unavailable';
+                    const distanceLabel = `${distance}${nearbyReferenceLabel ? ` from ${nearbyReferenceLabel}` : ''}`;
+                    const title = waiting ? `Review acknowledged nearby report · ${distance}` : pending ? `Review pending nearby report · ${distance}` : 'Nearby submitted report';
                     // Update Leaflet's creation-only title without replacing a
                     // focused dot when its pending/waiting phase changes.
                     return <Marker key={pin.incidentId} position={[pin.latitude, pin.longitude]}
                         ref={marker => {
                             if (marker) {
                                 marker.options.title = title;
-                                const element = marker.getElement(); if (element) element.title = title;
+                                const element = marker.getElement();
+                                if (element) {
+                                    element.title = title;
+                                    element.setAttribute('aria-label', `${title}${nearbyReferenceLabel ? ` from ${nearbyReferenceLabel}` : ''}`);
+                                }
                                 if (reviewable && renderNearbyReport) element?.setAttribute('aria-expanded', String(selectedNearbyReportId === pin.incidentId));
                                 else element?.removeAttribute('aria-expanded');
                                 nearbyMarkers.current.set(pin.incidentId, marker);
@@ -448,6 +496,7 @@ export function LocationMap({
                         icon={waiting ? waitingNearbyDotIcon : pending ? pendingNearbyDotIcon : nearbyDotIcon}
                         zIndexOffset={reviewable ? 1000 : 0}
                         title={title}
+                        alt={`${title}${nearbyReferenceLabel ? ` from ${nearbyReferenceLabel}` : ''}`}
                         eventHandlers={openPending ? { click: openPending, keydown: event => {
                             if (event.originalEvent.key === 'Enter' || event.originalEvent.key === ' ') {
                                 event.originalEvent.preventDefault();
@@ -461,8 +510,8 @@ export function LocationMap({
                                 ? <button type="button" className="min-h-11 rounded-md px-2 py-1 focus-visible:outline-2 focus-visible:outline-red-600"
                                     aria-expanded={renderNearbyReport ? selectedNearbyReportId === pin.incidentId : undefined}
                                     title={pin.flaggedForReview ? 'Flagged for review; proximity alone does not confirm a fake report.' : undefined}
-                                    onClick={openPending}>{renderNearbyReport ? 'View report' : waiting ? 'Acknowledged · waiting to respond' : 'Pending nearby report'} · {pin.distanceMeters} m</button>
-                                : <>{pin.flaggedForReview ? 'Flagged for review' : 'Nearby report'} · {pin.distanceMeters} m</>}
+                                    onClick={openPending}>{renderNearbyReport ? 'View report' : waiting ? 'Acknowledged · waiting to respond' : 'Pending nearby report'} · {distanceLabel}</button>
+                                : <>{pin.flaggedForReview ? 'Flagged for review' : 'Nearby report'} · {distanceLabel}</>}
                             </MarkerLabel>
                         </Tooltip>}
                         {!openPending && <Popup>

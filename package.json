@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "test:architecture": "node --test scripts/architecture.test.mjs",
+    "test:architecture": "node --test scripts/architecture.test.mjs scripts/recovery-styles.test.mjs",
     "test:seo": "node --test scripts/seo.test.mjs",
-    "test:realtime": "node --experimental-strip-types --test scripts/emergency-transport.test.mjs scripts/public-reference-cache.test.mjs scripts/new-report-alert.test.mjs",
+    "test:realtime": "node --experimental-strip-types --test scripts/emergency-transport.test.mjs scripts/emergency-stream-session.test.mjs scripts/public-reference-cache.test.mjs scripts/new-report-alert.test.mjs",
     "seo:card": "node scripts/generate-seo-card.mjs",
     "release:check": "node scripts/release-preflight.mjs",
     "deploy:check": "node scripts/deployment-preflight.mjs",
@@ -24,14 +24,17 @@
     "test:e2e:dev": "playwright test --config=playwright.dev.config.ts"
   },
   "dependencies": {
+    "@radix-ui/react-popover": "1.3.1",
     "@types/leaflet": "^1.9.21",
     "@vercel/functions": "3.9.9",
     "axios": "^1.20.0",
     "clsx": "^2.1.1",
+    "jspdf": "4.2.1",
+    "jspdf-autotable": "5.0.9",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.17.0",
     "motion": "^13.4.0",
-    "next": "^16.3.6",
+    "next": "16.4.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-icons": "^5.7.0",
@@ -54,6 +57,7 @@
   },
   "overrides": {
     "follow-redirects": "1.16.1",
-    "@next/eslint-plugin-next": "$@next/eslint-plugin-next"
+    "@next/eslint-plugin-next": "$@next/eslint-plugin-next",
+    "zod": "4.6.6"
   }
 }

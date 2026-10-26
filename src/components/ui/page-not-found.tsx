@@ -5,7 +5,14 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, House } from "lucide-react";
 import { useMotionActivity } from "../../hooks/use-motion-activity";
-import styles from "./page-not-found.module.css";
+
+// CSS is owned by the root layout, not this fallback's separate client entry.
+const styles = {
+  scene: "er-not-found-scene", canvas: "er-not-found-canvas", characters: "er-not-found-characters",
+  traveler: "er-not-found-traveler", restingFigure: "er-not-found-resting-figure", message: "er-not-found-message",
+  code: "er-not-found-code", description: "er-not-found-description", actions: "er-not-found-actions",
+  back: "er-not-found-back", home: "er-not-found-home", emergency: "er-not-found-emergency",
+} as const;
 
 const figures = [
   { source: 1, top: "2%", duration: "1.5s", rotation: "-90deg" },

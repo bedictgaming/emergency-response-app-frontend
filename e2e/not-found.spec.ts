@@ -87,6 +87,10 @@ test('missing-page remains usable without JavaScript', async ({ browser }) => {
     const page = await context.newPage();
     expect((await page.goto('/missing-page'))!.status()).toBe(404);
     await expect(page.getByRole('heading', { name: 'Page Not Found' })).toBeVisible();
+    // Visibility alone would also pass for an unstyled fallback. Recovery CSS
+    // must be available from the server without hydration or a client import.
+    await expect(page.locator('main')).toHaveCSS('display', 'grid');
+    await expect(page.getByRole('link', { name: 'Go Home' })).toHaveCSS('min-height', '48px');
     await expect(page.getByRole('link', { name: 'Go Home' })).toBeVisible();
     await page.getByRole('link', { name: 'Go Home' }).click();
     await expect(page).toHaveURL('/');

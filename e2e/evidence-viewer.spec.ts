@@ -22,7 +22,21 @@ async function fixture(page: Page, department?: string) {
     attachments: [{ attachmentId: 'viewer-photo', fileName: 'test.svg', fileType: 'image/png', fileUrl: sourceUrl, uploadedAt: new Date().toISOString() }],
   };
   await page.addInitScript(user => localStorage.setItem('user', JSON.stringify(user)), user);
-  await page.route('**/api/**', route => route.fulfill({ json: { data: { user, incidents: [incident], alerts: [], reviewFlags: [] } } }));
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.replace(/\/$/, '') === '/api/incidents/v1') {
+      // Honor the server's filtered-page contract. A resolved fixture must not
+      // first mount a thumbnail in Responding, then mount it again on tab change.
+      const statuses = (url.searchParams.get('serviceStatuses') ?? url.searchParams.get('statuses') ?? url.searchParams.get('status') ?? '').split(',').filter(Boolean);
+      const incidents = url.searchParams.get('reportView') !== 'false-reports'
+        && (!statuses.length || statuses.includes('RESOLVED')) ? [incident] : [];
+      return route.fulfill({ json: { data: { incidents,
+        pagination: { page: 1, limit: 5, total: incidents.length, pages: incidents.length },
+        summary: { total: 1, active: 0, responding: 0, resolved: 1, cancelled: 0, falseReports: 0 },
+      } } });
+    }
+    return route.fulfill({ json: { data: { user, incidents: [incident], alerts: [], reviewFlags: [] } } });
+  });
   const state = { requests: 0, deny: false, failImage: false, delay: undefined as undefined | ((route: Route) => Promise<void>) };
   await page.route('**/api/attachments/v1/viewer-photo/access-url', async route => {
     state.requests += 1;
@@ -39,7 +53,12 @@ async function fixture(page: Page, department?: string) {
   // This is deliberately a public history entry, not an automatic session restore.
   await page.goto('/?session=manual');
   await page.goto(pathname);
-  if (department && department !== 'MAIN') await page.getByRole('button', { name: 'Resolved (1)' }).click();
+  if (department && department !== 'MAIN') {
+    await expect(page.getByRole('button', { name: 'Responding (0)', exact: true })).toBeVisible();
+    await expect(page.getByText('Photo attached', { exact: true })).toHaveCount(0);
+    expect(state.requests).toBe(0);
+    await page.getByRole('button', { name: 'Resolved (1)' }).click();
+  }
   // Photos are deliberately lazy: scroll the card into view on narrow phones.
   await page.getByText('Photo attached', { exact: true }).first().scrollIntoViewIfNeeded();
   const trigger = page.getByRole('button', { name: 'View photo →' }).first();

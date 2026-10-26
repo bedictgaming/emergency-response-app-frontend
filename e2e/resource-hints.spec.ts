@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+test.use({ serviceWorkers: 'block' });
 
 const unusedLogoPreload = 'link[rel="preload"][as="image"][href$="/emergency-icon.png"]';
 
@@ -34,6 +35,16 @@ test('citizen dashboard logo loads without an unnecessary preload', async ({ pag
   await page.route('**/api/incidents/v1/**', route => route.fulfill({
     json: { data: { incidents: [], pagination: { page: 1, pages: 1, total: 0, limit: 50 } } },
   }));
+  // Keep these resource checks isolated from owner sessions/provider endpoints.
+  await page.route('**/api/**', async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.includes('/auth/') || path.includes('/incidents/')) return route.fallback();
+    return route.fulfill({ json: { data: { enabled: false, items: [], hasMore: false } } });
+  });
+  await page.routeWebSocket('**/api/events/v1/socket.io/**', peer => {
+    peer.onMessage(message => { if (message === '40') peer.send('40{"sid":"synthetic-resources"}'); });
+    peer.send('0{"sid":"synthetic-resources","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1024}');
+  });
   await page.goto('/dashboard');
   const logo = page.locator('header img[src="/emergency-icon.png"]');
   await expect(logo).toHaveAttribute('alt', '');
@@ -62,7 +73,7 @@ test('normal route HTML does not leave fallback-only CSS preloads unused', async
       expect(url).toBeDefined();
       const css = await request.get(url!);
       expect(css.status()).toBe(200);
-      expect(await css.text(), path).not.toContain('page-not-found-module');
+      expect(await css.text(), path).not.toMatch(/page-not-found-module|er-not-found-scene/);
     }
   }
 });

@@ -31,9 +31,10 @@ function validSummary(summary: ResolvedSummaryItem | null | undefined, period: s
 }
 
 /** Past-month reads retain the same backend verification and department scope. */
-export default function MonthlyResolutionCard({ summary, compact = false }: {
+export default function MonthlyResolutionCard({ summary, compact = false, onPeriodChange }: {
   summary?: ResolvedSummaryItem | null;
   compact?: boolean;
+  onPeriodChange?: (period: string) => void;
 }) {
   const inputId = useId();
   const currentPeriod = currentManilaPeriod();
@@ -78,6 +79,7 @@ export default function MonthlyResolutionCard({ summary, compact = false }: {
           const next = event.target.value;
           if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(next) || next < "2000-01" || next > currentPeriod) return;
           setSelection(previous => ({ period: next, revision: previous.revision + 1 }));
+          onPeriodChange?.(next);
         }} />
       <div aria-live="polite" className="mt-3">
         <div className={`${compact ? "text-2xl font-extrabold" : "text-4xl font-black"} text-emerald-800`}>

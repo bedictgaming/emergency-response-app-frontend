@@ -5,6 +5,24 @@ import { getUserSafety, requestUserPasswordReset, type SystemUser, type UserSafe
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { adminAccountSnapshot } from '@/lib/adminAccountSnapshot';
 
+function auditTime(value: string) {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Manila' }).format(date) : 'Date unavailable';
+}
+function auditActor(actor?: { id: string; name: string | null } | null) {
+  return actor ? `${actor.name || 'Name unavailable'} · ID ${actor.id}` : 'Actor not available in the retained record';
+}
+function reviewLabel(event: NonNullable<UserSafetyRecord['reviewEvents']>[number]) {
+  switch (event.action) {
+    case 'INCIDENT_FLAGGED': return 'Report flagged for review';
+    case 'INCIDENT_FLAG_REVIEWED': return event.decision === 'CONFIRMED' ? 'False report confirmed' : event.decision === 'DISMISSED' ? 'Flag dismissed' : 'Flag reviewed';
+    case 'INCIDENT_FLAG_CORRECTED': return 'False-report confirmation corrected';
+    case 'NEARBY_REPORT_REJECTED': return 'Nearby report rejected';
+    case 'NEARBY_REPORT_ACKNOWLEDGED': return 'Nearby report acknowledged';
+    default: return 'Report review action';
+  }
+}
+
 export function UserSafetyPanel({ user, onClose }: { user: SystemUser; onClose: () => void }) {
   const [record, setRecord] = useState<UserSafetyRecord | null>(null);
   const [error, setError] = useState('');
@@ -20,6 +38,16 @@ export function UserSafetyPanel({ user, onClose }: { user: SystemUser; onClose: 
     catch { if (valid()) { setRecord(null); setError('Account safety could not load. Retry when your connection is available.'); } }
   }, [user.id]);
   useEffect(() => { const requests = revision; void load(); return () => { requests.current++; }; }, [load]);
+  useEffect(() => {
+    const account = adminAccountSnapshot(), logout = localStorage.getItem('emergency-logout-epoch');
+    const changed = () => {
+      if (account === adminAccountSnapshot() && logout === localStorage.getItem('emergency-logout-epoch')) return;
+      revision.current++; setRecord(null); setMessage('');
+      setError('Account changed. Close this panel and reload from your authorized dashboard.');
+    };
+    window.addEventListener('storage', changed);
+    return () => window.removeEventListener('storage', changed);
+  }, [user.id]);
   useLiveRefresh(load, true, true);
   async function resetPassword() {
     const account = adminAccountSnapshot(), logout = localStorage.getItem('emergency-logout-epoch');
@@ -42,16 +70,31 @@ export function UserSafetyPanel({ user, onClose }: { user: SystemUser; onClose: 
         <p className="font-semibold tabular-nums">{record.confirmedFalseCount} / {record.threshold} distinct confirmed-false reports in the current cycle</p>
         <p className="mt-2 leading-6">{record.enabled ? 'The third confirmed-false report deactivates citizen access. Only Main Admin can reactivate it.' : 'Automatic confirmed-false sanctions are not enabled on this server.'} Pending flags and nearby detection are not proof of a false report. The separate 3 reports / 5 minutes rule is unchanged.</p>
         <p className="mt-2 leading-6">Correcting a mistaken confirmation updates the count but never automatically restores access. Main Admin reactivation starts a fresh cycle; previously counted reports are not counted again.</p>
+        <p className="mt-2 leading-6">Sanctions follow this citizen account across devices. This is not an IMEI/device ban and does not identify the same person behind a different account.</p>
       </div>
       <details>
         <summary className="min-h-11 cursor-pointer py-3 font-semibold focus-visible:outline-2 focus-visible:outline-purple-700">Recent sanction decisions (up to 20)</summary>
         {record.events.length ? <ol className="space-y-3 py-2">
-          {record.events.map((event, index) => <li key={`${event.createdAt}-${index}`} className="break-words leading-6">
-            <time>{new Date(event.createdAt).toLocaleString('en-PH')}</time> · {event.action === 'CITIZEN_FALSE_REPORT_RESET' ? 'Main Admin reactivation — new cycle'
+          {record.events.map((event, index) => <li key={event.auditLogId || `${event.createdAt}-${index}`} className="break-words leading-6 [overflow-wrap:anywhere]">
+            <time dateTime={event.createdAt}>{auditTime(event.createdAt)} (Asia/Manila)</time> · {event.action === 'CITIZEN_FALSE_REPORT_RESET' ? 'Main Admin reactivation — new cycle'
               : event.action === 'CITIZEN_AUTO_DEACTIVATED' ? `Automatic deactivation · ${event.metadata?.reasonCode === 'THREE_CONFIRMED_FALSE_REPORTS' ? '3 confirmed-false reports' : 'submission-volume rule'}`
                 : `${event.metadata?.confirmed ? 'Confirmed false' : 'Confirmation corrected'} · report ${event.metadata?.incidentId ?? 'unavailable'}`}
+            <p className="mt-1">Recorded actor: {auditActor(event.actor)}</p>
           </li>)}
         </ol> : <p className="py-2">No recorded sanction decisions. Historical reports are not backfilled.</p>}
+      </details>
+      <details>
+        <summary className="min-h-11 cursor-pointer py-3 font-semibold focus-visible:outline-2 focus-visible:outline-purple-700">Recent report review actions (up to 20)</summary>
+        <p className="mb-3 leading-6">Main Admin only. Latest 20 review actions for the 20 most recent recorded submissions. Flagging alone is not a violation; nearby rejection counts only under the existing all-service decision rule. Actor IDs are retained references; displayed names use current profiles.</p>
+        {record.reviewEvents?.length ? <ol aria-label="Report review audit log" className="space-y-4 py-2">
+          {record.reviewEvents.map(event => <li key={event.auditLogId} className="break-words leading-6 [overflow-wrap:anywhere]">
+            <p className="font-semibold">{reviewLabel(event)}{event.department ? ` · ${event.department}` : ''}</p>
+            <time dateTime={event.createdAt}>{auditTime(event.createdAt)} (Asia/Manila)</time>
+            <p>Report: {event.incidentId ?? 'Unavailable'}</p>
+            <p>Recorded actor: {auditActor(event.actor)}</p>
+            <p className="whitespace-pre-wrap">Reason / review notes: {event.reason || 'Not recorded'}</p>
+          </li>)}
+        </ol> : <p className="py-2">No report review actions available for these recent submissions. This does not mean the account has no historical violations.</p>}
       </details>
       <details>
         <summary className="min-h-11 cursor-pointer py-3 font-semibold focus-visible:outline-2 focus-visible:outline-purple-700">Recent report request context (up to 20)</summary>

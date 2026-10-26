@@ -17,6 +17,7 @@ const apiClient = axios.create({
 
 const SESSION_GENERATION_KEY = 'emergency-session-generation';
 const LOGOUT_EPOCH_KEY = 'emergency-logout-epoch';
+export const SESSION_CHANGED_EVENT = 'emergency-session-changed';
 let refreshing: Promise<void> | undefined;
 let lastRenewedHint: string | undefined;
 const SESSION_LOCK_NAME = 'emergency-token-refresh';
@@ -45,6 +46,9 @@ export function isDefinitiveAuthFailure(error: unknown): boolean {
 export function markSessionChanged() {
   lastRenewedHint = undefined;
   localStorage.setItem(SESSION_GENERATION_KEY, crypto.randomUUID());
+  // Storage events only reach other tabs. A socket in THIS tab still carries
+  // the previous HttpOnly session until it reconnects.
+  window.dispatchEvent(new Event(SESSION_CHANGED_EVENT));
 }
 
 export function markSessionEnded() {
@@ -53,6 +57,7 @@ export function markSessionEnded() {
   document.cookie = 'sessionRenewAt=; Max-Age=0; Path=/';
   localStorage.removeItem(SESSION_GENERATION_KEY);
   localStorage.setItem(LOGOUT_EPOCH_KEY, crypto.randomUUID());
+  window.dispatchEvent(new Event(SESSION_CHANGED_EVENT));
 }
 
 function clearSession() {

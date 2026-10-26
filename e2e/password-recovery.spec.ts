@@ -25,7 +25,7 @@ for (const width of [375, 1280]) for (const theme of ['light', 'dark']) {
     expect(calls).toHaveLength(1);
     await page.getByLabel('New password').fill('short');
     await page.getByRole('button', { name: 'Set new password' }).click();
-    await expect(page.getByRole('alert').filter({ hasText: '12–128 characters' })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: '11–128 characters' })).toBeVisible();
     expect(calls).toHaveLength(1);
     await page.getByLabel('New password').fill('SyntheticOnly123');
     await page.screenshot({ path: testInfo.outputPath('recovery-reset.png'), fullPage: true });
@@ -40,6 +40,27 @@ for (const width of [375, 1280]) for (const theme of ['light', 'dark']) {
     expect(await page.evaluate(() => localStorage.getItem('user'))).toBeNull();
   });
 }
+
+for (const width of [375, 1280]) test(`approved 11-character reset boundary retains validation at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  const passwords: string[] = [];
+  await page.route('**/api/auth/v1/password-reset/confirm', route => {
+    passwords.push(route.request().postDataJSON().password);
+    return route.fulfill({ status: 200, json: { code: 200, status: 'success', message: 'Password reset successfully' } });
+  });
+  await page.goto('/login?resetToken=' + 'a'.repeat(64));
+  await expect(page.getByText('Use 11–128 characters with uppercase and lowercase letters and a number.', { exact: true })).toBeVisible();
+  for (const invalid of ['DemoSafe1!', 'lowercase11!', 'UPPERCASE11!', 'NoDigitsHere!']) {
+    await page.getByLabel('New password').fill(invalid);
+    await page.getByRole('button', { name: 'Set new password' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: '11–128 characters' })).toBeVisible();
+    expect(passwords).toEqual([]);
+  }
+  await page.getByLabel('New password').fill('DemoSafe11!');
+  await page.getByRole('button', { name: 'Set new password' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Log in with your new password' })).toBeVisible();
+  expect(passwords).toEqual(['DemoSafe11!']);
+});
 
 test('invalid, repeated and mixed reset capabilities never submit or authenticate', async ({ page }) => {
   let requests = 0;

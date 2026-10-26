@@ -1,8 +1,8 @@
-import type { IncidentReviewFlag, VerificationStatus } from "@/lib/services/incidentService";
+import type { Incident, IncidentReviewFlag, VerificationStatus } from "@/lib/services/incidentService";
 
-export default function IncidentVerificationLabel({ status, reviewFlags }: { status?: VerificationStatus; reviewFlags?: IncidentReviewFlag[] }) {
-  if (reviewFlags?.some(flag => flag.status === 'CONFIRMED')) return <p className="mb-4 text-sm leading-relaxed text-amber-900">
-    <span className="font-semibold">Confirmed false report.</span> Excluded from verified analytics; retained for response work and audit history.
+export default function IncidentVerificationLabel({ status, reviewFlags, reportReview }: { status?: VerificationStatus; reviewFlags?: IncidentReviewFlag[]; reportReview?: Incident['reportReview'] }) {
+  if (reportReview?.departmentReviewEnabled ? reportReview.wholeConfirmedFalse : reviewFlags?.some(flag => flag.status === 'CONFIRMED')) return <p className="mb-4 text-sm leading-relaxed text-amber-900">
+    <span className="font-semibold">Confirmed false report.</span> Excluded from verified analytics; retained in False Reports with evidence and audit history. No Resolve action is needed.
   </p>;
   if (status === "VERIFIED") {
     return <p className="mb-4 text-sm leading-relaxed text-green-800">

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { captureIncidentPhoto, installFakeIncidentCamera } from './helpers/incident-camera';
+import { submittedIncident } from './helpers/report-submission';
 
 // Nearby detection is also POST; only the collection endpoint creates reports.
 function isIncidentCreation(request: { method(): string; url(): string }) {
@@ -226,7 +227,7 @@ test('citizen proof upload precedes submission and failed uploads retain the dra
       expect(route.request().postDataJSON().barangayName).toBe('Poblacion');
       expect(route.request().postDataJSON()).toMatchObject({ latitude: 10.252191, longitude: 123.949475 });
     }
-    await route.fulfill({ json: { data: { incidents: [], incident: {} } } });
+    await route.fulfill({ json: { data: { incidents: [], incident: { ...submittedIncident, reportedBy: 'test-user' } } } });
   });
   await page.goto('/dashboard');
   await expect(page.getByRole('button', { name: 'Delete report' })).toHaveCount(0);
@@ -280,7 +281,7 @@ test('citizen photo upload falls back securely when the browser blocks Cloudinar
         publicId: 'emergency-incidents/test-user/fallback',
         fileName: expect.stringMatching(/^incident-camera-\d+\.jpg$/),
       });
-      return route.fulfill({ json: { data: { incident: { incidentId: 'fallback-incident' } } } });
+      return route.fulfill({ json: { data: { incident: { ...submittedIncident, incidentId: 'fallback-incident', reportedBy: 'test-user' } } } });
     }
     return route.fulfill({ json: { data: { incidents: [] } } });
   });
@@ -395,7 +396,7 @@ for (const category of ['Fire', 'Medical', 'Police', 'Hazard']) test(`nearby ${c
     if (isIncidentCreation(route.request())) {
       createdPayload = route.request().postDataJSON();
       await gate;
-      return route.fulfill({ status: 201, json: { data: { incident: { incidentId: 'synthetic-separate' } } } });
+      return route.fulfill({ status: 201, json: { data: { incident: { ...submittedIncident, incidentId: 'synthetic-separate', reportedBy: 'test-user' } } } });
     }
     return route.fulfill({ json: { data: { incidents: [] } } });
   });
@@ -501,7 +502,7 @@ test('Other emergency can request Medical and Hazard in one report', async ({ pa
     }
     if (isIncidentCreation(route.request())) {
       createdPayload = route.request().postDataJSON();
-      return route.fulfill({ json: { data: { incident: { incidentId: 'storm-incident' } } } });
+      return route.fulfill({ json: { data: { incident: { ...submittedIncident, incidentId: 'storm-incident', reportedBy: 'test-user' } } } });
     }
     return route.fulfill({ json: { data: { incidents: [] } } });
   });

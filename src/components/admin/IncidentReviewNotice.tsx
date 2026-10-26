@@ -17,6 +17,11 @@ export function mergeReviewNotices(...groups: Array<ReviewNotice[] | undefined>)
 
 function decisionLabel(notice: ReviewNotice) {
   const department = departmentName(notice.department);
+  if (notice.departmentReviewEnabled || notice.reviewAuthority === 'DEPARTMENT') {
+    if (notice.status === 'PENDING') return `Flagged by ${department} — awaiting department review`;
+    if (notice.status === 'CONFIRMED') return `${notice.reviewAuthority === 'MAIN' ? 'Historical Main Admin' : department} false-report confirmation`;
+    return `Suspicion dismissed by ${department}`;
+  }
   if (notice.status === 'PENDING') return `Flagged by ${department} — awaiting Main Admin review`;
   if (notice.status === 'CONFIRMED') return `Confirmed false by Main Admin — flagged by ${department}`;
   if (notice.status === 'DISMISSED') return `Flag from ${department} dismissed by Main Admin`;
@@ -36,7 +41,8 @@ export default function IncidentReviewNotice({ notices, cancelled = false }: { n
   const confirmed = notices.some(notice => notice.status === 'CONFIRMED');
   const pending = notices.some(notice => notice.status === 'PENDING');
   const dismissed = notices.every(notice => notice.status === 'DISMISSED');
-  const heading = notices.length === 1 ? decisionLabel(notices[0])
+  const departmentMode = notices.some(notice => notice.departmentReviewEnabled || notice.reviewAuthority === 'DEPARTMENT');
+  const heading = departmentMode ? 'Department report assessments' : notices.length === 1 ? decisionLabel(notices[0])
     : confirmed ? 'Main Admin confirmed a false report'
       : pending ? 'False-report review pending'
         : dismissed ? 'False-report flags dismissed by Main Admin' : 'Review status unavailable';
@@ -50,7 +56,7 @@ export default function IncidentReviewNotice({ notices, cancelled = false }: { n
           Flagging departments: {[...new Set(notices.map(notice => departmentName(notice.department)))].join(', ')}.
         </p>}
         <p className="mt-2 max-w-prose text-base leading-relaxed text-foreground">
-          {cancelled ? 'Main Admin cancelled this report. History and evidence are retained; no department Resolve action is needed. A corrected flag does not reopen the report.'
+          {departmentMode ? cancelled ? 'This report is cancelled. History and evidence remain retained. A corrected flag does not reopen it.' : 'Flags alone are not violations. Each assigned department records its assessment; all must confirm false for a whole-report sanction. A dismissed suspicion prevents that classification. Response work is separate.' : cancelled ? 'Main Admin cancelled this report. History and evidence are retained; no department Resolve action is needed. A corrected flag does not reopen the report.'
             : confirmed ? 'This decision does not close any response. Coordinate with Main Admin and record your own department’s outcome.'
             : pending ? 'Suspicion is not a decision. Continue emergency assessment while Main Admin reviews.'
               : dismissed ? 'A dismissed flag no longer classifies this report as false. Continue assessing your own department’s response.'
@@ -69,7 +75,7 @@ export default function IncidentReviewNotice({ notices, cancelled = false }: { n
             <span className="font-medium">Flag reason: </span>{notice.reason || 'Flag reason unavailable.'}
           </p>
           {notice.status !== 'PENDING' && <p className="mt-2 whitespace-pre-wrap break-words text-base leading-relaxed [overflow-wrap:anywhere]">
-            <span className="font-medium">Main Admin explanation: </span>{notice.reviewNotes || 'Review explanation unavailable.'}
+            <span className="font-medium">{departmentMode ? 'Review explanation: ' : 'Main Admin explanation: '}</span>{notice.reviewNotes || 'Review explanation unavailable.'}
           </p>}
           <p className="mt-2 text-sm text-muted-foreground">{updateTime(notice.updatedAt)}</p>
         </li>)}

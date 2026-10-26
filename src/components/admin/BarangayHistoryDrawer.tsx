@@ -5,6 +5,7 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { useState, useEffect, useCallback, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useIncidentHistory } from "@/hooks/useIncidentHistory";
+import { INCIDENT_HISTORY_PAGE_SIZE } from "@/lib/services/incidentHistoryService";
 import { useModalIsolation } from "@/hooks/useModalIsolation";
 import HistoryPagination from "./HistoryPagination";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
@@ -328,6 +329,7 @@ export default function BarangayHistoryDrawer({
 
           {/* Incident Feed */}
           <div className="px-6 pb-6 space-y-3">
+            <p className="text-sm font-medium text-foreground">Newest reports first · {INCIDENT_HISTORY_PAGE_SIZE} records per page</p>
             <p className="text-sm text-muted-foreground">History includes all authorized report records, including records excluded from verified analytics. List filters do not change the analytics above.</p>
             {history.error && <div role="alert" className="rounded-lg border border-border bg-card p-4 text-sm">{history.error} <button onClick={history.refresh} className="min-h-11 underline">Retry history</button></div>}
             {history.loading && incidents.length === 0 ? (

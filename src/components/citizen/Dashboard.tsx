@@ -21,11 +21,13 @@ import {
 } from '@/lib/services/incidentService';
 import { getAdminDepartment, getDepartmentDashboardUrl } from '../../hooks/useAdminGuard';
 import { useEmergencyEvents } from '../../hooks/useEmergencyEvents';
-import { isDefinitiveAuthFailure, markSessionEnded } from '@/lib/apiClient';
+import { ensureFreshSession, isDefinitiveAuthFailure, markSessionEnded } from '@/lib/apiClient';
+import { confirmedOwnReport, recordSubmissionDuration, startSubmissionTiming, submissionIdentity, submissionLabels, type SubmissionStage } from '@/lib/reportSubmission';
 import { HeaderFrame } from '../shared/HeaderFrame';
 import { EmergencyLogo } from '../shared/EmergencyLogo';
 import { CitizenNearbyMap } from './CitizenNearbyMap';
 import { useCitizenPresence } from '@/hooks/useCitizenPresence';
+import { CitizenReviewNotifications } from './CitizenReviewNotifications';
 
 const mapIncidentToReport = (inc: Incident): EmergencyReport => {
     const typeName = inc.type?.typeName?.toLowerCase() || '';
@@ -79,6 +81,11 @@ export function Dashboard() {
     const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<EmergencyCategory | null>(null);
     const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+    const [submissionStage, setSubmissionStage] = useState<SubmissionStage>('checking-session');
+    const [submitSuccess, setSubmitSuccess] = useState<{ identity: string; message: string } | null>(null);
+    const submitSuccessRef = useRef<HTMLDivElement>(null);
+    const submitProgressRef = useRef<HTMLDivElement>(null);
+    const submitController = useRef<AbortController | null>(null);
     const [submitError, setSubmitError] = useState<string>('');
     const [duplicateReportBlocked, setDuplicateReportBlocked] = useState(false);
     const [nearbyNotice, setNearbyNotice] = useState(false);
@@ -86,11 +93,25 @@ export function Dashboard() {
     const submitErrorRef = useRef<HTMLDivElement>(null);
     const [reportsLoadError, setReportsLoadError] = useState(false);
     const reportsRequestInFlight = useRef(false);
+    const reportsRequestVersion = useRef(0);
     const { latitude, longitude, accuracy, error: locationError, loading: locationLoading, preliminary, refreshLocation } = useGeolocation();
 
     useEffect(() => {
         if (submitError) submitErrorRef.current?.focus();
     }, [submitError]);
+    useEffect(() => {
+        if (!isReportDialogOpen && submitSuccess) submitSuccessRef.current?.focus();
+    }, [submitSuccess, isReportDialogOpen]);
+    const cancelSubmission = useCallback(() => {
+        submitController.current?.abort(); reportsRequestVersion.current++;
+    }, []);
+    useEffect(() => cancelSubmission, [cancelSubmission]);
+    useEffect(() => {
+        // Keep the dialog title/close control above the progress notice too;
+        // scrolling only the notice into view places it underneath Close.
+        const scrollArea = submitProgressRef.current?.closest<HTMLElement>('.dialog-scroll-area');
+        if (isSubmittingReport && scrollArea) scrollArea.scrollTop = 0;
+    }, [isSubmittingReport]);
 
     const latestReport = useMemo(() => reports.reduce<EmergencyReport | null>((latest, report) => {
         if (!latest || new Date(report.timestamp).getTime() > new Date(latest.timestamp).getTime()) return report;
@@ -125,16 +146,19 @@ export function Dashboard() {
         setReportToFocus(latestReport.id);
     }, [latestReport, reports]);
 
-    const fetchUserReports = useCallback(async (userId: string) => {
+    const fetchUserReports = useCallback(async (userId: string, fresh = false) => {
         // Stop visibility/focus polling immediately after this browser session
         // is logged out (including logout from another tab).
         // Password sessions may use a browser token; Google OAuth uses only an
         // HttpOnly cookie. The verified user record is present for both flows.
-        if (typeof window !== 'undefined' && !localStorage.getItem('user')) return;
-        if (reportsRequestInFlight.current) return;
+        const identity = submissionIdentity(userId);
+        if (!identity || (reportsRequestInFlight.current && !fresh)) return;
+        const version = ++reportsRequestVersion.current;
         reportsRequestInFlight.current = true;
+        const started = performance.now();
         try {
-            const data = await getIncidents({ reportedBy: userId, includeAttachments: true, limit: 50 });
+            const data = await getIncidents({ reportedBy: userId, includeAttachments: true, limit: 50 }, { fresh });
+            if (version !== reportsRequestVersion.current || submissionIdentity(userId) !== identity) return;
             setReports(data.map(mapIncidentToReport));
             setReportsLoaded(true);
             setReportsLoadError(false);
@@ -142,9 +166,10 @@ export function Dashboard() {
             // A stopped API or temporary network outage is expected to be
             // recoverable. Keep the last reports and show a retry control
             // instead of producing a repeated Next.js console overlay.
-            if (!isDefinitiveAuthFailure(err)) setReportsLoadError(true);
+            if (version === reportsRequestVersion.current && submissionIdentity(userId) === identity && !isDefinitiveAuthFailure(err)) setReportsLoadError(true);
         } finally {
-            reportsRequestInFlight.current = false;
+            if (fresh) recordSubmissionDuration('list-refresh', started);
+            if (version === reportsRequestVersion.current) reportsRequestInFlight.current = false;
         }
     }, []);
 
@@ -214,6 +239,9 @@ export function Dashboard() {
 
     useEffect(() => {
         const handleSessionChange = (event: StorageEvent) => {
+            if (!event.key || ['user', 'emergency-session-generation', 'emergency-logout-epoch'].includes(event.key)) {
+                submitController.current?.abort(); reportsRequestVersion.current++; reportsRequestInFlight.current = false; setSubmitSuccess(null);
+            }
             if (event.key === 'emergency-logout-epoch' && event.newValue) {
                 setUser(null);
                 setReports([]);
@@ -249,6 +277,7 @@ export function Dashboard() {
     }, [fetchUserReports, userId]);
 
     const handleLogout = async () => {
+        submitController.current?.abort(); reportsRequestVersion.current++; setSubmitSuccess(null);
         // Clearing component state first tears down its polling effects while
         // the authenticated logout request is still allowed to complete.
         setUser(null);
@@ -268,30 +297,51 @@ export function Dashboard() {
 
     const handleReportSubmit = async (report: Omit<EmergencyReport, 'id' | 'timestamp' | 'status' | 'userId'> & { submissionId?: string; photoFile?: File | null; barangayName?: string; requestedServices?: ResponseService[] }) => {
         if (!user || submissionInFlight.current) return;
+        const startingIdentity = submissionIdentity(user.id);
+        if (!startingIdentity) return;
         if (!navigator.onLine) {
             setSubmitError('You are offline. Reconnect before submitting this emergency report.');
             return;
         }
         submissionInFlight.current = true;
+        const controller = new AbortController(); submitController.current = controller;
+        let submittingIdentity = startingIdentity;
+        const ownsAttempt = () => !controller.signal.aborted && submissionIdentity(user.id) === submittingIdentity;
+        const checkAttempt = () => { if (!ownsAttempt()) { controller.abort(); throw new DOMException('Submission session changed', 'AbortError'); } };
+        const timing = startSubmissionTiming(stage => { checkAttempt(); setSubmissionStage(stage); });
+        let creationSent = false;
         setIsSubmittingReport(true);
+        setSubmissionStage('checking-session'); setSubmitSuccess(null);
         setSubmitError('');
         setDuplicateReportBlocked(false);
         setNearbyNotice(false);
 
         try {
+            // Refresh before capturing the attempt's final generation; an ordinary
+            // renewal is not permission to adopt a different citizen account.
+            timing.move('checking-session');
+            const startingUser = JSON.parse(localStorage.getItem('user') || 'null');
+            const startingLogout = localStorage.getItem('emergency-logout-epoch');
+            await ensureFreshSession();
+            const renewed = JSON.parse(localStorage.getItem('user') || 'null');
+            if (startingUser?.id !== user.id || renewed?.id !== user.id || renewed?.role !== 'USER'
+                || startingLogout !== localStorage.getItem('emergency-logout-epoch')) { controller.abort(); return; }
+            submittingIdentity = submissionIdentity(user.id) || ''; checkAttempt();
             const submittingGeneration = localStorage.getItem('emergency-session-generation');
             let resolvedBarangayName = report.barangayName;
             // Location remains authoritative; nearby reports are advisory only.
             // A distinct emergency must not be blocked by the 100-metre radius.
             if (report.latitude !== undefined && report.longitude !== undefined && report.barangayName) {
                 try {
+                    timing.move('nearby-check');
                     const nearby = await checkNearbyIncident({
                         category: report.category,
                         requestedServices: report.requestedServices,
                         barangayName: report.barangayName,
                         latitude: report.latitude,
                         longitude: report.longitude,
-                    });
+                    }, controller.signal);
+                    checkAttempt();
                     if (nearby.locationAccepted === false) {
                         setSubmitError(
                             (nearby.message || 'Your GPS location was not accepted. Check your device location and incident barangay.').replace(
@@ -304,6 +354,7 @@ export function Dashboard() {
                     resolvedBarangayName = nearby.barangayName || resolvedBarangayName;
                     if (nearby.possibleDuplicate || nearby.duplicate) setNearbyNotice(true);
                 } catch (preflightError: unknown) {
+                    checkAttempt();
                     const status = (preflightError as { response?: { status?: number } })?.response?.status;
                     // Preflight is optional; creation still checks location,
                     // evidence and repeated submissions. Invalid sessions stop.
@@ -320,9 +371,11 @@ export function Dashboard() {
             let uploadedProof;
             if (report.photoFile) {
                 try {
-                    const uploadResult = await uploadIncidentPhoto(report.photoFile);
+                    const uploadResult = await uploadIncidentPhoto(report.photoFile, { signal: controller.signal, onStage: timing.move });
+                    checkAttempt();
                     uploadedProof = uploadResult;
                 } catch (uploadErr: unknown) {
+                    checkAttempt();
                     const errMsg = uploadErr instanceof Error ? uploadErr.message : 'Photo upload failed';
                     setSubmitError(`Photo upload failed: ${errMsg}`);
                     setIsSubmittingReport(false);
@@ -331,6 +384,7 @@ export function Dashboard() {
             }
 
             // 2. Submit the incident to backend PostgreSQL
+            checkAttempt(); timing.move('verify-save'); creationSent = true;
             const categoryUpper = (report.category || 'EMERGENCY').toUpperCase();
             const created = await createIncident({
                 submissionId: report.submissionId,
@@ -348,7 +402,10 @@ export function Dashboard() {
                     publicId: uploadedProof.publicId,
                     fileName: uploadedProof.fileName,
                 } : undefined,
-            });
+            }, controller.signal);
+            checkAttempt();
+            if (!confirmedOwnReport(created, user.id)) throw new Error('The server response could not confirm this report. Check Your reports before trying again.');
+            timing.finish(true);
 
             if (created.accountDeactivated) {
                 // The third report committed successfully. Do not refetch with
@@ -379,14 +436,20 @@ export function Dashboard() {
                 return;
             }
 
-            // 3. Reload incidents from backend
-            if (user?.id) {
-                await fetchUserReports(user.id);
-            }
-
+            // This is a server-confirmed receipt, not optimistic submission.
+            // Retire pre-save reads before inserting it; refresh only in the background.
+            reportsRequestVersion.current++; reportsRequestInFlight.current = false;
+            const received = mapIncidentToReport(created);
+            setReports(previous => [received, ...previous.filter(item => item.id !== received.id)]);
+            setReportsLoaded(true); setReportPage(1); setReportsLoadError(false);
+            setSubmitSuccess({ identity: submittingIdentity, message: created.nearbyIntake?.some(item => !item.responseStarted)
+                ? 'Report received. Nearby department review is pending; a response has not started yet.'
+                : 'Report received. Check Your reports for department updates.' });
             setIsReportDialogOpen(false);
             setSelectedCategory(null);
+            void fetchUserReports(user.id, true);
         } catch (err: unknown) {
+            if (!ownsAttempt()) return;
             const axiosErr = err as { response?: { status?: number; data?: { message?: string; errorCode?: string } } };
             const status = axiosErr?.response?.status;
             const responseMessage = axiosErr?.response?.data?.message;
@@ -401,18 +464,21 @@ export function Dashboard() {
                     /Move the pin within Cordova(?: before uploading a photo)?\./g,
                     'Refresh GPS and confirm your actual location; if it is wrong, call 911.',
                 ));
-                if ((status === 409 || status === 429) && user?.id) await fetchUserReports(user.id);
+                if ((status === 409 || status === 429) && user?.id) void fetchUserReports(user.id, true);
                 return;
             }
 
-            const msg = responseMessage || (err instanceof Error
+            const uncertain = creationSent && !status;
+            const msg = uncertain ? 'We could not confirm the save. Check Your reports before retrying to avoid a repeated submission.' : responseMessage || (err instanceof Error
                 ? err.message
                 : 'Failed to submit incident report. Please try again.');
             setSubmitError(msg);
             console.warn('Incident submission failed:', { status, message: msg });
         } finally {
-            submissionInFlight.current = false;
-            setIsSubmittingReport(false);
+            timing.finish();
+            if (submitController.current === controller) {
+                submitController.current = null; submissionInFlight.current = false; setIsSubmittingReport(false);
+            }
         }
     };
 
@@ -450,6 +516,7 @@ export function Dashboard() {
                                 <p className="truncate text-sm font-medium text-foreground">{user?.name}</p>
                                 <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
                             </div>
+                            {user?.role === 'USER' && <CitizenReviewNotifications key={user.id} userId={user.id} />}
                             <Link href="/settings" aria-label="Account Settings" className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-card hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><Settings className="h-4 w-4" aria-hidden="true" /></Link>
                             <Button onClick={handleLogout} variant="outline" size="sm" className="theme-inverse-surface theme-inverse-action h-11 rounded-lg px-4 font-semibold shadow-none">
                                 <LogOut className="w-4 h-4 mr-2" />
@@ -460,6 +527,10 @@ export function Dashboard() {
 
             {/* Main Content */}
             <main className="mx-auto max-w-6xl px-4 py-7 sm:px-6 lg:px-8 lg:py-9">
+                {submitSuccess && user && submitSuccess.identity === submissionIdentity(user.id) && <div ref={submitSuccessRef} role="status" tabIndex={-1}
+                    className="mb-6 rounded-xl border border-green-300 bg-green-50 p-4 text-base leading-relaxed text-green-950 outline-none focus-visible:ring-2 focus-visible:ring-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-100">
+                    {submitSuccess.message}
+                </div>}
                 {reportsLoadError && (
                     <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
                         <p>{reportsLoaded
@@ -684,12 +755,13 @@ export function Dashboard() {
                         </div>
                     )}
                     {isSubmittingReport && (
-                        <div role="status" className="mb-5 flex items-center justify-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
-                            <svg className="h-5 w-5 animate-spin text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                        <div ref={submitProgressRef} role="status" className="mb-5 flex items-center justify-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+                            <svg className="h-5 w-5 shrink-0 animate-spin text-red-600 motion-reduce:animate-none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                            <span className="text-sm font-medium text-foreground">Checking and submitting your report…</span>
+                            <div className="min-w-0"><p className="text-base font-semibold text-foreground">{submissionLabels[submissionStage]}</p>
+                                <p className="mt-1 text-sm text-muted-foreground">{submissionStage === 'verify-save' ? 'Wait for server confirmation. Do not submit another copy.' : 'Your report is not confirmed yet. Keep this page open.'}</p></div>
                         </div>
                     )}
                     {nearbyNotice && <p role="status" className="mb-4 max-w-prose text-base leading-relaxed text-foreground">

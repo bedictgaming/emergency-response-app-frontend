@@ -23,7 +23,7 @@ export default function PrivacyNoticePage() {
     </HeaderFrame>
     <main id="privacy-content" className="mx-auto max-w-[75ch] px-4 pt-8 pb-24 sm:px-6 sm:pt-12">
       <h1 className="text-3xl font-bold tracking-tight">Privacy notice</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Review draft · Updated <time dateTime="2026-10-21">21 October 2026</time></p>
+      <p className="mt-2 text-sm text-muted-foreground">Review draft · Updated <time dateTime="2026-10-22">22 October 2026</time></p>
       <div className="mt-6 rounded-xl border border-border bg-muted p-4 text-base leading-7">
         <p className="font-semibold">For a capstone demonstration, not an official emergency-reporting channel.</p>
         <p className="mt-2">This draft explains the current project and decisions still under review. It is not a final policy for public emergency operations or a privacy-compliance certification. Prefer synthetic test accounts, reports and photos.</p>
@@ -39,15 +39,16 @@ export default function PrivacyNoticePage() {
           <li><strong>Accounts:</strong> name, email, sign-in/session records, role and account status.</li>
           <li><strong>Reports:</strong> requested services, description, submitted contact number, recorded GPS/address, timestamps, photo evidence and response or review history.</li>
           <li><strong>Security context:</strong> request IP and bounded browser-supplied User-Agent when the request-context feature is enabled. A shared IP or browser string does not prove identity or that a report is false. The website does not collect phone IMEI.</li>
-          <li><strong>Browser settings:</strong> sign-in cookies/session-related state, theme preferences, and notification permission/subscription where enabled.</li>
+          <li><strong>Browser settings:</strong> sign-in cookies/session-related state, theme preferences, the optional online-location-sharing ON/OFF choice for each citizen account in this browser, and notification permission/subscription where enabled.</li>
         </ul>
         <p>Optional online-citizen GPS sharing is separate from submitting a report. Reading this notice does not switch it on.</p>
       </NoticeSection>
       <NoticeSection id="access" title="Access and sharing">
         <p>Authorized staff access is restricted by role and report/service scope. Main Admin alone can view the recent report IP/browser context. Other citizens cannot open another citizen&apos;s report, contact number, photo or exact report pin through nearby-report detection.</p>
         <h3 className="pt-2 text-base font-semibold">Optional exact-GPS dots</h3>
-        <p>After you explicitly choose to share in the current tab, other participating citizens within 100m can see your device&apos;s reported GPS position while you remain online with the dashboard open and visible. This can reveal a recognizable place even without your name. Nearby devices must also opt in; GPS estimates do not guarantee your exact physical standing location.</p>
-        <p>You can stop sharing. Sharing also stops or expires when the tab is hidden/closed, the connection is lost, the account changes, or the location becomes stale. The feature uses temporary in-memory leases of up to 30 seconds, not a location-history database.</p>
+        <p>After you explicitly enable automatic location sharing, other participating citizens within 100m can see your device&apos;s reported GPS position while you remain online with the dashboard open and visible. This can reveal a recognizable place even without your name. Nearby devices must also opt in; GPS estimates do not guarantee your exact physical standing location.</p>
+        <p>Your ON/OFF choice is remembered for your citizen account in this browser, including after refresh. When enabled, sharing resumes on later visible dashboard visits only after current session, WebSocket and fresh-GPS checks. Stop sharing saves OFF until you explicitly enable it again. Another account or browser does not inherit your choice. Clearing browser data resets this preference to OFF; blocked or unavailable storage is handled without silently enabling sharing.</p>
+        <p>Sharing stops or expires when the tab is hidden/closed, the connection is lost, the account changes, or the location becomes stale. Hidden tabs pause without changing the saved choice. Logout stops participation; it does not turn another account&apos;s preference on. Only the choice is persisted in browser storage, not GPS coordinates or a location history. Server locations still use temporary in-memory leases of up to 30 seconds.</p>
         <h3 className="pt-2 text-base font-semibold">Services used by the project</h3>
         <p>Hosting, database, protected-photo, account-email and browser/OS push services process information needed for their functions. Loading OpenStreetMap tiles sends map-area requests to that provider. Provider arrangements and separate retention/copy handling still need review before a final notice. No SMS service is enabled by this notice.</p>
       </NoticeSection>

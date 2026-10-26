@@ -1,4 +1,10 @@
 import apiClient from '@/lib/apiClient';
+import type { SubmissionStage } from '@/lib/reportSubmission';
+
+type UploadOptions = { signal?: AbortSignal; onStage?: (stage: SubmissionStage) => void };
+const checkUploadActive = (signal?: AbortSignal) => {
+  if (signal?.aborted) throw new DOMException('Upload cancelled', 'AbortError');
+};
 
 export interface UploadResult {
   url: string;
@@ -39,10 +45,12 @@ const fileToDataUrl = (file: File): Promise<string> => new Promise((resolve, rej
   reader.readAsDataURL(file);
 });
 
-const uploadThroughBackend = async (file: File): Promise<UploadResult> => {
+const uploadThroughBackend = async (file: File, options: UploadOptions): Promise<UploadResult> => {
+  checkUploadActive(options.signal); options.onStage?.('photo-fallback');
   // Never resize/re-encode incident evidence silently to fit the proxy.
   if (file.size > MAX_FALLBACK_SIZE_BYTES) throw new Error(FALLBACK_SIZE_MESSAGE);
   const body = { imageData: await fileToDataUrl(file), fileName: file.name };
+  checkUploadActive(options.signal);
   if (new TextEncoder().encode(JSON.stringify(body)).byteLength > MAX_FALLBACK_PAYLOAD_BYTES) {
     throw new Error(FALLBACK_SIZE_MESSAGE);
   }
@@ -51,9 +59,11 @@ const uploadThroughBackend = async (file: File): Promise<UploadResult> => {
       // Image transfer and Cloudinary processing can legitimately exceed the
       // normal API timeout on a mobile or congested connection.
       timeout: 60_000,
+      signal: options.signal,
     });
     return response.data.data;
   } catch (error: unknown) {
+    checkUploadActive(options.signal);
     if ((error as { response?: { status?: number } }).response?.status === 413) throw new Error(FALLBACK_SIZE_MESSAGE);
     const responseMessage = (error as { response?: { data?: { message?: string } } })
       ?.response?.data?.message;
@@ -68,7 +78,8 @@ const uploadThroughBackend = async (file: File): Promise<UploadResult> => {
 /**
  * Gets a short-lived server signature and uploads directly to Cloudinary.
  */
-export const uploadIncidentPhoto = async (file: File): Promise<UploadResult> => {
+export const uploadIncidentPhoto = async (file: File, options: UploadOptions = {}): Promise<UploadResult> => {
+  checkUploadActive(options.signal);
   // --- Client-side validation ---
   if (!ALLOWED_TYPES.includes(file.type)) {
     throw new Error(
@@ -84,15 +95,17 @@ export const uploadIncidentPhoto = async (file: File): Promise<UploadResult> => 
 
   let signature: SignatureResponse['data'];
   try {
-    signature = (await apiClient.post<SignatureResponse>('/upload/v1/signature')).data.data;
+    options.onStage?.('photo-signature');
+    signature = (await apiClient.post<SignatureResponse>('/upload/v1/signature', undefined, { signal: options.signal })).data.data;
   } catch (error: unknown) {
+    checkUploadActive(options.signal);
     const status = (error as { response?: { status?: number } })?.response?.status;
     if (status === 429) throw new Error('Photo upload limit reached. Try again later.');
     if (status === 401 || status === 403) throw new Error('Your session cannot upload this photo. Sign in again before retrying.');
     // If the browser cannot complete even the signed-upload handshake, use
     // the authenticated same-origin API path instead of surfacing a raw
     // browser "Failed to fetch" error.
-    return uploadThroughBackend(file);
+    return uploadThroughBackend(file, options);
   }
   const form = new FormData();
   form.append('file', file);
@@ -105,27 +118,38 @@ export const uploadIncidentPhoto = async (file: File): Promise<UploadResult> => 
   form.append('overwrite', 'false');
   form.append('type', signature.type);
 
-  let response: Response;
+  checkUploadActive(options.signal); options.onStage?.('photo-upload');
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  options.signal?.addEventListener('abort', cancel, { once: true });
+  let timedOut = false;
+  const deadline = setTimeout(() => { timedOut = true; controller.abort(); }, 60_000);
   try {
-    response = await fetch(`https://api.cloudinary.com/v1_1/${signature.cloudName}/image/upload`, {
-      method: 'POST',
-      body: form,
-    });
-  } catch {
-    // Browser privacy shields, restrictive networks, and some mobile WebViews
-    // can block direct cross-origin Cloudinary requests. The authenticated
-    // backend route performs the same private upload without exposing secrets.
-    return uploadThroughBackend(file);
-  }
-  if (!response.ok) throw new Error('Secure image upload failed');
-  const asset = await response.json();
-  return {
-    url: asset.secure_url,
-    publicId: asset.public_id,
-    format: asset.format,
-    bytes: asset.bytes,
-    width: asset.width,
-    height: asset.height,
-    fileName: file.name,
-  };
+    let response: Response;
+    try {
+      response = await fetch(`https://api.cloudinary.com/v1_1/${signature.cloudName}/image/upload`, {
+        method: 'POST', body: form, signal: controller.signal,
+      });
+    } catch (error) {
+      checkUploadActive(options.signal);
+      if (timedOut) throw error;
+      // Browser privacy shields and restrictive networks can block the direct
+      // request. Only a network failure uses the authenticated fallback.
+      clearTimeout(deadline); options.signal?.removeEventListener('abort', cancel);
+      return await uploadThroughBackend(file, options);
+    }
+    if (!response.ok) throw new Error('Secure image upload failed');
+    const asset = await response.json();
+    checkUploadActive(options.signal);
+    return {
+      url: asset.secure_url, publicId: asset.public_id, format: asset.format,
+      bytes: asset.bytes, width: asset.width, height: asset.height, fileName: file.name,
+    };
+  } catch (error) {
+    checkUploadActive(options.signal);
+    // A timed-out upload may have reached the provider: do not duplicate it
+    // automatically through the fallback. Creation has not been sent yet.
+    if (timedOut) throw new Error('Photo upload timed out. This attempt has not submitted a report. Check your connection before retrying.');
+    throw error;
+  } finally { clearTimeout(deadline); options.signal?.removeEventListener('abort', cancel); }
 };

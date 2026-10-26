@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { privateRobots } from "@/lib/seo";
 import { SEO_DESCRIPTION, SEO_NAME, SEO_ORIGIN } from "@/lib/seo-policy.mjs";
 import "./globals.css";
-// The root not-found boundary is available on every route. Load its small,
-// scoped stylesheet here rather than leaving Next's fallback-only preload unused.
-// Keep server-rendered recovery usable even when JavaScript is unavailable.
-import "@/components/ui/page-not-found.module.css";
+// One owner for shared recovery styles. The client fallback must not import
+// them again into a separate, unused not-found.css preload on ordinary routes.
+// All selectors are namespaced; 404 recovery remains styled without JavaScript.
+import "@/components/ui/page-not-found.css";
 import ServiceWorkerRegistration from "../components/shared/ServiceWorkerRegistration";
 import PwaInstallPrompt from "../components/shared/PwaInstallPrompt";
 import NetworkStatusBanner from "../components/shared/NetworkStatusBanner";

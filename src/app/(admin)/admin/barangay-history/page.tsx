@@ -33,6 +33,7 @@ import {
 import { getBarangays } from "@/lib/services/barangayService";
 import { getDashboardAnalytics } from "@/lib/services/analyticsService";
 import { useIncidentHistory } from "@/hooks/useIncidentHistory";
+import { INCIDENT_HISTORY_PAGE_SIZE } from "@/lib/services/incidentHistoryService";
 import HistoryPagination from "@/components/admin/HistoryPagination";
 import ReporterIdentity from "@/components/admin/ReporterIdentity";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
@@ -40,6 +41,7 @@ import { useAdminGuard } from "@/hooks/useAdminGuard";
 import MonthlyResolutionCard from "@/components/admin/MonthlyResolutionCard";
 import HistoryAnalyticsScopeNote from "@/components/admin/HistoryAnalyticsScopeNote";
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useIncidentHistoryPdfExport } from '@/hooks/useIncidentHistoryPdfExport';
 
 export default function BarangayHistoryPage() {
   const router = useRouter();
@@ -57,6 +59,7 @@ export default function BarangayHistoryPage() {
   const [selectedType, setSelectedType] = useState<string>("ALL");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedPeriod, setSelectedPeriod] = useState<string>("ALL");
+  const [exportReportMonth, setExportReportMonth] = useState("");
 
   const history = useIncidentHistory({ search: searchQuery, barangayId: selectedBarangayId === "ALL" ? undefined : selectedBarangayId, typeName: selectedType === "ALL" ? undefined : selectedType, status: selectedStatus === "ALL" ? undefined : selectedStatus as import("@/types/barangay-history").IncidentStatus, period: selectedPeriod === "ALL" ? undefined : selectedPeriod as "THIS_MONTH" | "LAST_30_DAYS" }, isAuthorized);
   const loadAllData = useCallback(async (background = false) => {
@@ -90,6 +93,17 @@ export default function BarangayHistoryPage() {
     return () => { requests.current++; };
   }, [loadAllData, isAuthorized]);
   useLiveRefresh(() => loadAllData(true), isAuthorized);
+
+  const pdf = useIncidentHistoryPdfExport({ enabled: isAuthorized, period: exportReportMonth || (analytics?.resolvedSummary
+    ? `${analytics.resolvedSummary.year}-${String(analytics.resolvedSummary.month).padStart(2, '0')}` : ''),
+    filters: { search: searchQuery, barangayId: selectedBarangayId === 'ALL' ? undefined : selectedBarangayId,
+      typeName: selectedType === 'ALL' ? undefined : selectedType,
+      status: selectedStatus === 'ALL' ? undefined : selectedStatus as import('@/types/barangay-history').IncidentStatus,
+      period: selectedPeriod === 'ALL' ? undefined : selectedPeriod as 'THIS_MONTH' | 'LAST_30_DAYS' },
+    labels: [['Search', searchQuery.trim() || 'Any'], ['Barangay', selectedBarangayId === 'ALL' ? 'All barangays' : barangays.find(b => b.barangayId === selectedBarangayId)?.name || selectedBarangayId],
+      ['Category', selectedType === 'ALL' ? 'All categories' : selectedType], ['Status', selectedStatus === 'ALL' ? 'All statuses' : selectedStatus],
+      ['Report period', selectedPeriod === 'ALL' ? 'All time' : selectedPeriod === 'THIS_MONTH' ? 'This month (Asia/Manila)' : 'Last 30 days']],
+  });
 
   useEffect(() => {
     if (!isAuthorized) return;
@@ -197,10 +211,6 @@ export default function BarangayHistoryPage() {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   return (
     <div className="figma-shell min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60 pb-14 font-sans">
       {/* Header */}
@@ -228,17 +238,25 @@ export default function BarangayHistoryPage() {
 
         <div className="flex items-center gap-2.5">
           <button
-            onClick={handlePrint}
-            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-gray-300 hover:text-white transition-all text-xs font-semibold flex items-center gap-1.5"
-            title="Export / Print Report"
+            onClick={() => void pdf.exportPdf()}
+            disabled={pdf.busy || isLoading || !analytics}
+            aria-label={pdf.busy ? 'Preparing PDF' : 'Export PDF'}
+            aria-busy={pdf.busy}
+            className="min-h-11 min-w-11 shrink-0 p-2.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-gray-300 hover:text-white disabled:opacity-50 disabled:cursor-wait focus-visible:outline-2 focus-visible:outline-white transition-all text-xs font-semibold flex items-center justify-center gap-1.5"
+            title="Download all filtered records and summaries as PDF"
           >
             <Download size={15} />
-            <span className="hidden sm:inline">Export Report</span>
+            <span className="hidden sm:inline">{pdf.busy ? 'Preparing PDF…' : 'Export PDF'}</span>
           </button>
         </div>
       </HeaderFrame>
 
       <main className="max-w-7xl mx-auto px-6 mt-8 space-y-6">
+        <div aria-label="PDF export status" className="text-sm text-foreground">
+          <p>PDF export includes all filtered records and summaries, not just this page. Up to 1,000 records per export.</p>
+          <p role="status" className="mt-1">{pdf.message}</p>
+          {pdf.error && <p role="alert" className="mt-1 text-destructive">{pdf.error}</p>}
+        </div>
         <HistoryAnalyticsScopeNote />
         {/* ============================================================ */}
         {/* SECTION 1: 3 CORE ANALYTICAL KPI CARDS                       */}
@@ -316,7 +334,7 @@ export default function BarangayHistoryPage() {
             </div>
           </div>
 
-          <MonthlyResolutionCard summary={analytics?.resolvedSummary} />
+          <MonthlyResolutionCard summary={analytics?.resolvedSummary} onPeriodChange={setExportReportMonth} />
         </div>
 
         {/* ============================================================ */}
@@ -591,6 +609,7 @@ export default function BarangayHistoryPage() {
               <p className="text-xs text-gray-500">
                 Showing {filteredIncidents.length} of {history.pagination?.total ?? "…"} matching recorded incidents
               </p>
+              <p className="mt-1 text-sm font-medium text-foreground">Newest reports first · {INCIDENT_HISTORY_PAGE_SIZE} records per page</p>
               <p className="mt-1 text-xs text-muted-foreground">History includes all authorized report records, including records excluded from verified analytics. List filters do not change the analytics above.</p>
             </div>
           </div>
@@ -620,7 +639,7 @@ export default function BarangayHistoryPage() {
                 </colgroup>
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50/80 text-[11px] font-bold text-gray-500 uppercase tracking-wide [&>th]:whitespace-nowrap">
-                    <th className="py-3.5 px-5">Date / Time</th>
+                    <th className="py-3.5 px-5" aria-sort="descending">Date / Time</th>
                     <th className="py-3.5 px-5">Barangay</th>
                     <th className="py-3.5 px-5">Incident Title & Details</th>
                     <th className="py-3.5 px-5">Category</th>
@@ -690,9 +709,9 @@ export default function BarangayHistoryPage() {
                   ))}
                 </tbody>
               </table>
-              <div className="px-6"><HistoryPagination pagination={history.pagination} loading={history.loading} onPage={history.setPage} /></div>
             </div>
           )}
+          <div className="px-6"><HistoryPagination pagination={history.pagination} loading={history.loading} onPage={history.setPage} /></div>
         </div>
       </main>
     </div>

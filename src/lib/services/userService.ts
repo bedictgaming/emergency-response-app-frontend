@@ -94,7 +94,9 @@ export interface UserSafetyRecord {
   enabled: boolean;
   confirmedFalseCount: number;
   threshold: number;
-  events: Array<{ action: string; createdAt: string; metadata: { incidentId?: string; confirmed?: boolean; reasonCode?: string } | null }>;
+  events: Array<{ auditLogId?: string; actor?: { id: string; name: string | null } | null; action: string; createdAt: string; metadata: { incidentId?: string; confirmed?: boolean; reasonCode?: string } | null }>;
+  reviewEvents?: Array<{ auditLogId: string; incidentId: string | null; action: string; createdAt: string;
+    actor: { id: string; name: string | null } | null; reason: string | null; decision: string | null; department: string | null }>;
   recentReports: Array<{ incidentId: string | null; createdAt: string; ipAddress: string | null; userAgent: string | null }>;
 }
 export async function getUserSafety(id: string): Promise<UserSafetyRecord> {

@@ -1,4 +1,4 @@
-import { API_ORIGIN, ensureFreshSession, isDefinitiveAuthFailure, markSessionEnded } from '@/lib/apiClient';
+import { API_ORIGIN, ensureFreshSession, isDefinitiveAuthFailure, markSessionEnded, SESSION_CHANGED_EVENT } from '@/lib/apiClient';
 import { accountHome } from '@/lib/authorization';
 import { getMeFresh } from '@/lib/services/authService';
 import { adminAccountSnapshot } from '@/lib/adminAccountSnapshot';
@@ -6,18 +6,22 @@ import { createEmergencyTransport, type EmergencyTransport } from '@/lib/emergen
 
 export type EmergencyConnectionState = 'connecting' | 'live' | 'recovering' | 'offline' | 'signed-out';
 type Listener = { refresh: () => void; users?: () => void; nearby?: () => void; presence?: () => void; state?: (state: EmergencyConnectionState) => void };
-const streams = new Map<string, { subscribe: (listener: Listener) => () => void }>();
+const streamIdentity = () => `${adminAccountSnapshot()}:${localStorage.getItem('emergency-logout-epoch')}`;
+const streams = new Map<string, { subscribe: (listener: Listener) => () => void; reconnect: () => void }>();
+
+/** Rebind the shared authenticated transport, not another GPS watcher/socket. */
+export function reconnectEmergencyStream() { streams.get(streamIdentity())?.reconnect(); }
 
 // Events are invalidation hints, never authority to sound an emergency alarm.
 export function subscribeEmergencyStream(listener: Listener) {
-  const identity = `${adminAccountSnapshot()}:${localStorage.getItem('emergency-logout-epoch')}`;
+  const identity = streamIdentity();
   let stream = streams.get(identity);
   if (!stream) {
     const listeners = new Set<Listener>();
     let source: EmergencyTransport | null = null, timer: number | null = null;
     let stopped = false, checking = false, attempts = 0, suspended = false, lifecycle = 0;
     let state: EmergencyConnectionState = 'connecting';
-    const valid = () => !stopped && identity === `${adminAccountSnapshot()}:${localStorage.getItem('emergency-logout-epoch')}`;
+    const valid = () => !stopped && identity === streamIdentity();
     const canConnect = () => valid() && !suspended && navigator.onLine && document.visibilityState === 'visible';
     const broadcast = (next: EmergencyConnectionState) => { state = next; listeners.forEach(item => item.state?.(next)); };
     const refresh = () => { if (valid()) listeners.forEach(item => item.refresh()); };
@@ -104,18 +108,29 @@ export function subscribeEmergencyStream(listener: Listener) {
       else if (timer !== null) { window.clearTimeout(timer); timer = null; }
     };
     const online = () => resume();
+    const rebind = () => {
+      lifecycle += 1; close();
+      if (!valid()) { stopped = true; broadcast('signed-out'); return; }
+      broadcast(navigator.onLine ? 'recovering' : 'offline');
+      retry(); // Existing visibility/online/backoff and fresh-session checks.
+    };
+    const sessionStorage = (event: StorageEvent) => {
+      if (!event.key || ['emergency-session-generation', 'emergency-logout-epoch', 'user'].includes(event.key)) rebind();
+    };
+    window.addEventListener(SESSION_CHANGED_EVENT, rebind); window.addEventListener('storage', sessionStorage);
     window.addEventListener('offline', offline); window.addEventListener('online', online);
     window.addEventListener('pagehide', pause); window.addEventListener('pageshow', resume);
     window.addEventListener('focus', visible);
     document.addEventListener('freeze', pause); document.addEventListener('resume', resume);
     document.addEventListener('visibilitychange', visible);
-    stream = { subscribe(item) {
+    stream = { reconnect: rebind, subscribe(item) {
       listeners.add(item); item.state?.(state);
       if (listeners.size === 1) void connect();
       return () => {
         listeners.delete(item);
         if (!listeners.size) {
           stopped = true; close(); streams.delete(identity);
+          window.removeEventListener(SESSION_CHANGED_EVENT, rebind); window.removeEventListener('storage', sessionStorage);
           window.removeEventListener('offline', offline); window.removeEventListener('online', online);
           window.removeEventListener('pagehide', pause); window.removeEventListener('pageshow', resume);
           window.removeEventListener('focus', visible);

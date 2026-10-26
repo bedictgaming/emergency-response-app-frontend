@@ -7,6 +7,8 @@ export type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
 export type ResponseService = 'FIRE' | 'MEDICAL' | 'POLICE' | 'HAZARD';
 export type ServiceResponseStatus = 'RESPONDING' | 'RESOLVED' | 'CANCELLED';
 export interface IncidentReviewFlag {
+  reviewAuthority?: 'MAIN' | 'DEPARTMENT';
+  departmentReviewEnabled?: boolean;
   reviewFlagId: string;
   incidentId: string;
   department: 'MAIN' | 'FIRE' | 'MEDICAL' | 'POLICE' | 'DRRMO';
@@ -92,6 +94,7 @@ export interface Incident {
   incidentUnits?: IncidentUnit[];
   serviceResponses?: Array<{ service: ResponseService; status: ServiceResponseStatus; resolvedAt?: string }>;
   reviewFlags?: IncidentReviewFlag[];
+  reportReview?: { departmentReviewEnabled: boolean; readOnly: boolean; canFlag: boolean; canReview: boolean; canCorrect: boolean; canCancelFalse: boolean; wholeConfirmedFalse: boolean };
   reviewNotices?: IncidentReviewNotice[];
 }
 
@@ -138,6 +141,7 @@ export interface CreateAttachmentPayload {
 }
 
 export interface IncidentFilters {
+  reportView?: 'all' | 'operational' | 'false-reports';
   status?: IncidentStatus;
   statuses?: IncidentStatus[];
   responseService?: ResponseService;
@@ -172,6 +176,7 @@ interface IncidentsResponse {
 }
 
 export interface IncidentSummary {
+  falseReports?: number;
   total: number;
   active: number;
   responding: number;
@@ -225,9 +230,10 @@ const pendingIncidentLists = new Map<string, Promise<IncidentPage>>();
  * GET /api/incidents/v1/
  * Fetches all incidents with optional filters (e.g., status, severityLevel, reportedBy).
  */
-export const getIncidentPage = (filters?: IncidentFilters): Promise<IncidentPage> => {
+export const getIncidentPage = (filters?: IncidentFilters, options?: { fresh?: boolean }): Promise<IncidentPage> => {
   const params: Record<string, string> = {};
   if (filters?.status) params.status = filters.status;
+  if (filters?.reportView) params.reportView = filters.reportView;
   if (filters?.statuses?.length) params.statuses = filters.statuses.join(',');
   if (filters?.responseService) params.responseService = filters.responseService;
   if (filters?.serviceStatuses?.length) params.serviceStatuses = filters.serviceStatuses.join(',');
@@ -252,7 +258,7 @@ export const getIncidentPage = (filters?: IncidentFilters): Promise<IncidentPage
   const generation = typeof window !== 'undefined' ? localStorage.getItem('emergency-session-generation') ?? '' : '';
   const requestKey = `${identity}:${generation}:${new URLSearchParams(params).toString()}`;
   const existing = pendingIncidentLists.get(requestKey);
-  if (existing) return existing;
+  if (existing && !options?.fresh) return existing;
 
   const request = apiClient
     // A remote PostgreSQL read can briefly exceed the default API timeout,
@@ -282,14 +288,19 @@ export const getIncidentPage = (filters?: IncidentFilters): Promise<IncidentPage
     .finally(() => {
       if (pendingIncidentLists.get(requestKey) === request) pendingIncidentLists.delete(requestKey);
     });
+  // Replace the pre-save entry too: later ordinary reads must coalesce with
+  // this refresh, never resurrect an older still-pending snapshot. Its finally
+  // only clears this exact promise, so an old read cannot evict the new one.
   pendingIncidentLists.set(requestKey, request);
   return request;
 };
 
-export const getIncidents = async (filters?: IncidentFilters): Promise<Incident[]> =>
-  (await getIncidentPage(filters)).incidents;
+export const getIncidents = async (filters?: IncidentFilters, options?: { fresh?: boolean }): Promise<Incident[]> =>
+  (await getIncidentPage(filters, options)).incidents;
 
-export type IncidentDashboardTab = 'All' | 'Active' | 'Responding' | 'Resolved' | 'Cancelled';
+export type IncidentDashboardTab = 'All' | 'Active' | 'Responding' | 'Resolved' | 'Cancelled' | 'False Reports';
+export const incidentReportViewForTab = (tab: IncidentDashboardTab): NonNullable<IncidentFilters['reportView']> =>
+  tab === 'False Reports' ? 'false-reports' : tab === 'All' ? 'all' : 'operational';
 
 export const ADMIN_INCIDENT_PAGE_SIZE = 5;
 export const DEPARTMENT_INCIDENT_PAGE_SIZE = ADMIN_INCIDENT_PAGE_SIZE;
@@ -311,7 +322,7 @@ export const incidentStatusesForTab = (tab: IncidentDashboardTab): IncidentStatu
 
 export const incidentServiceStatusesForTab = (
   tab: Exclude<IncidentDashboardTab, 'All' | 'Active'>,
-): ServiceResponseStatus[] => tab === 'Cancelled' ? ['CANCELLED'] : tab === 'Resolved' ? ['RESOLVED'] : ['RESPONDING'];
+): ServiceResponseStatus[] | undefined => tab === 'False Reports' ? undefined : tab === 'Cancelled' ? ['CANCELLED'] : tab === 'Resolved' ? ['RESOLVED'] : ['RESPONDING'];
 
 /**
  * GET /api/incidents/v1/:id
@@ -326,17 +337,17 @@ export const getIncidentById = async (id: string, signal?: AbortSignal): Promise
  * POST /api/incidents/v1/
  * Creates a new emergency incident.
  */
-export const createIncident = async (payload: CreateIncidentPayload): Promise<Incident & { accountDeactivated?: boolean }> => {
-  const response = await apiClient.post<SingleIncidentResponse>('/incidents/v1/', payload);
+export const createIncident = async (payload: CreateIncidentPayload, signal?: AbortSignal): Promise<Incident & { accountDeactivated?: boolean }> => {
+  const response = await apiClient.post<SingleIncidentResponse>('/incidents/v1/', payload, { signal });
   return { ...response.data.data.incident, accountDeactivated: response.data.data.accountDeactivated === true };
 };
 
 export const checkNearbyIncident = async (
-  payload: NearbyIncidentCheckPayload,
+  payload: NearbyIncidentCheckPayload, signal?: AbortSignal,
 ): Promise<NearbyIncidentCheckResult> => {
   const response = await apiClient.post<{ data: NearbyIncidentCheckResult }>(
     '/incidents/v1/nearby-check',
-    payload,
+    payload, { signal },
   );
   return response.data.data;
 };
@@ -390,13 +401,18 @@ export const correctIncidentFlag = async (flag: IncidentReviewFlag, reviewNotes:
   await apiClient.post(`/incidents/v1/${flag.incidentId}/review-flags/${flag.reviewFlagId}/correction`, { reviewNotes, expectedUpdatedAt: flag.updatedAt });
 };
 
-export const getIncidentReviewQueue = async (page = 1): Promise<{
-  flags: Array<IncidentReviewFlag & { incident: Pick<Incident, 'incidentId' | 'title' | 'status'> }>;
+export type ReviewFlagView = 'all' | 'pending' | 'reviewed';
+export const getIncidentReviewQueue = async (page = 1, view: ReviewFlagView = 'all', signal?: AbortSignal): Promise<{
+  view: ReviewFlagView;
+  departmentReviewEnabled?: boolean; canReview?: boolean;
+  flags: Array<IncidentReviewFlag & { reviewedAt?: string | null; reviewer?: { id: string; name?: string | null } | null; incident: Pick<Incident, 'incidentId' | 'title' | 'status'> }>;
   pagination: { page: number; limit: number; total: number; pages: number };
 }> => {
-  const response = await apiClient.get('/incidents/v1/review-flags', { params: { page } });
+  const response = await apiClient.get('/incidents/v1/review-flags', { params: { page, ...(view !== 'all' && { view }) }, signal });
   const data = response.data?.data;
-  if (!Array.isArray(data?.flags) || !data.pagination || typeof data.pagination.total !== 'number') throw new Error('Invalid report review queue response');
+  if (!Array.isArray(data?.flags) || !data.pagination || typeof data.pagination.total !== 'number'
+    || (view !== 'all' && data.view !== view)
+    || data.flags.some((flag: IncidentReviewFlag) => view === 'pending' ? flag.status !== 'PENDING' : view === 'reviewed' && !['CONFIRMED', 'DISMISSED'].includes(flag.status))) throw new Error('Invalid report review queue response');
   return data;
 };
 
@@ -480,6 +496,8 @@ export const formatIncidentForDashboard = (inc: Incident, responseService?: Resp
   }
   // Cancellation is a global retained outcome, never an active department response.
   if (inc.status === 'CANCELLED') status = 'cancelled';
+  // Classification is a retained view, never a fabricated Resolve/cancel write.
+  if (inc.reportReview?.departmentReviewEnabled ? inc.reportReview.wholeConfirmedFalse : inc.reviewFlags?.some(flag => flag.status === 'CONFIRMED')) status = 'false report';
 
   let phone = 'Not provided';
   let description = (inc.description || '').trim();

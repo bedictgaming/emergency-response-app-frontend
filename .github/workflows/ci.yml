@@ -29,7 +29,8 @@ jobs:
       - run: npm run test:push
       - run: npm run test:architecture
       - run: npm run test:realtime
-      - run: node --experimental-strip-types --test scripts/citizen-presence-locations.test.mjs
+      - run: node --experimental-strip-types --test scripts/report-contact.test.mjs scripts/citizen-review-notifications.test.mjs
+      - run: node --experimental-strip-types --test scripts/citizen-presence-locations.test.mjs scripts/citizen-presence-preference.test.mjs scripts/report-distance.test.mjs
       - run: npm run test:seo
       - run: node --test scripts/dependency-audit-policy.test.mjs
       - run: node scripts/check-dependency-audit.mjs

@@ -33,11 +33,13 @@ export function Dialog({
 export function DialogContent({
   children,
   className = '',
-  style
+  style,
+  closeBar = false,
 }: {
   children: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
+  closeBar?: boolean;
 }) {
   const context = useContext(DialogContext);
   const [mounted, setMounted] = useState(false);
@@ -135,7 +137,7 @@ export function DialogContent({
         <button
           type="button"
           onClick={() => onOpenChange(false)}
-          className="absolute right-3 top-3 z-20 flex h-11 w-11 items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-[background-color,border-color,color] duration-200 hover:border-border hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:right-4 sm:top-4"
+          className={`${closeBar ? 'relative m-2 mb-0 ml-auto shrink-0' : 'absolute right-3 top-3 z-20 sm:right-4 sm:top-4'} flex h-11 w-11 items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-[background-color,border-color,color] duration-200 hover:border-border hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
           aria-label="Close"
         >
           <X className="h-4 w-4" />

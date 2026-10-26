@@ -8,7 +8,7 @@ export interface NearbyReview {
   reason?: string | null; createdAt: string; reviewedAt?: string | null;
   incident: { title: string; status: IncidentStatus; reportedAt: string };
 }
-export interface NearbyReviewPage { enabled: boolean; canDecide: boolean; items: NearbyReview[]; hasMore: boolean; requiresResponseStart?: boolean }
+export interface NearbyReviewPage { enabled: boolean; canDecide: boolean; items: NearbyReview[]; hasMore: boolean; requiresResponseStart?: boolean; departmentReviewEnabled?: boolean }
 export const nearbyReviewUiEnabled = process.env.NEXT_PUBLIC_NEARBY_REVIEW_ENABLED === 'true';
 export async function getNearbyReviews(input: { page?: number; incidentId?: string; status?: NearbyReviewStatus }, signal?: AbortSignal) {
   const response = await apiClient.get<{ data: NearbyReviewPage }>('/incidents/v1/nearby-reviews', { params: input, signal });

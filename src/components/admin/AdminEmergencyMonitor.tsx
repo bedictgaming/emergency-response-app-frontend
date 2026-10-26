@@ -25,6 +25,8 @@ import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
 import { saveAdminSoundPreference } from "@/lib/adminSoundPreference";
 import { NewReportAlertGate } from '@/lib/newReportAlertGate';
 import { NearbyReportDialog } from './NearbyReportDialog';
+import { ReportContactNumber } from '@/components/shared/ReportContactNumber';
+import { reportContactHref } from '@/lib/reportContact';
 
 export default function AdminEmergencyMonitor({ responseService }: { responseService?: ResponseService }) {
   const [sirenState, setSirenState] = useState(sirenManager.getState());
@@ -436,18 +438,17 @@ export default function AdminEmergencyMonitor({ responseService }: { responseSer
                       const phone =
                         newIncidentAlert.description?.match(/\[Contact:\s*([^\]]+)\]/)?.[1];
                       if (!phone) return null;
+                      const href = reportContactHref(phone);
                       return (
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <span className="text-xs text-foreground font-mono">
-                            📞 {phone}
-                          </span>
-                          <a
-                            href={`tel:${phone.replace(/[^0-9+]/g, "")}`}
+                          <ReportContactNumber phone={phone} />
+                          {href && <a
+                            href={href}
                             className="inline-flex min-h-11 items-center gap-1 rounded border border-border bg-card px-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
                           >
                             <Phone className="w-2.5 h-2.5" />
                             <span>Call Contact</span>
-                          </a>
+                          </a>}
                         </div>
                       );
                     })()}

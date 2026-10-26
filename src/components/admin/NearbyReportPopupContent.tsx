@@ -6,12 +6,14 @@ import { useEmergencyEvents } from '@/hooks/useEmergencyEvents';
 import { LoadingPlaceholder } from '@/components/ui/loading-placeholder';
 import { CompactEvidencePhoto } from '@/components/shared/SecureEvidencePhoto';
 import { NearbyReviewActions } from './NearbyReviewActions';
+import { formatNearbyReportDistance } from '@/lib/reportDistance';
+import { ReportContactNumber } from '@/components/shared/ReportContactNumber';
 
 const nearbyIdentity = () => `${adminAccountSnapshot()}:${typeof window === 'undefined' ? '' : localStorage.getItem('emergency-logout-epoch')}`;
 
 // Mounted only for a selected, server-authorized follow-up. Never put private
 // report text in a static marker, event payload or an unauthenticated map URL.
-export function NearbyReportPopupContent({ incidentId }: { incidentId: string }) {
+export function NearbyReportPopupContent({ incidentId, distanceFromOriginalMeters }: { incidentId: string; distanceFromOriginalMeters?: number }) {
   const identity = nearbyIdentity();
   const [data, setData] = useState<{ identity: string; id: string; report?: Incident; error?: boolean } | null>(null);
   const [revision, setRevision] = useState(0);
@@ -36,12 +38,14 @@ export function NearbyReportPopupContent({ incidentId }: { incidentId: string })
   // Reuse the submitted-report contact parser. Do not replace a missing report
   // contact with the account/profile phone or expose it before authorized read.
   const details = current?.report ? formatIncidentForDashboard(current.report) : null;
+  const distance = formatNearbyReportDistance(distanceFromOriginalMeters);
   return <section aria-label="Nearby submitted report" className="min-w-0 break-words text-foreground">
     <h3 ref={heading} tabIndex={-1} className="pr-6 text-base font-semibold focus-visible:outline-2 focus-visible:outline-ring">{current?.report?.title || 'Nearby submitted report'}</h3>
     {current?.error ? <div role="alert" className="mt-3 text-sm">Report unavailable or outside your current access. <button type="button" onClick={refresh} className="min-h-11 font-semibold underline underline-offset-4">Retry report</button></div>
       : current?.report ? <>
         <p className="mt-2 text-sm text-muted-foreground">Status: {current.report.status} · {current.report.requestedServices?.join(' / ')}</p>
-        <p className="mt-2 text-sm"><span className="font-semibold">Contact number: </span><span>{details?.phone || 'Not provided'}</span></p>
+        {distance && <p className="mt-2 text-sm tabular-nums"><span className="font-semibold">Distance from Report A: </span>{distance} <span className="text-muted-foreground">(straight-line estimate)</span></p>}
+        <p className="mt-2 text-sm"><span className="font-semibold">Contact number: </span><ReportContactNumber phone={details?.phone} /></p>
         <p className="mt-3 whitespace-pre-wrap text-sm">{details?.description || current.report.title}</p>
         <p className="mt-3 text-sm">Location: {current.report.location?.address || current.report.location?.locationName || 'Recorded report pin'}</p>
         {current.report.attachments?.[0]?.fileUrl && <div className="mt-3"><CompactEvidencePhoto sourceUrl={current.report.attachments[0].fileUrl} alt="Nearby report evidence" /></div>}

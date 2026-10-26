@@ -31,13 +31,18 @@ export function useIncidentHistory(filters: IncidentHistoryFilters, enabled: boo
     window.addEventListener('storage', accountChanged);
     const background = backgroundRefresh.current && previousKey.current === key && previousPage.current === page;
     backgroundRefresh.current = false; previousPage.current = page;
-    if (previousKey.current !== key) { setData(null); previousKey.current = key; }
+    if (previousKey.current !== key) { setData(null); setSelection({ key, page: 1 }); previousKey.current = key; }
     // A live reread must not disable a focused paging control or reset focus.
     if (!background) setLoading(true);
     setError("");
     const timer = setTimeout(() => {
       void getIncidentHistory({ ...JSON.parse(key), page }).then(result => {
-        if (active && sameAccount()) setData({ ...result, account, logout }); else accountChanged();
+        if (!active || !sameAccount()) { accountChanged(); return; }
+        // A live reread can shrink the last page. Fetch the valid page instead
+        // of presenting an empty list while matching records still exist.
+        const lastPage = Math.max(1, result.pagination.pages);
+        if (page > lastPage) { setSelection({ key, page: lastPage }); return; }
+        setData({ ...result, account, logout });
       }).catch(() => {
         if (active && sameAccount()) setError("History could not be loaded. Previously loaded records may be out of date. Retry to refresh."); else accountChanged();
       }).finally(() => { if (active) setLoading(false); });

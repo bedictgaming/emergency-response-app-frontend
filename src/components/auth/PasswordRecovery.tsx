@@ -25,8 +25,8 @@ export function PasswordRecovery({ token, hasResetLink, validLink, initialEmail,
     event.preventDefault();
     if (request.current || (hasResetLink && (!validLink || !token))) return;
     setError(''); setNotice('');
-    if (hasResetLink && (password.length < 12 || password.length > 128 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password))) {
-      setError('Use 12–128 characters with uppercase and lowercase letters and a number.');
+    if (hasResetLink && (password.length < 11 || password.length > 128 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password))) {
+      setError('Use 11–128 characters with uppercase and lowercase letters and a number.');
       return;
     }
     const controller = new AbortController(); request.current = controller; setPending(true);
@@ -58,7 +58,7 @@ export function PasswordRecovery({ token, hasResetLink, validLink, initialEmail,
             <div>
               <Label htmlFor="reset-password" className="mb-2 block">New password</Label>
               <Input id="reset-password" name="new-password" type="password" autoComplete="new-password" required maxLength={128} disabled={pending || !validLink} value={password} onChange={event => setPassword(event.target.value)} aria-describedby="reset-password-help" className="h-12 rounded-lg text-base" />
-              <p id="reset-password-help" className="mt-2 text-sm leading-6 text-muted-foreground">Use 12–128 characters with uppercase and lowercase letters and a number.</p>
+              <p id="reset-password-help" className="mt-2 text-sm leading-6 text-muted-foreground">Use 11–128 characters with uppercase and lowercase letters and a number.</p>
             </div>
           ) : (
             <div>

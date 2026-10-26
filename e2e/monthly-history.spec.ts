@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { installQuietEventStream, waitForQuietEventStream, waitForInitialLiveReads } from './helpers/quiet-event-stream';
-const initialReads = new WeakMap<Page, { completed: number }>();
+import { waitForInitialLiveReads } from './helpers/quiet-event-stream';
+const initialReads = new WeakMap<Page, { completed: number; connected: boolean; writes: number }>();
+test.use({ serviceWorkers: 'block' });
 
 function monthly(month: number, count: number) {
   return { month, year: 2026, resolvedThisMonth: count, totalReportedThisMonth: count,
@@ -9,14 +10,23 @@ function monthly(month: number, count: number) {
 }
 
 async function setup(page: Page, onMonth?: (route: Route) => Promise<void>) {
-  const reads = { completed: 0 }; initialReads.set(page, reads);
-  await installQuietEventStream(page);
+  const reads = { completed: 0, connected: false, writes: 0 }; initialReads.set(page, reads);
+  // The application now prefers Socket.IO. Intercept that transport rather than
+  // waiting forever for the retired primary-SSE fixture or contacting real WS.
+  await page.addInitScript(() => Object.defineProperty(window, 'EventSource', { configurable: true, value: undefined }));
+  await page.routeWebSocket('**/api/events/v1/socket.io/**', peer => {
+    peer.onMessage(message => {
+      if (message === '40') { peer.send('40{"sid":"monthly-synthetic-namespace"}'); reads.connected = true; }
+    });
+    peer.send('0{"sid":"monthly-synthetic-engine","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1024}');
+  });
   await page.clock.setFixedTime(new Date('2026-10-01T07:00:00Z'));
   const user = { id: 'admin', role: 'ADMIN', department: 'MAIN', isMainAdmin: true };
   await page.addInitScript(current => localStorage.setItem('user', JSON.stringify(current)), user);
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
     const path = url.pathname.replace(/\/$/, '');
+    if (route.request().method() !== 'GET') { reads.writes++; return route.fulfill({ status: 403 }); }
     if (path === '/api/auth/v1/me') return route.fulfill({ json: { data: { user } } });
     if (path === '/api/events/v1/stream') return route.fulfill({
       contentType: 'text/event-stream', body: 'event: connected\ndata: {"ok":true}\n\n',
@@ -48,7 +58,7 @@ async function setup(page: Page, onMonth?: (route: Route) => Promise<void>) {
 for (const surface of ['drawer', 'page'] as const) {
   async function open(page: Page) {
     await page.goto(surface === 'page' ? '/admin/barangay-history' : '/admin/main-dashboard');
-    await waitForQuietEventStream(page);
+    await expect.poll(() => initialReads.get(page)!.connected).toBe(true);
     if (surface === 'drawer') await page.getByRole('button', { name: 'Barangay History Log' }).click();
     await waitForInitialLiveReads(page, () => initialReads.get(page)!.completed, surface === 'page' ? 2 : 1);
     const card = page.locator('[aria-label="Monthly verified resolution summary"]');
@@ -138,7 +148,7 @@ for (const surface of ['drawer', 'page'] as const) {
       const path = new URL(route.request().url()).pathname.replace(/\/$/, '');
       if (path !== '/api/incidents/v1') return route.fallback();
       return route.fulfill({ json: { data: {
-        incidents: incidents.filter(incident => incident.title.toLowerCase().includes((new URL(route.request().url()).searchParams.get('search') ?? '').toLowerCase())), pagination: { page: 1, limit: 50, total: 2, pages: 1 },
+        incidents: incidents.filter(incident => incident.title.toLowerCase().includes((new URL(route.request().url()).searchParams.get('search') ?? '').toLowerCase())), pagination: { page: 1, limit: 5, total: 2, pages: 1 },
         summary: { total: 2, active: 0, responding: 0, resolved: 2 },
         verifiedSummary: { total: 2, active: 0, responding: 0, resolved: 2 },
       } } });

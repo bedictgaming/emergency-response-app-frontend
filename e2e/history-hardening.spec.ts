@@ -17,11 +17,11 @@ async function setup(page: Page) {
     if (path === '/api/barangays/v1') return route.fulfill({ json: { data: { barangays: [] } } });
     if (path === '/api/incidents/v1/review-flags') return route.fulfill({ json: { data: { flags: [], pagination: { total: 0, pages: 0, page: 1, limit: 20 } } } });
     if (path === '/api/incidents/v1') {
-      const history = url.searchParams.get('limit') === '50';
+      const history = url.searchParams.get('includeTotal') === 'true';
       if (history) { requests.push(url); if (unavailable) return route.fulfill({ status: 503, json: { message: 'Unavailable' } }); }
       const search = (url.searchParams.get('search') ?? '').toLowerCase(), status = url.searchParams.get('status');
       const filtered = records.filter(record => record.title.toLowerCase().includes(search) && (!status || status === record.status));
-      const pageNumber = Number(url.searchParams.get('page') ?? 1), limit = Number(url.searchParams.get('limit') ?? 50);
+      const pageNumber = Number(url.searchParams.get('page') ?? 1), limit = Number(url.searchParams.get('limit') ?? 5);
       return route.fulfill({ json: { data: { incidents: filtered.slice((pageNumber - 1) * limit, pageNumber * limit), pagination: { page: pageNumber, limit, total: filtered.length, pages: Math.ceil(filtered.length / limit) }, summary: { total: 52, active: 0, responding: 1, resolved: 51 }, verifiedSummary: { total: 52, active: 0, responding: 1, resolved: 51 } } } });
     }
     return route.fulfill({ json: { data: {} } });
@@ -36,8 +36,11 @@ for (const surface of ['drawer', 'page'] as const) {
     const scope = surface === 'drawer' ? page.getByRole('dialog', { name: 'Barangay Incident History Log' }) : page.locator('main');
     // Page currently has a div shell rather than a main landmark.
     const content = surface === 'drawer' ? scope : page.locator('body');
-    await expect(content.getByRole('button', { name: 'Next records' })).toBeVisible();
-    await content.getByRole('button', { name: 'Next records' }).click();
+    await expect(content.getByRole('button', { name: 'Next page', exact: true })).toBeVisible();
+    for (let current = 1; current < Math.ceil(52 / 5); current++) {
+      await expect(content.locator('[data-history-pagination]')).toContainText(`Page ${current} of 11`);
+      await content.getByRole('button', { name: 'Next page', exact: true }).click();
+    }
     await expect(content.getByText('Oldest matching record', { exact: true })).toBeVisible();
     await content.getByLabel('Search incident history', { exact: true }).fill('Oldest matching');
     await expect.poll(() => fixture.requests.at(-1)?.searchParams.get('search')).toBe('Oldest matching');

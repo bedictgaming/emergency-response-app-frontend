@@ -35,7 +35,7 @@ async function setup(page: Page, department = 'MAIN', historical = { totalHistor
     if (path === '/api/incidents/v1') return route.fulfill({ json: { data: {
       // All-record totals, verified all-time totals and the visible page are
       // intentionally different; none may substitute for the report month.
-      incidents: [], pagination: { page: 1, limit: 50, total: 9, pages: 1 },
+      incidents: [], pagination: { page: 1, limit: 5, total: 9, pages: 2 },
       summary: { total: 9, active: 0, responding: 0, resolved: 9 },
       verifiedSummary: { total: 8, active: 0, responding: 0, resolved: 8 },
     } } });

@@ -12,6 +12,10 @@ import { NearbyReportDialog } from '@/components/admin/NearbyReportDialog';
 import { nearbyReviewUiEnabled } from '@/lib/services/nearbyReviewService';
 import { NearbyReportPopupContent } from '@/components/admin/NearbyReportPopupContent';
 import { ExpandedMap } from '@/components/ui/expanded-map';
+import { formatNearbyReportDistance } from '@/lib/reportDistance';
+import IncidentReviewActions from '@/components/admin/IncidentReviewActions';
+import type { Incident } from '@/lib/services/incidentService';
+import type { ReportPinReviewControl } from '@/types/report-pin-review';
 
 const LocationMap = dynamic(() => import('../citizen/LocationMap').then(module => module.LocationMap), {
   ssr: false,
@@ -21,10 +25,12 @@ const LocationMap = dynamic(() => import('../citizen/LocationMap').then(module =
 // Compact inline map with an optional focused, in-app map viewer.
 // https://registry.watermelon.sh/r/view-on-map.json
 // Keep Leaflet/OSM; never send the report to an external map tab/iframe.
-export function IncidentLocationMap({ latitude, longitude, operationalIncidentId }: {
+export function IncidentLocationMap({ latitude, longitude, operationalIncidentId, reviewIncident, onReviewChanged }: {
   latitude?: number | null;
   longitude?: number | null;
   operationalIncidentId?: string;
+  reviewIncident?: Incident;
+  onReviewChanged?: () => Promise<void>;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [nearViewport, setNearViewport] = useState(false);
@@ -34,6 +40,8 @@ export function IncidentLocationMap({ latitude, longitude, operationalIncidentId
   const [inlineCapability, setInlineCapability] = useState('');
   const valid = typeof latitude === 'number' && typeof longitude === 'number'
     && isWithinCordovaMapBounds(latitude, longitude);
+  const pinReviewEnabled = valid && reviewIncident?.incidentId === operationalIncidentId
+    && reviewIncident?.reportReview?.departmentReviewEnabled && reviewIncident.reportReview.canReview && !reviewIncident.reportReview.readOnly;
   // One detector serves either view, even when the inline card leaves the viewport.
   const detection = useNearbyDetection(operationalIncidentId ? { kind: 'department', incidentId: operationalIncidentId } : null,
     valid && (inViewport || mapOpen));
@@ -63,32 +71,37 @@ export function IncidentLocationMap({ latitude, longitude, operationalIncidentId
     }, { rootMargin: '200px' });
     observer.observe(container.current);
     return () => observer.disconnect();
-  }, [valid]);
+  }, [valid, pinReviewEnabled]);
 
-  if (!valid) return (
+  if (!valid) return <>
     <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">Map unavailable: this report has no valid recorded coordinates.</p>
-  );
+    {reviewIncident && onReviewChanged && <IncidentReviewActions incident={reviewIncident} onChanged={onReviewChanged} />}
+  </>;
 
   const coordinates = `${displayedLatitude!.toFixed(6)}, ${displayedLongitude!.toFixed(6)}`;
   const compactHeight = mapOpen ? inlineReview ? 'min(70dvh, 600px)' : 'min(60dvh, 560px)' : 260;
   // Mount only one Leaflet map: changing views must not double tiles or readers.
-  const mapContents = <>
+  const mapContents = (reportPinReview?: ReportPinReviewControl) => <>
       {operationalIncidentId && <NearbyDetectionStatus detection={detection} />}
       {nearViewport || mapOpen
-        ? <ExpandedMap expanded={Boolean(inlineReview && reviewId)} compactHeight={compactHeight} expandedHeight={mapOpen ? compactHeight : 420}>
+        ? <ExpandedMap expanded={Boolean(inlineReview && reviewId)} compactHeight={compactHeight} expandedHeight={mapOpen ? compactHeight : 480}>
           <LocationMap latitude={displayedLatitude!} longitude={displayedLongitude!} navigable height="100%"
+            reportPinReview={reportPinReview}
+            nearbyReferenceLabel={operationalIncidentId ? 'Report A' : undefined}
             nearbyPins={detection.result?.items} reviewIncidentIds={reviewIncidentIds} waitingIncidentIds={detection.result?.waitingIncidentIds} onNearbyReport={openNearbyReport}
             selectedNearbyReportId={inlineReview ? reviewId : undefined} onNearbyReportClose={() => setReviewId(null)}
-            renderNearbyReport={inlineReview ? id => <NearbyReportPopupContent incidentId={id} /> : undefined} />
+            renderNearbyReport={inlineReview ? id => <NearbyReportPopupContent incidentId={id}
+              distanceFromOriginalMeters={reviewPins.find(pin => pin.incidentId === id)?.distanceMeters} /> : undefined} />
         </ExpandedMap>
         : <LoadingPlaceholder label="Incident map loads when visible" layout="map" className="h-[260px]" />}
       <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">{operationalIncidentId ? '100 m nearby detection around the selected report' : '100 m around the reported pin · visual reference only'} · not the affected area or GPS accuracy. Cordova outline is approximate.</p>
+      {reviewPins.length > 0 && <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">Distances are from Report A (red pin) to each later report’s saved GPS pin. Straight-line estimates, rounded to the nearest metre; device GPS errors affect accuracy, not map zoom.</p>}
       {reviewPins.length ? <ul className="mt-2 space-y-1" aria-label="Authorized nearby reports">
-        {reviewPins.map(pin => <li key={pin.incidentId}><button type="button" className="min-h-11 rounded-lg px-2 text-left text-sm font-semibold text-red-700 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-red-600" onClick={() => openNearbyReport(pin.incidentId)}>Review nearby report · {pin.services.join(' / ')} · {pin.distanceMeters} m</button></li>)}
+        {reviewPins.map(pin => <li key={pin.incidentId}><button type="button" className="min-h-11 rounded-lg px-2 text-left text-sm font-semibold text-red-700 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-red-600" onClick={() => openNearbyReport(pin.incidentId)}>Review nearby report · {pin.services.join(' / ')} · {formatNearbyReportDistance(pin.distanceMeters) ?? 'Distance unavailable'} from Report A</button></li>)}
       </ul> : null}
   </>;
 
-  return (
+  const renderLocation = (reportPinReview?: ReportPinReviewControl) => (
     <div ref={container} className="mt-4 min-w-0" role="group" aria-label="Reported emergency location">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
         <div className="min-w-0">
@@ -100,7 +113,8 @@ export function IncidentLocationMap({ latitude, longitude, operationalIncidentId
           <Expand className="h-4 w-4" aria-hidden="true" />View map
         </button>
       </div>
-      {!mapOpen && mapContents}
+      {reportPinReview && <p className="mb-2 text-sm text-slate-700">{reportPinReview.flagStatus === 'CONFIRMED' ? 'Department confirmation recorded — select the flagged pin to review.' : reportPinReview.flagStatus === 'PENDING' ? 'Flagged for department review — select the flagged pin to open the report. A flag is not a violation.' : 'Select the red report pin to review or flag this report.'}</p>}
+      {!mapOpen && mapContents(reportPinReview)}
       <Dialog open={mapOpen} onOpenChange={setMapOpen}>
         <DialogContent className="max-w-5xl">
           <DialogHeader>
@@ -108,10 +122,14 @@ export function IncidentLocationMap({ latitude, longitude, operationalIncidentId
             <DialogDescription>Zoom and drag to inspect the reported location. The recorded pin does not move.</DialogDescription>
           </DialogHeader>
           <p className="mb-3 text-xs tabular-nums text-slate-600 dark:text-slate-300">{coordinates}</p>
-          {mapOpen && mapContents}
+          {mapOpen && mapContents(reportPinReview)}
         </DialogContent>
       </Dialog>
       {operationalIncidentId && !inlineReview && <NearbyReportDialog incidentId={reviewId} onClose={() => setReviewId(null)} />}
     </div>
   );
+  if (!reviewIncident || !onReviewChanged) return renderLocation();
+  return pinReviewEnabled
+    ? <IncidentReviewActions incident={reviewIncident} onChanged={onReviewChanged} renderTrigger={renderLocation} />
+    : <>{renderLocation()}<IncidentReviewActions incident={reviewIncident} onChanged={onReviewChanged} /></>;
 }

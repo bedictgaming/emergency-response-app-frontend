@@ -9,6 +9,9 @@ import {
 } from "lucide-react";
 import AdminHeader from "@/components/admin/AdminHeader";
 import ReporterIdentity from "@/components/admin/ReporterIdentity";
+import { ReportContactNumber } from "@/components/shared/ReportContactNumber";
+import { FalseReportRetentionNotice } from "@/components/admin/FalseReportRetentionNotice";
+import { reportContactHref } from "@/lib/reportContact";
 import { IncidentLocationMap } from "@/components/shared/IncidentLocationMap";
 import {
     getIncidentPage,
@@ -16,6 +19,7 @@ import {
     formatIncidentForDashboard,
     DashboardIncident,
     IncidentDashboardTab,
+    incidentReportViewForTab,
     IncidentSummary,
     DEPARTMENT_INCIDENT_PAGE_SIZE,
     incidentServiceStatusesForTab,
@@ -26,19 +30,22 @@ import { useEmergencyEvents } from "@/hooks/useEmergencyEvents";
 import IncidentPager from "@/components/admin/IncidentPager";
 import { CompactEvidencePhoto } from "@/components/shared/SecureEvidencePhoto";
 import { adminAccountSnapshot } from "@/lib/adminAccountSnapshot";
-import IncidentReviewActions from "@/components/admin/IncidentReviewActions";
 import { NearbyReviewQueue } from '@/components/admin/NearbyReviewQueue';
+import IncidentReviewQueue from '@/components/admin/IncidentReviewQueue';
 
 export default function DrrmoAdminDashboard() {
     const isAuthorized = useAdminGuard("DRRMO");
     const canResolveResponse = useDepartmentResponseAuthority("HAZARD", isAuthorized);
     const [activeTab, setActiveTab] = useState<Exclude<IncidentDashboardTab, "All" | "Active">>("Responding");
+    const selectedView = useRef('Responding:1');
     const [emergencies, setEmergencies] = useState<DashboardIncident[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [listError, setListError] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
     const [copiedPhoneId, setCopiedPhoneId] = useState<string | null>(null);
     const [page, setPage] = useState(1);
+    useEffect(() => { selectedView.current = `${activeTab}:${page}`; }, [activeTab, page]);
     const [pagination, setPagination] = useState({ pages: 0, total: 0 });
     const [summary, setSummary] = useState<IncidentSummary>({ total: 0, active: 0, responding: 0, resolved: 0 });
     const incidentRequestInFlight = useRef(false);
@@ -70,13 +77,15 @@ export default function DrrmoAdminDashboard() {
             const result = await getIncidentPage({
                 department: "DRRMO",
                 includeAttachments: true,
+                reportView: incidentReportViewForTab(activeTab),
                 includeReviewFlags: true,
                 limit: DEPARTMENT_INCIDENT_PAGE_SIZE,
                 page,
                 responseService: "HAZARD",
                 serviceStatuses: incidentServiceStatusesForTab(activeTab),
             });
-            if (adminAccountSnapshot() !== accountAtStart) return;
+            if (adminAccountSnapshot() !== accountAtStart || selectedView.current !== view) return;
+            setListError(null);
             if (result.pagination.pages > 0 && page > result.pagination.pages) {
                 setPage(result.pagination.pages);
                 return;
@@ -87,10 +96,14 @@ export default function DrrmoAdminDashboard() {
             // Filter for Hazard / Weather / Disaster incidents or Other
             const hazardOnly = data
                 .map(item => formatIncidentForDashboard(item, "HAZARD"))
-                .filter((item) => item.services.includes("Hazard") && item.raw.verificationStatus === "VERIFIED");
+                .filter((item) => item.services.includes("Hazard") && (item.status === 'false report' || item.raw.verificationStatus === "VERIFIED"));
             setEmergencies(hazardOnly);
             succeeded = true;
         } catch (err) {
+            if (adminAccountSnapshot() === accountAtStart && selectedView.current === view) {
+                setEmergencies([]);
+                setListError('Report list could not be refreshed. Retry to load the selected view.');
+            }
             if (adminAccountSnapshot() === accountAtStart) console.warn("Failed to load DRRMO emergencies:", err);
         } finally {
             setIsLoading(false);
@@ -153,6 +166,7 @@ export default function DrrmoAdminDashboard() {
         { name: "Responding" as const, count: respondingCount },
         { name: "Resolved" as const, count: resolvedCount },
         { name: "Cancelled" as const, count: summary.cancelled ?? 0 },
+        { name: "False Reports" as const, count: summary.falseReports ?? 0 },
     ];
 
     const currentTabIncidents = emergencies;
@@ -206,6 +220,7 @@ export default function DrrmoAdminDashboard() {
 
                 {/* Report Section */}
                 <NearbyReviewQueue onChanged={loadIncidents} />
+                <IncidentReviewQueue mainAdmin={false} onChanged={loadIncidents} />
                 <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
                     <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                         <h2 className="text-xl font-bold">Hazard & Disaster Reports</h2>
@@ -225,17 +240,23 @@ export default function DrrmoAdminDashboard() {
                 </div>
 
                 {/* Tabs */}
-                <div className="bg-gray-200 p-1 rounded-full flex mb-6 max-w-full overflow-x-auto">
+                <div aria-label="Report record views" className="mb-6 grid grid-cols-2 gap-2 rounded-xl border border-border bg-muted p-1 sm:grid-cols-4">
                     {tabs.map((tab) => (
                         <button
                             key={tab.name}
+                            type="button"
+                            aria-pressed={activeTab === tab.name}
                             onClick={() => {
+                                selectedView.current = `${tab.name}:1`;
                                 setPage(1);
                                 setActiveTab(tab.name);
+                                setEmergencies([]);
+                                setIsLoading(true);
+                                setListError(null);
                             }}
-                            className={`flex-1 min-w-[120px] py-2.5 text-sm font-medium rounded-full transition-all cursor-pointer ${activeTab === tab.name
-                                    ? "bg-white text-black shadow-sm"
-                                    : "text-gray-500 hover:text-gray-700"
+                            className={`min-h-11 min-w-0 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${activeTab === tab.name
+                                    ? "bg-foreground text-background"
+                                    : "text-foreground hover:bg-background"
                                 }`}
                         >
                             {tab.name} ({tab.count})
@@ -244,7 +265,9 @@ export default function DrrmoAdminDashboard() {
                 </div>
 
                 {/* List */}
-                <div className="space-y-4">
+                {listError && <div role="alert" className="mb-4 border-y border-border py-4 text-base text-foreground"><p>{listError}</p><button type="button" onClick={() => void loadIncidents()} className="mt-2 min-h-11 rounded-lg border border-border px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-ring">Retry report list</button></div>}
+                {activeTab === 'False Reports' && <p className="mb-4 max-w-prose text-base leading-relaxed text-foreground">Whole-confirmed false reports are retained here automatically. No Resolve action is needed. Records remain newest first, with five per page.</p>}
+                <div role="region" aria-label="Department report records" className="space-y-4">
                     {currentTabIncidents.map((item) => (
                         <div key={item.id} className="motion-list-item bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -281,18 +304,18 @@ export default function DrrmoAdminDashboard() {
                                 <div className="flex items-center justify-between gap-2 text-gray-600 text-sm flex-wrap">
                                     <div className="flex items-center gap-2.5">
                                         <Phone size={14} className="text-gray-400 shrink-0" />
-                                        <span>Contact: <strong>{item.phone}</strong></span>
+                                        <span>Contact: <strong><ReportContactNumber phone={item.phone} /></strong></span>
                                     </div>
                                     {item.phone && item.phone !== "Not provided" && (
                                         <div className="flex items-center gap-1.5">
-                                            <a
-                                                href={`tel:${item.phone.replace(/[^0-9+]/g, "")}`}
+                                            {reportContactHref(item.phone) && <a
+                                                href={reportContactHref(item.phone) ?? undefined}
                                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 transition-colors shadow-2xs"
                                                 title={`Call ${item.reporter} (${item.phone})`}
                                             >
                                                 <Phone size={12} className="text-emerald-600" />
                                                 <span>Call Contact</span>
-                                            </a>
+                                            </a>}
                                             <button
                                                 type="button"
                                                 onClick={() => handleCopyPhone(item.phone, item.id)}
@@ -320,7 +343,8 @@ export default function DrrmoAdminDashboard() {
                                 </div>
                             </div>
 
-                            <IncidentLocationMap latitude={item.latitude} longitude={item.longitude} operationalIncidentId={item.id} />
+                            <FalseReportRetentionNotice incident={item.raw} />
+                            <IncidentLocationMap latitude={item.latitude} longitude={item.longitude} operationalIncidentId={item.id} reviewIncident={item.raw} onReviewChanged={loadIncidents} />
 
                             {/* Photo Attachment */}
                             {item.photoUrl && (
@@ -328,7 +352,6 @@ export default function DrrmoAdminDashboard() {
                             )}
 
                             {/* Action Buttons */}
-                            <IncidentReviewActions incident={item.raw} onChanged={loadIncidents} />
                             <div className="flex gap-3 pt-2">
                                 {item.status === 'active' && (
                                     <>
@@ -370,13 +393,13 @@ export default function DrrmoAdminDashboard() {
                         </div>
                     ))}
 
-                    {currentTabIncidents.length === 0 && (
+                    {currentTabIncidents.length === 0 && !listError && (
                         <div className="text-center text-gray-500 py-10 bg-white rounded-xl shadow-sm border border-gray-200">
-                            {isLoading ? <LoadingPlaceholder label="Loading live hazard emergencies..." layout="panel" /> : `No ${activeTab.toLowerCase()} hazard emergencies at the moment.`}
+                            {isLoading ? <LoadingPlaceholder label="Loading live hazard emergencies..." layout="panel" /> : activeTab === 'False Reports' ? 'No whole-confirmed false reports in this department.' : `No ${activeTab.toLowerCase()} hazard emergencies at the moment.`}
                         </div>
                     )}
                 </div>
-                <IncidentPager page={page} pages={pagination.pages} total={pagination.total} pageSize={DEPARTMENT_INCIDENT_PAGE_SIZE} onPageChange={setPage} hideWhenSinglePage />
+                <IncidentPager page={page} pages={pagination.pages} total={pagination.total} pageSize={DEPARTMENT_INCIDENT_PAGE_SIZE} onPageChange={next => { selectedView.current = `${activeTab}:${next}`; setPage(next); setEmergencies([]); setIsLoading(true); }} hideWhenSinglePage />
             </main>
         </div>
     );
