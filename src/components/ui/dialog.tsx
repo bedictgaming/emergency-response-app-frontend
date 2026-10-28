@@ -103,10 +103,12 @@ export function DialogContent({
         }
       }
     };
-    // Claim Escape before a focused background map's document-level listener.
-    // A portal can paint before its scheduled initial-focus frame runs.
+    // Claim only stale background focus before Leaflet's document listener.
+    // Keys inside the dialog keep normal bubbling (e.g. an embedded popup
+    // can consume Escape without also closing its surrounding map dialog).
     const captureEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeOnEscape(event);
+      if (event.key === 'Escape' && event.target instanceof Node
+        && contentRef.current && !contentRef.current.contains(event.target)) closeOnEscape(event);
     };
     window.addEventListener('keydown', captureEscape, true);
     window.addEventListener('keydown', closeOnEscape);
