@@ -91,7 +91,12 @@ test('wave footer stays landing-only and reduced motion is static', async ({ pag
  await mock(page);
  await page.goto('/?session=manual');
  const footer = page.locator('[data-wave-footer]');
- await footer.scrollIntoViewIfNeeded();
+ // Hydration replaces the prerendered Suspense fallback footer. Re-resolve
+ // after that detach; require the same visible footer within the normal 5 s.
+ await expect(async () => {
+   await footer.scrollIntoViewIfNeeded();
+   await expect(footer).toBeInViewport();
+ }).toPass({ timeout: 5000 });
  expect(await footer.locator('svg[viewBox="0 0 3600 500"]').evaluate(element => getComputedStyle(element).animationName)).toBe('none');
  await page.goto('/login?session=manual');
  await expect(page.locator('[data-wave-footer]')).toHaveCount(0);

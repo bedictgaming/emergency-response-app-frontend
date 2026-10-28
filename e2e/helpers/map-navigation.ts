@@ -17,6 +17,9 @@ export async function expectPinOnRadius(map: Locator) {
 
 export async function expectZoomAndPan(page: Page, map: Locator) {
   const circle = map.locator('.incident-reference-radius');
+  // A caller may have just zoomed: sample only its completed scale, not an
+  // intermediate CSS frame that can never equal the later zoom-out result.
+  await expect(map.locator('.leaflet-map-pane')).not.toHaveClass(/leaflet-zoom-anim/);
   await expectPinOnRadius(map);
   const before = (await circle.boundingBox())!.width;
   await map.getByRole('button', { name: 'Zoom in', exact: true }).click();
