@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useRef, type ReactNode } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, Polygon, Polyline, Circle, CircleMarker, Pane, useMapEvents, useMap } from 'react-leaflet';
+import { TileLayer, Marker, Popup, Tooltip, Polygon, Polyline, Circle, CircleMarker, Pane, useMapEvents, useMap } from 'react-leaflet';
+import { LifecycleMapContainer as MapContainer } from '@/components/shared/LifecycleMapContainer';
 import { divIcon, Popup as LeafletPopup, type Marker as LeafletMarker, type TileLayer as LeafletTileLayer } from 'leaflet';
 import { Ban, Crosshair, MapPinCheck } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
@@ -89,19 +90,24 @@ function NearbyMapPopup({ pin, onClose, children }: { pin: NearbyMapPin; onClose
         if (popup.current) { popup.current.options.maxWidth = width; popup.current.update(); }
     }, [width]);
     useEffect(() => {
+        let active = true;
         const resize = new ResizeObserver(() => {
+            if (!active || !map.getContainer().isConnected || !map.getPane('mapPane')) return;
             map.invalidateSize({ pan: true, animate: false, debounceMoveend: true });
             setWidth(Math.max(160, Math.min(340, map.getSize().x - 64)));
             popup.current?.update();
         });
         resize.observe(map.getContainer());
-        return () => resize.disconnect();
+        return () => { active = false; resize.disconnect(); };
     }, [map]);
     useEffect(() => {
         // Async report/photo/form changes must update Leaflet's layout too.
-        const resize = new ResizeObserver(() => popup.current?.update());
+        let active = true;
+        const resize = new ResizeObserver(() => {
+            if (active && popup.current?.getElement()?.isConnected) popup.current.update();
+        });
         if (content) resize.observe(content);
-        return () => resize.disconnect();
+        return () => { active = false; resize.disconnect(); };
     }, [content]);
     return <Popup ref={popup} position={position} className="nearby-report-popup" minWidth={160} maxWidth={width} maxHeight={320}
         autoPanPadding={[16, 24]} closeOnClick={false} eventHandlers={{
@@ -127,9 +133,16 @@ function ObserveMapSize({ reviewOpen }: { reviewOpen: boolean }) {
     useEffect(() => {
         // Keep the geographic centre stable while the card changes height;
         // pan:false leaves the pin against the compact viewport's bottom edge.
-        const observer = new ResizeObserver(() => map.invalidateSize({ pan: true, animate: false, debounceMoveend: true }));
+        let active = true;
+        const observer = new ResizeObserver(() => {
+            // A resize already queued before disconnect can arrive after the
+            // detached Leaflet owner has disposed its panes. Do no stale work.
+            if (active && map.getContainer().isConnected && map.getPane('mapPane')) {
+                map.invalidateSize({ pan: true, animate: false, debounceMoveend: true });
+            }
+        });
         observer.observe(map.getContainer());
-        return () => observer.disconnect();
+        return () => { active = false; observer.disconnect(); };
     }, [map]);
     return null;
 }
