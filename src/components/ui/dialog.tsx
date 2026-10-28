@@ -73,7 +73,10 @@ export function DialogContent({
       if (dialogs[dialogs.length - 1] !== contentRef.current) return;
       if (event.key === 'Escape') {
         event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
         onOpenChangeRef.current(false);
+        return;
       }
 
       if (event.key === 'Tab' && contentRef.current) {
@@ -100,6 +103,12 @@ export function DialogContent({
         }
       }
     };
+    // Claim Escape before a focused background map's document-level listener.
+    // A portal can paint before its scheduled initial-focus frame runs.
+    const captureEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeOnEscape(event);
+    };
+    window.addEventListener('keydown', captureEscape, true);
     window.addEventListener('keydown', closeOnEscape);
 
     const focusFrame = requestAnimationFrame(() => {
@@ -110,6 +119,7 @@ export function DialogContent({
     return () => {
       cancelAnimationFrame(focusFrame);
       document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', captureEscape, true);
       window.removeEventListener('keydown', closeOnEscape);
       previouslyFocusedRef.current?.focus();
     };

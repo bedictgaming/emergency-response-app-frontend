@@ -314,6 +314,9 @@ for (const width of [1280, 390]) test(`anchored report photo returns to its popu
   await popup.getByRole('button', { name: 'View attached photo', exact: true }).click();
   const photo = page.getByRole('dialog', { name: 'Report photo', exact: true }); await expect(photo).toBeVisible();
   await expect(photo.getByRole('img')).toBeVisible();
+  // Reproduce the portal's pre-focus-frame edge: Leaflet still owns focus and
+  // its document key handler. Only the top photo may consume this Escape.
+  await map.locator('.leaflet-container').focus();
   await page.keyboard.press('Escape'); await expect(photo).toHaveCount(0);
   await expect(popup).toBeVisible();
   await popup.getByRole('button', { name: 'Acknowledge report', exact: true }).scrollIntoViewIfNeeded();
